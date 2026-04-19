@@ -1,0 +1,199 @@
+<ion-content>
+  <div class="finance-dashboard">
+    <section class="hero">
+      <div class="year-rail" aria-label="Available years">
+        @for (year of availableYears; track year) {
+          <button
+            type="button"
+            class="year-pill"
+            [class.active]="selectedYear === year"
+            [class.positive-year]="getYearBalance(year) >= 0"
+            [class.negative-year]="getYearBalance(year) < 0"
+            (click)="onYearChange(year)"
+          >
+            {{ year }}
+          </button>
+        }
+      </div>
+    </section>
+
+    @if (isLoading) {
+      <div class="state-block">
+        <mat-spinner diameter="40"></mat-spinner>
+        <p>Loading finance data...</p>
+      </div>
+    } @else if (errorMessage) {
+      <div class="state-block error">
+        <p>{{ errorMessage }}</p>
+      </div>
+    } @else {
+      <section class="months-grid">
+        @for (month of monthSummaries; track month.index) {
+          <button
+            type="button"
+            class="month-card"
+            [class.active]="selectedMonthIndex === month.index"
+            [class.positive-month]="month.balance >= 0"
+            [class.negative-month]="month.balance < 0"
+            (click)="selectMonth(month.index)"
+          >
+            <div class="month-card-layout">
+              <div class="month-card-top">
+                <div class="month-card-left chart-panel">
+                  <div
+                    class="expense-donut"
+                    [style.background]="month.expenseChartBackground"
+                    aria-hidden="true"
+                  >
+                    <span class="expense-donut-center"></span>
+                  </div>
+                </div>
+
+                <div class="month-card-right balance-panel">
+                  <span class="month-name">{{ month.label }}</span>
+                  <span class="month-figure income">
+                    <span class="figure-label">
+                      <ion-icon name="arrow-up-circle-outline"></ion-icon>
+                      Income
+                    </span>
+                    {{ month.income | currency:'EUR':'symbol':'1.2-2' }}
+                  </span>
+                  <span class="month-figure expense">
+                    <span class="figure-label">
+                      <ion-icon name="arrow-down-circle-outline"></ion-icon>
+                      Outcome
+                    </span>
+                    {{ month.outcome | currency:'EUR':'symbol':'1.2-2' }}
+                  </span>
+                  <span class="month-figure balance" [class.negative-balance]="month.balance < 0">
+                    <span class="figure-label">
+                      <ion-icon name="wallet-outline"></ion-icon>
+                      Balance
+                    </span>
+                    {{ month.balance | currency:'EUR':'symbol':'1.2-2' }}
+                  </span>
+                </div>
+              </div>
+
+              <div class="month-card-bottom">
+                <div class="expense-chart">
+                  @for (ledger of month.topExpenseLedgers; track ledger.name) {
+                    <div class="expense-row">
+                      <div class="expense-row-top">
+                        <span class="expense-name">
+                          <span
+                            class="expense-dot"
+                            [style.background]="ledger.color"
+                          ></span>
+                          <span class="expense-percent">{{ ledger.percent | number:'1.0-0' }}%</span>
+                          {{ ledger.name }}
+                        </span>
+                        <span class="expense-value">
+                          {{ ledger.total | currency:'EUR':'symbol':'1.2-2' }}
+                        </span>
+                      </div>
+                    </div>
+                  }
+                </div>
+                <span class="month-meta">
+                  <ion-icon name="swap-vertical-outline"></ion-icon>
+                  {{ month.movements.length }} movements
+                </span>
+              </div>
+            </div>
+          </button>
+        }
+      </section>
+
+      @if (selectedMonthIndex !== null) {
+        <div #resultsAnchor></div>
+        <mat-card class="table-card">
+          <div class="table-header">
+            <div>
+              <p class="eyebrow">Transactions</p>
+              <h2>{{ selectedMonthLabel }} {{ selectedYear }}</h2>
+            </div>
+          </div>
+
+          @if (filteredTransactions.length === 0) {
+            <div class="state-block">
+              <p>No movements found for this month.</p>
+            </div>
+          } @else {
+            <div class="table-wrapper">
+              <table
+                mat-table
+                [dataSource]="filteredTransactions"
+                [trackBy]="trackById"
+                class="finance-table"
+              >
+                <ng-container matColumnDef="datetime">
+                  <th mat-header-cell *matHeaderCellDef>Date</th>
+                  <td mat-cell *matCellDef="let row">{{ row.datetime | date:'dd/MM/yyyy' }}</td>
+                </ng-container>
+
+                <ng-container matColumnDef="description">
+                  <th mat-header-cell *matHeaderCellDef>Description</th>
+                  <td mat-cell *matCellDef="let row">{{ row.description }}</td>
+                </ng-container>
+
+                <ng-container matColumnDef="ledger">
+                  <th mat-header-cell *matHeaderCellDef>Ledger</th>
+                  <td mat-cell *matCellDef="let row">{{ row.ledger_account }}</td>
+                </ng-container>
+
+                <ng-container matColumnDef="account">
+                  <th mat-header-cell *matHeaderCellDef>Account</th>
+                  <td mat-cell *matCellDef="let row">{{ row.moviment_account }}</td>
+                </ng-container>
+
+                <ng-container matColumnDef="status">
+                  <th mat-header-cell *matHeaderCellDef>Status</th>
+                  <td mat-cell *matCellDef="let row">{{ row.status }}</td>
+                </ng-container>
+
+                <ng-container matColumnDef="value">
+                  <th mat-header-cell *matHeaderCellDef>Value</th>
+                  <td mat-cell *matCellDef="let row" [class.negative]="+row.value < 0">
+                    {{ +row.value | currency:'EUR':'symbol':'1.2-2' }}
+                  </td>
+                </ng-container>
+
+                <ng-container matColumnDef="cash">
+                  <th mat-header-cell *matHeaderCellDef>Cash</th>
+                  <td mat-cell *matCellDef="let row">
+                    {{ row.balances.Cash | currency:'EUR':'symbol':'1.2-2' }}
+                  </td>
+                </ng-container>
+
+                <ng-container matColumnDef="debito">
+                  <th mat-header-cell *matHeaderCellDef>Debito</th>
+                  <td mat-cell *matCellDef="let row">
+                    {{ row.balances.Debito | currency:'EUR':'symbol':'1.2-2' }}
+                  </td>
+                </ng-container>
+
+                <ng-container matColumnDef="credito">
+                  <th mat-header-cell *matHeaderCellDef>Credito</th>
+                  <td mat-cell *matCellDef="let row">
+                    {{ row.balances.Credito | currency:'EUR':'symbol':'1.2-2' }}
+                  </td>
+                </ng-container>
+
+                <ng-container matColumnDef="openBank">
+                  <th mat-header-cell *matHeaderCellDef>OpenBank</th>
+                  <td mat-cell *matCellDef="let row">
+                    {{ row.balances.OpenBank | currency:'EUR':'symbol':'1.2-2' }}
+                  </td>
+                </ng-container>
+
+                <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+                <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+              </table>
+            </div>
+          }
+        </mat-card>
+      }
+    }
+  </div>
+</ion-content>
