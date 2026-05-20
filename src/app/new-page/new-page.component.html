@@ -89,11 +89,31 @@
 
     <label class="form-field">
       <span>Description</span>
-      <textarea formControlName="description" rows="4"></textarea>
+      <textarea formControlName="description" rows="2"></textarea>
     </label>
 
-    <label class="form-field">
+    <label class="form-field value-field">
       <span>Value</span>
+      <div class="value-sign-controls" aria-label="Value sign">
+        <button
+          type="button"
+          class="sign-button negative"
+          [class.active]="valueSign === -1"
+          [attr.aria-pressed]="valueSign === -1"
+          (click)="setValueSign(-1)"
+        >
+          -
+        </button>
+        <button
+          type="button"
+          class="sign-button positive"
+          [class.active]="valueSign === 1"
+          [attr.aria-pressed]="valueSign === 1"
+          (click)="setValueSign(1)"
+        >
+          +
+        </button>
+      </div>
       <input type="number" formControlName="value" step="0.01" inputmode="decimal" />
     </label>
 

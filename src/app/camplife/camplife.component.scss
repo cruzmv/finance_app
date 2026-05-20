@@ -1,0 +1,34 @@
+.route-loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(248, 250, 247, 0.72);
+  backdrop-filter: blur(8px);
+  pointer-events: all;
+}
+
+.route-loading-panel {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  min-width: 180px;
+  padding: 22px 20px;
+  border: 1px solid rgba(20, 51, 41, 0.1);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 20px 44px rgba(20, 51, 41, 0.12);
+  color: #143329;
+  font-size: 0.82rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.route-loading-panel ion-spinner {
+  width: 34px;
+  height: 34px;
+  color: #2c7a5d;
+}

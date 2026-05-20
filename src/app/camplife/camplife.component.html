@@ -1,4 +1,13 @@
 <ion-tabs>
+  @if (isFinanceRouteLoading) {
+    <div class="route-loading-overlay" role="status" aria-live="polite">
+      <div class="route-loading-panel">
+        <ion-spinner name="crescent"></ion-spinner>
+        <span>Loading finance...</span>
+      </div>
+    </div>
+  }
+
   <ion-tab-bar slot="bottom">
     <ion-tab-button tab="dashboard">
       <ion-icon name="speedometer-outline"></ion-icon>

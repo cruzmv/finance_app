@@ -28,6 +28,7 @@ h1 {
 .icon-button,
 .save-button,
 .scan-button,
+.sign-button,
 .option-pill {
   border: 0;
   -webkit-tap-highlight-color: transparent;
@@ -131,8 +132,8 @@ input {
 
 textarea {
   resize: vertical;
-  min-height: 110px;
-  padding: 14px;
+  min-height: 56px;
+  padding: 10px 14px;
   line-height: 1.35;
 }
 
@@ -146,12 +147,24 @@ textarea:focus {
   display: flex;
   gap: 8px;
   overflow-x: auto;
-  padding-bottom: 2px;
-  scrollbar-width: none;
+  padding-bottom: 9px;
+  scrollbar-color: rgba(44, 122, 93, 0.42) rgba(44, 122, 93, 0.08);
+  scrollbar-width: thin;
 }
 
 .pill-list::-webkit-scrollbar {
-  display: none;
+  display: block;
+  height: 6px;
+}
+
+.pill-list::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: rgba(44, 122, 93, 0.08);
+}
+
+.pill-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(44, 122, 93, 0.42);
 }
 
 .option-pill {
@@ -168,6 +181,40 @@ textarea:focus {
 .option-pill.active {
   background: var(--form-accent);
   color: #f7fbf8;
+}
+
+.value-field {
+  gap: 10px;
+}
+
+.value-sign-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.sign-button {
+  display: grid;
+  place-items: center;
+  min-height: 38px;
+  border: 1px solid var(--form-border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--form-muted);
+  font-size: 1.2rem;
+  font-weight: 900;
+}
+
+.sign-button.negative.active {
+  border-color: rgba(181, 82, 59, 0.28);
+  background: rgba(181, 82, 59, 0.14);
+  color: var(--form-expense);
+}
+
+.sign-button.positive.active {
+  border-color: rgba(44, 122, 93, 0.28);
+  background: rgba(44, 122, 93, 0.14);
+  color: var(--form-accent);
 }
 
 .save-button {

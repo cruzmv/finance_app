@@ -9,83 +9,74 @@
         <p>{{ errorMessage }}</p>
       </section>
     } @else {
-      <section class="overview-panel">
-        <div class="overview-copy">
-          <p class="eyebrow">Camplife</p>
-          <h1>Finance dashboard</h1>
-        </div>
-
-        <div class="savings-total">
-          <span>Current savings</span>
-          <strong>{{ currentSavings | currency:'EUR':'symbol':'1.2-2' }}</strong>
-          <small [class.negative]="savingsDeltaTone === 'negative'">
-            {{ savingsDelta >= 0 ? '+' : '' }}{{ savingsDelta | currency:'EUR':'symbol':'1.2-2' }}
-          </small>
-        </div>
-      </section>
-
-      <section class="chart-panel">
+      <section class="savings-panel">
         <div class="panel-heading">
-          <h2>Savings balance</h2>
-          <span>Past / current / future</span>
+          <button type="button" class="year-button" aria-label="Previous year" (click)="moveYear(-1)">
+            <span aria-hidden="true">&lt;</span>
+          </button>
+          <div>
+            <p class="eyebrow">Savings</p>
+            <h1>{{ focusedYear }}</h1>
+          </div>
+          <button type="button" class="year-button" aria-label="Next year" (click)="moveYear(1)">
+            <span aria-hidden="true">&gt;</span>
+          </button>
         </div>
 
-        <div class="savings-chart" aria-label="Savings balance by month">
-          @for (point of monthlySavings; track point.monthKey) {
-            <div class="savings-bar-item" [class.current-month]="point.isCurrentMonth">
-              <div class="savings-bar-track">
-                <span class="savings-bar" [style.height]="point.heightPercent + '%'"></span>
-              </div>
-              <span class="savings-bar-value">{{ point.savings | currency:'EUR':'symbol':'1.0-0' }}</span>
-              <span class="savings-bar-label">{{ point.label }}</span>
-            </div>
-          }
+        <div class="savings-results">
+          <div class="savings-result">
+            <span>{{ savingsSummary.lastYearLabel }}</span>
+            <strong>{{ savingsSummary.lastYearTotal | currency:'EUR':'symbol':'1.2-2' }}</strong>
+          </div>
+          <div class="savings-result focus">
+            <span>{{ savingsSummary.focusYearLabel }}</span>
+            <strong>{{ savingsSummary.focusYearTotal | currency:'EUR':'symbol':'1.2-2' }}</strong>
+          </div>
+          <div class="savings-result" [class.negative]="savingsSummary.balance < 0">
+            <span>Balance</span>
+            <strong>{{ savingsSummary.balance | currency:'EUR':'symbol':'1.2-2' }}</strong>
+          </div>
         </div>
       </section>
 
-      <section class="insight-grid">
-        <div class="insight-panel">
-          <div class="panel-heading">
-            <h2>Top ledgers</h2>
-            <span>By expense</span>
-          </div>
-
-          <div class="ledger-list">
-            @for (ledger of topLedgerAccounts; track ledger.name) {
-              <div class="ledger-row">
-                <div class="ledger-row-top">
-                  <span>{{ ledger.name }}</span>
-                  <strong>{{ ledger.total | currency:'EUR':'symbol':'1.2-2' }}</strong>
-                </div>
-                <div class="ledger-bar-track">
-                  <span class="ledger-bar" [style.width]="ledger.percent + '%'"></span>
-                </div>
-              </div>
-            }
+      <section class="ledger-panel">
+        <div class="panel-heading ledger-heading">
+          <div>
+            <p class="eyebrow">Ledger accounts</p>
+            <h2>{{ focusedYear }}</h2>
           </div>
         </div>
 
-        <div class="insight-panel month-flow-panel">
-          <div class="panel-heading">
-            <h2>This month</h2>
-            <span>Income vs outcome</span>
-          </div>
+        <div class="ledger-table-scroll" aria-label="Ledger accounts by month">
+          <div class="ledger-grid">
+            <div class="ledger-cell ledger-head ledger-name-head">Ledger</div>
+            @for (month of ledgerMonths; track month.monthKey) {
+              <div class="ledger-cell ledger-head month-head">{{ month.label }}</div>
+            }
 
-          <div class="flow-row income-flow">
-            <span>Income</span>
-            <strong>{{ monthlyIncome | currency:'EUR':'symbol':'1.2-2' }}</strong>
-          </div>
-          <div class="flow-row outcome-flow">
-            <span>Outcome</span>
-            <strong>{{ monthlyOutcome | currency:'EUR':'symbol':'1.2-2' }}</strong>
-          </div>
-          <div class="flow-row savings-flow">
-            <span>Savings</span>
-            <strong>{{ monthlySavingsChange | currency:'EUR':'symbol':'1.2-2' }}</strong>
-          </div>
-          <div class="flow-row balance-flow">
-            <span>Result</span>
-            <strong>{{ monthlyIncome - monthlyOutcome | currency:'EUR':'symbol':'1.2-2' }}</strong>
+            @for (row of ledgerRows; track row.name) {
+              <div
+                class="ledger-cell ledger-name"
+                role="button"
+                tabindex="0"
+                [class.selected-ledger-row]="selectedLedgerName === row.name"
+                [attr.aria-pressed]="selectedLedgerName === row.name"
+                (click)="toggleLedgerSelection(row.name)"
+                (keydown.enter)="toggleLedgerSelection(row.name)"
+                (keydown.space)="$event.preventDefault(); toggleLedgerSelection(row.name)"
+              >
+                {{ row.name }}
+              </div>
+              @for (balance of row.balances; track $index) {
+                <div
+                  class="ledger-cell ledger-amount"
+                  [class.negative]="balance < 0"
+                  [class.selected-ledger-row]="selectedLedgerName === row.name"
+                >
+                  {{ balance | number:'1.2-2' }}
+                </div>
+              }
+            }
           </div>
         </div>
       </section>

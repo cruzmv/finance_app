@@ -1,5 +1,4 @@
 import { CommonModule, CurrencyPipe, DatePipe } from '@angular/common';
-import { HttpClient } from '@angular/common/http';
 import { Component, ElementRef, OnInit, ViewChild, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
@@ -16,32 +15,11 @@ import {
   walletOutline,
 } from 'ionicons/icons';
 import { finalize } from 'rxjs';
-import { environment } from '../../environments/environment';
-
-type BalanceSnapshot = Record<string, number>;
+import { BalanceRow, BalanceSnapshot, FinanceDataService } from '../finance-data.service';
 
 interface BalanceEntry {
   name: string;
   value: number;
-}
-
-interface BalanceRow {
-  id: number;
-  datetime: string;
-  description: string;
-  ledger_account_id: number;
-  ledger_account: string;
-  moviment_account_id: number;
-  moviment_account: string;
-  status_id: number;
-  status: string;
-  value: string;
-  balances: BalanceSnapshot;
-}
-
-interface BalanceResponse {
-  message: string;
-  data: BalanceRow[];
 }
 
 interface MonthSummary {
@@ -50,6 +28,9 @@ interface MonthSummary {
   income: number;
   outcome: number;
   balance: number;
+  previousSavings: number;
+  currentSavings: number;
+  totalSaved: number;
   accountBalances: BalanceEntry[];
   topExpenseLedgers: ExpenseLedgerSummary[];
   expenseChartBackground: string;
@@ -108,9 +89,8 @@ interface FinanceFocusTarget {
   ],
 })
 export class FinancePageComponent implements OnInit {
-  private readonly http = inject(HttpClient);
+  private readonly financeData = inject(FinanceDataService);
   private readonly router = inject(Router);
-  private readonly apiBaseUrl = environment.apiBaseUrl;
   private readonly financeFocusStorageKey = 'financeFocusTarget';
   private readonly expenseChartColors = ['#d94841', '#f07c4a', '#e0b43b'];
   private readonly statusToneClasses = ['status-tone-red', 'status-tone-amber', 'status-tone-orange'];
@@ -131,8 +111,8 @@ export class FinancePageComponent implements OnInit {
   ];
   @ViewChild(IonContent) private content?: IonContent;
   @ViewChild('resultsAnchor') private resultsAnchor?: ElementRef<HTMLElement>;
+  @ViewChild('jumpbarMonthList') private jumpbarMonthList?: ElementRef<HTMLElement>;
 
-  protected readonly endpoint = `${this.apiBaseUrl}/get_balance`;
   protected transactions: BalanceRow[] = [];
   protected filteredTransactions: BalanceRow[] = [];
   protected availableYears: number[] = [];
@@ -235,11 +215,11 @@ export class FinancePageComponent implements OnInit {
     this.expandedDayKeys.add(dayKey);
   }
 
-  protected isMonthExpanded(monthKey: string): boolean {
+  protected isMonthMovementsExpanded(monthKey: string): boolean {
     return this.expandedMonthKeys.has(monthKey);
   }
 
-  protected toggleMonthBalances(monthKey: string): void {
+  protected toggleMonthMovements(monthKey: string): void {
     if (this.expandedMonthKeys.has(monthKey)) {
       this.expandedMonthKeys.delete(monthKey);
       return;
@@ -294,10 +274,11 @@ export class FinancePageComponent implements OnInit {
 
     const focusTarget = this.buildFocusTargetFromRow(row);
 
-    this.http.post(`${this.apiBaseUrl}/delete_moviment`, {
-      id: row.id,
-    }).subscribe({
-      next: () => this.loadBalances(focusTarget),
+    this.financeData.deleteMoviment(row.id).subscribe({
+      next: () => {
+        this.transactions = this.transactions.filter((movement) => movement.id !== row.id);
+        this.rebuildFinanceState(focusTarget);
+      },
       error: () => {
         this.errorMessage = 'Unable to delete movement.';
       },
@@ -410,23 +391,11 @@ export class FinancePageComponent implements OnInit {
     this.errorMessage = '';
     this.pendingFocusTarget = focusTarget ?? null;
 
-    this.http
-      .get<BalanceResponse>(this.endpoint)
+    this.financeData
+      .getBalances()
       .pipe(finalize(() => (this.isLoading = false)))
       .subscribe({
-        next: ({ data }) => {
-          this.transactions = data;
-          this.availableYears = this.extractAvailableYears(data);
-          this.yearBalances = this.buildYearBalances(data);
-          this.selectedYear = this.availableYears.length > 0 ? this.availableYears[0] : null;
-          this.buildMonthSummaries();
-          this.buildTimelineMonths();
-          this.selectedMonthIndex = null;
-          this.filteredTransactions = [];
-          this.filteredTransactionGroups = [];
-          this.hasLoadedBalances = true;
-          this.restoreTimelineFocus(this.pendingFocusTarget ?? this.buildInitialFocusTarget());
-        },
+        next: (data) => this.rebuildFinanceState(this.pendingFocusTarget ?? this.buildInitialFocusTarget(), data),
         error: () => {
           this.errorMessage =
             'Unable to load finance data from Server.';
@@ -443,12 +412,14 @@ export class FinancePageComponent implements OnInit {
 
     target.scrollIntoView({ behavior: 'smooth', block: 'start' });
     this.activeMonthKey = monthKey;
+    this.ensureActiveJumpbarItemVisible();
   }
 
   private restoreTimelineFocus(focusTarget: FinanceFocusTarget): void {
     setTimeout(() => {
       requestAnimationFrame(() => {
         const resolvedTarget = this.getTimelineFocusTarget(focusTarget);
+        this.expandFocusMonth(resolvedTarget);
         void this.scrollToFocusTarget(resolvedTarget);
       });
     }, 80);
@@ -494,6 +465,9 @@ export class FinancePageComponent implements OnInit {
   }
 
   private async scrollToFocusTarget(focusTarget: FinanceFocusTarget): Promise<void> {
+    this.expandFocusMonth(focusTarget);
+    await this.waitForRender();
+
     const elementId =
       focusTarget.movementId ? this.getMovementElementId(focusTarget.movementId) :
       focusTarget.dayKey ? this.getDayElementId(focusTarget.dayKey) :
@@ -528,6 +502,7 @@ export class FinancePageComponent implements OnInit {
 
     if (activeMonth?.dataset['monthKey']) {
       this.activeMonthKey = activeMonth.dataset['monthKey'];
+      this.ensureActiveJumpbarItemVisible();
     }
 
     if (activeDay?.dataset['dayKey']) {
@@ -541,6 +516,50 @@ export class FinancePageComponent implements OnInit {
 
     this.activeMonthKey = focusTarget.monthKey ?? monthElement?.dataset['monthKey'] ?? this.activeMonthKey;
     this.activeDayKey = focusTarget.dayKey ?? dayElement?.dataset['dayKey'] ?? this.activeDayKey;
+    this.ensureActiveJumpbarItemVisible();
+  }
+
+  private ensureActiveJumpbarItemVisible(): void {
+    requestAnimationFrame(() => {
+      const activeButton = this.jumpbarMonthList?.nativeElement.querySelector<HTMLElement>(
+        `[data-month-key="${this.activeMonthKey}"]`,
+      );
+
+      activeButton?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    });
+  }
+
+  private rebuildFinanceState(focusTarget: FinanceFocusTarget, data = this.transactions): void {
+    this.transactions = data;
+    this.availableYears = this.extractAvailableYears(data);
+    this.yearBalances = this.buildYearBalances(data);
+    this.selectedYear = this.availableYears.length > 0 ? this.availableYears[0] : null;
+    this.buildMonthSummaries();
+    this.buildTimelineMonths();
+    this.selectedMonthIndex = null;
+    this.filteredTransactions = [];
+    this.filteredTransactionGroups = [];
+    this.hasLoadedBalances = true;
+    this.initializeExpandedMonths(focusTarget);
+    this.restoreTimelineFocus(focusTarget);
+  }
+
+  private initializeExpandedMonths(focusTarget: FinanceFocusTarget): void {
+    const resolvedTarget = this.getTimelineFocusTarget(focusTarget);
+    const monthKey = resolvedTarget.monthKey ?? resolvedTarget.dayKey?.slice(0, 7);
+    this.expandedMonthKeys = monthKey ? new Set([monthKey]) : new Set<string>();
+  }
+
+  private expandFocusMonth(focusTarget: FinanceFocusTarget): void {
+    const monthKey = focusTarget.monthKey ?? focusTarget.dayKey?.slice(0, 7);
+
+    if (monthKey) {
+      this.expandedMonthKeys.add(monthKey);
+    }
+  }
+
+  private waitForRender(): Promise<void> {
+    return new Promise((resolve) => requestAnimationFrame(() => resolve()));
   }
 
   private getClosestTimelineElement(elements: HTMLElement[], markerTop: number): HTMLElement | null {
@@ -744,6 +763,7 @@ export class FinancePageComponent implements OnInit {
         return value < 0 ? sum + Math.abs(value) : sum;
       }, 0);
       const accountBalances = this.getLatestBalanceEntries(movements);
+      const savings = this.getMonthSavingsTotals(this.selectedYear ?? new Date().getUTCFullYear(), index);
 
       const topExpenseLedgers = this.buildTopExpenseLedgers(movements);
       const expenseChartBackground = this.buildExpenseChartBackground(topExpenseLedgers);
@@ -754,6 +774,9 @@ export class FinancePageComponent implements OnInit {
         income,
         outcome,
         balance: income - outcome,
+        previousSavings: savings.previousSavings,
+        currentSavings: savings.currentSavings,
+        totalSaved: savings.totalSaved,
         accountBalances,
         topExpenseLedgers,
         expenseChartBackground,
@@ -795,6 +818,7 @@ export class FinancePageComponent implements OnInit {
         }, 0);
         const topExpenseLedgers = this.buildTopExpenseLedgers(movements);
         const accountBalances = this.getLatestBalanceEntries(movements);
+        const savings = this.getMonthSavingsTotals(year, month - 1);
 
         return {
           monthKey,
@@ -805,6 +829,9 @@ export class FinancePageComponent implements OnInit {
             income,
             outcome,
             balance: income - outcome,
+            previousSavings: savings.previousSavings,
+            currentSavings: savings.currentSavings,
+            totalSaved: savings.totalSaved,
             accountBalances,
             topExpenseLedgers,
             expenseChartBackground: this.buildExpenseChartBackground(topExpenseLedgers),
@@ -820,6 +847,53 @@ export class FinancePageComponent implements OnInit {
       .sort((left, right) => new Date(right.datetime).getTime() - new Date(left.datetime).getTime())[0];
 
     return this.getBalanceEntries(latestMovement?.balances);
+  }
+
+  private getMonthSavingsTotals(year: number, monthIndex: number): {
+    previousSavings: number;
+    currentSavings: number;
+    totalSaved: number;
+  } {
+    const previousMonthEnd = this.getMonthEnd(new Date(Date.UTC(year, monthIndex - 1, 1)));
+    const currentMonthEnd = this.getMonthEnd(new Date(Date.UTC(year, monthIndex, 1)));
+    const previousSavings = this.getPositiveBalanceTotalFromSnapshot(
+      this.getLatestRowAtOrBefore(previousMonthEnd)?.balances,
+    );
+    const currentSavings = this.getPositiveBalanceTotalFromSnapshot(
+      this.getLatestRowAtOrBefore(currentMonthEnd)?.balances,
+    );
+
+    return {
+      previousSavings,
+      currentSavings,
+      totalSaved: currentSavings - previousSavings,
+    };
+  }
+
+  private getLatestRowAtOrBefore(targetDate: Date): BalanceRow | undefined {
+    const targetTime = targetDate.getTime();
+
+    return [...this.transactions]
+      .sort((left, right) => new Date(right.datetime).getTime() - new Date(left.datetime).getTime())
+      .find((row) => new Date(row.datetime).getTime() <= targetTime);
+  }
+
+  private getMonthEnd(date: Date): Date {
+    return new Date(Date.UTC(
+      date.getUTCFullYear(),
+      date.getUTCMonth() + 1,
+      0,
+      23,
+      59,
+      59,
+      999,
+    ));
+  }
+
+  private getPositiveBalanceTotalFromSnapshot(balances: BalanceSnapshot | null | undefined): number {
+    return this.getBalanceEntries(balances).reduce((total, balance) => {
+      return balance.value > 0 ? total + balance.value : total;
+    }, 0);
   }
 
   private buildTopExpenseLedgers(movements: BalanceRow[]): ExpenseLedgerSummary[] {

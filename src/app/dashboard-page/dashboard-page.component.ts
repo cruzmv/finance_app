@@ -1,39 +1,25 @@
 import { CommonModule, CurrencyPipe } from '@angular/common';
-import { HttpClient } from '@angular/common/http';
 import { Component, OnInit, inject } from '@angular/core';
 import { IonContent } from '@ionic/angular/standalone';
 import { finalize } from 'rxjs';
-import { environment } from '../../environments/environment';
+import { BalanceRow, BalanceSnapshot, FinanceDataService } from '../finance-data.service';
 
-type BalanceSnapshot = Record<string, number>;
-
-interface BalanceRow {
-  id: number;
-  datetime: string;
-  description: string;
-  ledger_account: string;
-  moviment_account: string;
-  status: string;
-  value: string;
-  balances: BalanceSnapshot;
+interface SavingsSummary {
+  lastYearLabel: string;
+  focusYearLabel: string;
+  lastYearTotal: number;
+  focusYearTotal: number;
+  balance: number;
 }
 
-interface BalanceResponse {
-  data: BalanceRow[];
-}
-
-interface SavingsPoint {
+interface LedgerMonth {
   monthKey: string;
   label: string;
-  savings: number;
-  heightPercent: number;
-  isCurrentMonth: boolean;
 }
 
-interface LedgerSummary {
+interface LedgerAccountRow {
   name: string;
-  total: number;
-  percent: number;
+  balances: number[];
 }
 
 @Component({
@@ -43,36 +29,54 @@ interface LedgerSummary {
   imports: [CommonModule, IonContent, CurrencyPipe],
 })
 export class DashboardPageComponent implements OnInit {
-  private readonly http = inject(HttpClient);
-  private readonly apiBaseUrl = environment.apiBaseUrl;
+  private readonly financeData = inject(FinanceDataService);
+  private readonly monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
   protected isLoading = false;
   protected errorMessage = '';
-  protected currentSavings = 0;
-  protected savingsDelta = 0;
-  protected monthlySavings: SavingsPoint[] = [];
-  protected topLedgerAccounts: LedgerSummary[] = [];
-  protected monthlyIncome = 0;
-  protected monthlyOutcome = 0;
-  protected monthlySavingsChange = 0;
+  protected focusedYear = new Date().getUTCFullYear();
+  protected savingsSummary: SavingsSummary = {
+    lastYearLabel: '',
+    focusYearLabel: '',
+    lastYearTotal: 0,
+    focusYearTotal: 0,
+    balance: 0,
+  };
+  protected ledgerMonths: LedgerMonth[] = [];
+  protected ledgerRows: LedgerAccountRow[] = [];
+  protected selectedLedgerName = '';
+  private rows: BalanceRow[] = [];
 
   ngOnInit(): void {
     this.loadDashboard();
   }
 
-  protected get savingsDeltaTone(): string {
-    return this.savingsDelta < 0 ? 'negative' : 'positive';
+  protected trackByLedgerName(_: number, row: LedgerAccountRow): string {
+    return row.name;
+  }
+
+  protected moveYear(offset: number): void {
+    this.focusedYear += offset;
+    this.buildDashboard(this.rows);
+  }
+
+  protected toggleLedgerSelection(name: string): void {
+    this.selectedLedgerName = this.selectedLedgerName === name ? '' : name;
   }
 
   private loadDashboard(): void {
     this.isLoading = true;
     this.errorMessage = '';
 
-    this.http
-      .get<BalanceResponse>(`${this.apiBaseUrl}/get_balance`)
+    this.financeData
+      .getBalances()
       .pipe(finalize(() => (this.isLoading = false)))
       .subscribe({
-        next: ({ data }) => this.buildDashboard(data),
+        next: (data) => {
+          this.rows = data;
+          this.focusedYear = this.getInitialFocusYear(data);
+          this.buildDashboard(data);
+        },
         error: () => {
           this.errorMessage = 'Unable to load dashboard data.';
         },
@@ -82,104 +86,69 @@ export class DashboardPageComponent implements OnInit {
   private buildDashboard(rows: BalanceRow[]): void {
     const validRows = rows
       .filter((row) => !Number.isNaN(new Date(row.datetime).getTime()))
+      .filter((row) => this.isConsumado(row))
       .sort((left, right) => new Date(left.datetime).getTime() - new Date(right.datetime).getTime());
-    const now = new Date();
-    const currentRows = validRows.filter((row) => new Date(row.datetime).getTime() <= now.getTime());
-    const latestRow = currentRows[currentRows.length - 1];
-    const previousRow = currentRows[currentRows.length - 2];
 
-    this.currentSavings = this.getPositiveBalanceTotal(latestRow?.balances);
-    this.savingsDelta = this.currentSavings - this.getPositiveBalanceTotal(previousRow?.balances);
-    this.monthlySavings = this.buildMonthlySavings(validRows, now);
-    this.topLedgerAccounts = this.buildTopLedgerAccounts(validRows);
-    this.buildCurrentMonthTotals(validRows, now);
+    this.savingsSummary = this.buildSavingsSummary(validRows);
+    this.ledgerMonths = this.buildLedgerMonths(this.focusedYear);
+    this.ledgerRows = this.buildLedgerRows(validRows);
   }
 
-  private buildMonthlySavings(rows: BalanceRow[], currentDate: Date): SavingsPoint[] {
-    const points = Array.from({ length: 7 }, (_, index) => {
-      const monthDate = new Date(Date.UTC(
-        currentDate.getUTCFullYear(),
-        currentDate.getUTCMonth() + index - 3,
-        1,
-      ));
-      const monthKey = this.getMonthKey(monthDate);
-      const monthEnd = this.getMonthEnd(monthDate);
-      const row = this.getLatestRowAtOrBefore(rows, monthEnd);
+  private buildSavingsSummary(rows: BalanceRow[]): SavingsSummary {
+    const lastYearTotal = this.getYearEndSavings(rows, this.focusedYear - 1);
+    const focusYearTotal = this.getYearEndSavings(rows, this.focusedYear);
 
-      return {
-        monthKey,
-        label: monthDate.toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' }),
-        savings: this.getPositiveBalanceTotal(row?.balances),
-        heightPercent: 0,
-        isCurrentMonth: index === 3,
-      };
-    });
+    return {
+      lastYearLabel: String(this.focusedYear - 1),
+      focusYearLabel: String(this.focusedYear),
+      lastYearTotal,
+      focusYearTotal,
+      balance: focusYearTotal - lastYearTotal,
+    };
+  }
 
-    const maxSavings = Math.max(...points.map((point) => point.savings), 1);
-
-    return points.map((point) => ({
-      ...point,
-      heightPercent: Math.max((point.savings / maxSavings) * 100, 6),
+  private buildLedgerMonths(year: number): LedgerMonth[] {
+    return this.monthLabels.map((label, index) => ({
+      monthKey: `${year}-${String(index + 1).padStart(2, '0')}`,
+      label,
     }));
   }
 
-  private buildTopLedgerAccounts(rows: BalanceRow[]): LedgerSummary[] {
-    const ledgerTotals = new Map<string, number>();
+  private buildLedgerRows(rows: BalanceRow[]): LedgerAccountRow[] {
+    const ledgerNames = Array.from(new Set(
+      rows.map((row) => row.ledger_account?.trim() || 'Uncategorized'),
+    )).sort((left, right) => left.localeCompare(right));
 
-    rows.forEach((row) => {
-      const value = Number(row.value);
+    return ledgerNames.map((name) => ({
+      name,
+      balances: this.monthLabels.map((_, monthIndex) => {
+        return rows.reduce((total, row) => {
+          const date = new Date(row.datetime);
+          const isTargetMonth =
+            date.getUTCFullYear() === this.focusedYear &&
+            date.getUTCMonth() === monthIndex &&
+            (row.ledger_account?.trim() || 'Uncategorized') === name;
 
-      if (value >= 0) {
-        return;
-      }
-
-      const name = row.ledger_account?.trim() || 'Uncategorized';
-      ledgerTotals.set(name, (ledgerTotals.get(name) ?? 0) + Math.abs(value));
-    });
-
-    const topLedgers = Array.from(ledgerTotals.entries())
-      .map(([name, total]) => ({ name, total }))
-      .sort((left, right) => right.total - left.total)
-      .slice(0, 3);
-    const maxTotal = Math.max(...topLedgers.map((ledger) => ledger.total), 1);
-
-    return topLedgers.map((ledger) => ({
-      ...ledger,
-      percent: (ledger.total / maxTotal) * 100,
+          return isTargetMonth ? total + Number(row.value || 0) : total;
+        }, 0);
+      }),
     }));
   }
 
-  private buildCurrentMonthTotals(rows: BalanceRow[], currentDate: Date): void {
-    if (rows.length === 0) {
-      this.monthlyIncome = 0;
-      this.monthlyOutcome = 0;
-      this.monthlySavingsChange = 0;
-      return;
-    }
+  private getInitialFocusYear(rows: BalanceRow[]): number {
+    const currentYear = new Date().getUTCFullYear();
 
-    const latestYear = currentDate.getUTCFullYear();
-    const latestMonth = currentDate.getUTCMonth();
-    const monthRows = rows.filter((row) => {
-      const date = new Date(row.datetime);
-      return date.getUTCFullYear() === latestYear && date.getUTCMonth() === latestMonth;
-    });
+    return rows.some((row) => new Date(row.datetime).getUTCFullYear() === currentYear)
+      ? currentYear
+      : new Date(rows[rows.length - 1]?.datetime ?? Date.now()).getUTCFullYear();
+  }
 
-    this.monthlyIncome = monthRows.reduce((total, row) => {
-      const value = Number(row.value);
-      return value > 0 ? total + value : total;
-    }, 0);
-    this.monthlyOutcome = monthRows.reduce((total, row) => {
-      const value = Number(row.value);
-      return value < 0 ? total + Math.abs(value) : total;
-    }, 0);
+  private getYearEndSavings(rows: BalanceRow[], year: number): number {
+    const currentYearEnd = this.getYearEnd(year);
 
-    const currentMonthEnd = this.getMonthEnd(currentDate);
-    const previousMonthEnd = this.getMonthEnd(new Date(Date.UTC(latestYear, latestMonth - 1, 1)));
-    const currentMonthEndRow = this.getLatestRowAtOrBefore(rows, currentMonthEnd);
-    const previousMonthEndRow = this.getLatestRowAtOrBefore(rows, previousMonthEnd);
-    this.monthlySavingsChange =
-      this.getPositiveBalanceTotal(currentMonthEndRow?.balances) -
-      this.getPositiveBalanceTotal(previousMonthEndRow?.balances);
+    return this.getPositiveBalanceTotal(
+      this.getLatestRowAtOrBefore(rows, currentYearEnd)?.balances,
+    );
   }
 
   private getLatestRowAtOrBefore(rows: BalanceRow[], targetDate: Date): BalanceRow | undefined {
@@ -190,23 +159,12 @@ export class DashboardPageComponent implements OnInit {
       .find((row) => new Date(row.datetime).getTime() <= targetTime);
   }
 
-  private getMonthEnd(date: Date): Date {
-    return new Date(Date.UTC(
-      date.getUTCFullYear(),
-      date.getUTCMonth() + 1,
-      0,
-      23,
-      59,
-      59,
-      999,
-    ));
+  private getYearEnd(year: number): Date {
+    return new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
   }
 
-  private getMonthKey(date: Date): string {
-    return [
-      date.getUTCFullYear(),
-      String(date.getUTCMonth() + 1).padStart(2, '0'),
-    ].join('-');
+  private isConsumado(row: BalanceRow): boolean {
+    return row.status?.trim().toLowerCase() === 'consumado';
   }
 
   private getPositiveBalanceTotal(balances: BalanceSnapshot | null | undefined): number {

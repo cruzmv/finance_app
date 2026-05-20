@@ -8,26 +8,7 @@ import { addIcons } from 'ionicons';
 import { arrowBackOutline, cameraOutline, checkmarkCircleOutline } from 'ionicons/icons';
 import { finalize } from 'rxjs';
 import { environment } from '../../environments/environment';
-
-type BalanceSnapshot = Record<string, number>;
-
-interface BalanceRow {
-  id: number;
-  datetime: string;
-  description: string;
-  ledger_account_id: number;
-  ledger_account: string;
-  moviment_account_id: number;
-  moviment_account: string;
-  status_id: number;
-  status: string;
-  value: string;
-  balances: BalanceSnapshot;
-}
-
-interface BalanceResponse {
-  data: BalanceRow[];
-}
+import { BalanceRow, FinanceDataService } from '../finance-data.service';
 
 interface MovimentOption {
   id: number;
@@ -81,6 +62,7 @@ interface MovimentSaveResponse {
 export class NewPageComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly http = inject(HttpClient);
+  private readonly financeData = inject(FinanceDataService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly apiBaseUrl = environment.apiBaseUrl;
@@ -97,7 +79,7 @@ export class NewPageComponent implements OnInit {
     movimentAccountId: [0, [Validators.required, Validators.min(1)]],
     ledgerAccountId: [0, [Validators.required, Validators.min(1)]],
     description: ['', Validators.required],
-    value: [0, Validators.required],
+    value: this.fb.control<number | null>(null, Validators.required),
   });
 
   protected isEditMode = false;
@@ -110,6 +92,7 @@ export class NewPageComponent implements OnInit {
   protected statusOptions: MovimentOption[] = [...this.fallbackStatusOptions];
   protected ledgerAccounts: MovimentOption[] = [];
   protected movimentAccounts: MovimentOption[] = [];
+  protected valueSign: -1 | 1 = -1;
 
   private originalMoviment: BalanceRow | null = null;
 
@@ -159,8 +142,9 @@ export class NewPageComponent implements OnInit {
         movimentAccountId: 0,
         ledgerAccountId: 0,
         description: '',
-        value: 0,
+        value: null,
       });
+      this.valueSign = -1;
       this.movimentForm.patchValue({
         datetime: this.toDatetimeLocalValue(new Date().toISOString()),
       });
@@ -190,6 +174,10 @@ export class NewPageComponent implements OnInit {
     this.movimentForm.controls.ledgerAccountId.setValue(account.id);
   }
 
+  protected setValueSign(sign: -1 | 1): void {
+    this.valueSign = sign;
+  }
+
   protected openReceiptCapture(): void {
     this.receiptInput?.nativeElement.click();
   }
@@ -216,15 +204,9 @@ export class NewPageComponent implements OnInit {
     }
 
     const payload = this.buildPayload();
-    const request$ = this.isEditMode
-      ? this.http.post(`${this.apiBaseUrl}/edit_moviment`, {
-          id: this.originalMoviment?.id,
-          ...payload,
-        })
-      : this.http.post(`${this.apiBaseUrl}/add_moviment`, payload);
-
     this.isSaving = true;
-    request$
+    this.financeData
+      .saveMoviment(this.isEditMode ? 'edit' : 'add', payload, this.originalMoviment)
       .pipe(finalize(() => (this.isSaving = false)))
       .subscribe({
         next: (response: MovimentSaveResponse) => {
@@ -288,7 +270,8 @@ export class NewPageComponent implements OnInit {
 
   private applyReceiptGuesses(guesses: ReceiptAnalysisResponse['data']['guesses']): void {
     if (guesses.valor !== null) {
-      this.movimentForm.controls.value.setValue(guesses.valor);
+      this.valueSign = guesses.valor < 0 ? -1 : 1;
+      this.movimentForm.controls.value.setValue(Math.abs(guesses.valor));
     }
 
     if (guesses.descricao) {
@@ -350,11 +333,11 @@ export class NewPageComponent implements OnInit {
 
     this.isLoading = true;
 
-    this.http
-      .get<BalanceResponse>(`${this.apiBaseUrl}/get_balance`)
+    this.financeData
+      .getBalances()
       .pipe(finalize(() => (this.isLoading = false)))
       .subscribe({
-        next: ({ data }) => {
+        next: (data) => {
           const selectedStatusName = this.statusOptions.find(
             (status) => status.id === this.movimentForm.controls.statusId.value,
           )?.name;
@@ -395,8 +378,9 @@ export class NewPageComponent implements OnInit {
       movimentAccountId: moviment.moviment_account_id,
       ledgerAccountId: moviment.ledger_account_id,
       description: moviment.description,
-      value: Number(moviment.value),
+      value: Math.abs(Number(moviment.value)),
     });
+    this.valueSign = Number(moviment.value) < 0 ? -1 : 1;
   }
 
   private applyDefaultOptions(): void {
@@ -424,7 +408,7 @@ export class NewPageComponent implements OnInit {
       ledger_account: formValue.ledgerAccountId,
       moviment_account: formValue.movimentAccountId,
       status: formValue.statusId,
-      value: Number(formValue.value),
+      value: Math.abs(Number(formValue.value)) * this.valueSign,
     };
   }
 
