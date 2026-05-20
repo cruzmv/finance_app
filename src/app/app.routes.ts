@@ -25,36 +25,35 @@ export const routes: Routes = [
     component: CamplifeComponent,
     children: [
       {
-        path: 'home',
-        loadComponent: () => import('./home/home.page').then((m) => m.HomePage),
-        
-      },
-      {
-        path: 'library',
-        loadComponent: () => import('./library-page/library-page.component').then((m) => m.LibraryPageComponent),
+        path: 'dashboard',
+        loadComponent: () => import('./dashboard-page/dashboard-page.component').then((m) => m.DashboardPageComponent),
       },
       {
         path: 'finance',
         loadComponent: () => import('./finance-page/finance-page.component').then((m) => m.FinancePageComponent),
       },
       {
-        path: 'radio',
-        loadComponent: () => import('./radio-page/radio-page.component').then((m) => m.RadioPageComponent),
+        path: 'new',
+        loadComponent: () => import('./new-page/new-page.component').then((m) => m.NewPageComponent),
       },
       {
-        path: 'search',
-        loadComponent: () => import('./search-page/search-page.component').then((m) => m.SearchPageComponent),
+        path: 'home',
+        loadComponent: () => import('./home/home.page').then((m) => m.HomePage),
+      },
+      {
+        path: 'settings',
+        loadComponent: () => import('./settings-page/settings-page.component').then((m) => m.SettingsPageComponent),
       },
       {
         path: '',
-        redirectTo: '/example/home',
+        redirectTo: '/example/dashboard',
         pathMatch: 'full',
       },
     ],
   },
   {
     path: '',
-    redirectTo: '/example/home',
+    redirectTo: '/example/dashboard',
     pathMatch: 'full',
   },
 ];

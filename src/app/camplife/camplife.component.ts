@@ -2,7 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { IonIcon, IonTabBar, IonTabButton, IonTabs } from '@ionic/angular/standalone';
 
 import { addIcons } from 'ionicons';
-import { card, library, radio, search, map } from 'ionicons/icons';
+import { addCircleOutline, cardOutline, settingsOutline, speedometerOutline } from 'ionicons/icons';
 
 
 @Component({
@@ -14,7 +14,7 @@ import { card, library, radio, search, map } from 'ionicons/icons';
 export class CamplifeComponent  implements OnInit {
 
   constructor() { 
-    addIcons({ card, library, map, radio, search });
+    addIcons({ addCircleOutline, cardOutline, settingsOutline, speedometerOutline });
   }
 
   ngOnInit() {}

@@ -1,0 +1,105 @@
+<ion-content>
+  <form class="moviment-form-page" [formGroup]="movimentForm" (ngSubmit)="saveMoviment()">
+    <header class="form-header">
+      <button type="button" class="icon-button" aria-label="Back to finance" (click)="cancel()">
+        <ion-icon name="arrow-back-outline"></ion-icon>
+      </button>
+      <h1>{{ pageTitle }}</h1>
+    </header>
+
+    @if (errorMessage) {
+      <p class="form-error">{{ errorMessage }}</p>
+    }
+
+    <section class="receipt-scanner">
+      <input
+        #receiptInput
+        type="file"
+        accept="image/*"
+        capture="environment"
+        class="receipt-input"
+        (change)="onReceiptSelected($event)"
+      />
+      <button type="button" class="scan-button" [disabled]="isAnalyzingReceipt" (click)="openReceiptCapture()">
+        <ion-icon name="camera-outline"></ion-icon>
+        {{ isAnalyzingReceipt ? 'Reading receipt...' : 'Scan receipt' }}
+      </button>
+
+      @if (receiptImagePreview) {
+        <img class="receipt-preview" [src]="receiptImagePreview" alt="Receipt preview" />
+      }
+
+      @if (receiptMessage) {
+        <p class="scan-message">{{ receiptMessage }}</p>
+      }
+    </section>
+
+    <label class="form-field">
+      <span>Datetime</span>
+      <input type="datetime-local" formControlName="datetime" />
+    </label>
+
+    <section class="form-section">
+      <span class="section-label">Status</span>
+      <div class="pill-list">
+        @for (status of statusList; track status.id) {
+          <button
+            type="button"
+            class="option-pill"
+            [class.active]="movimentForm.controls.statusId.value === status.id"
+            (click)="selectStatus(status)"
+          >
+            {{ status.name }}
+          </button>
+        }
+      </div>
+    </section>
+
+    <section class="form-section">
+      <span class="section-label">Account</span>
+      <div class="pill-list">
+        @for (account of movimentAccounts; track account.id) {
+          <button
+            type="button"
+            class="option-pill"
+            [class.active]="movimentForm.controls.movimentAccountId.value === account.id"
+            (click)="selectMovimentAccount(account)"
+          >
+            {{ account.name }}
+          </button>
+        }
+      </div>
+    </section>
+
+    <section class="form-section">
+      <span class="section-label">Ledger account</span>
+      <div class="pill-list">
+        @for (ledger of ledgerAccounts; track ledger.id) {
+          <button
+            type="button"
+            class="option-pill"
+            [class.active]="movimentForm.controls.ledgerAccountId.value === ledger.id"
+            (click)="selectLedgerAccount(ledger)"
+          >
+            {{ ledger.name }}
+          </button>
+        }
+      </div>
+    </section>
+
+    <label class="form-field">
+      <span>Description</span>
+      <textarea formControlName="description" rows="4"></textarea>
+    </label>
+
+    <label class="form-field">
+      <span>Value</span>
+      <input type="number" formControlName="value" step="0.01" inputmode="decimal" />
+    </label>
+
+    <button type="submit" class="save-button" [disabled]="isSaving || isLoading">
+      <ion-icon name="checkmark-circle-outline"></ion-icon>
+      {{ isSaving ? 'Saving...' : 'Save' }}
+    </button>
+  </form>
+</ion-content>

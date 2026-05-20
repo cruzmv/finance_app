@@ -1,0 +1,94 @@
+<ion-content>
+  <main class="dashboard-page">
+    @if (isLoading) {
+      <section class="state-panel">
+        <p>Loading dashboard...</p>
+      </section>
+    } @else if (errorMessage) {
+      <section class="state-panel error">
+        <p>{{ errorMessage }}</p>
+      </section>
+    } @else {
+      <section class="overview-panel">
+        <div class="overview-copy">
+          <p class="eyebrow">Camplife</p>
+          <h1>Finance dashboard</h1>
+        </div>
+
+        <div class="savings-total">
+          <span>Current savings</span>
+          <strong>{{ currentSavings | currency:'EUR':'symbol':'1.2-2' }}</strong>
+          <small [class.negative]="savingsDeltaTone === 'negative'">
+            {{ savingsDelta >= 0 ? '+' : '' }}{{ savingsDelta | currency:'EUR':'symbol':'1.2-2' }}
+          </small>
+        </div>
+      </section>
+
+      <section class="chart-panel">
+        <div class="panel-heading">
+          <h2>Savings balance</h2>
+          <span>Past / current / future</span>
+        </div>
+
+        <div class="savings-chart" aria-label="Savings balance by month">
+          @for (point of monthlySavings; track point.monthKey) {
+            <div class="savings-bar-item" [class.current-month]="point.isCurrentMonth">
+              <div class="savings-bar-track">
+                <span class="savings-bar" [style.height]="point.heightPercent + '%'"></span>
+              </div>
+              <span class="savings-bar-value">{{ point.savings | currency:'EUR':'symbol':'1.0-0' }}</span>
+              <span class="savings-bar-label">{{ point.label }}</span>
+            </div>
+          }
+        </div>
+      </section>
+
+      <section class="insight-grid">
+        <div class="insight-panel">
+          <div class="panel-heading">
+            <h2>Top ledgers</h2>
+            <span>By expense</span>
+          </div>
+
+          <div class="ledger-list">
+            @for (ledger of topLedgerAccounts; track ledger.name) {
+              <div class="ledger-row">
+                <div class="ledger-row-top">
+                  <span>{{ ledger.name }}</span>
+                  <strong>{{ ledger.total | currency:'EUR':'symbol':'1.2-2' }}</strong>
+                </div>
+                <div class="ledger-bar-track">
+                  <span class="ledger-bar" [style.width]="ledger.percent + '%'"></span>
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+
+        <div class="insight-panel month-flow-panel">
+          <div class="panel-heading">
+            <h2>This month</h2>
+            <span>Income vs outcome</span>
+          </div>
+
+          <div class="flow-row income-flow">
+            <span>Income</span>
+            <strong>{{ monthlyIncome | currency:'EUR':'symbol':'1.2-2' }}</strong>
+          </div>
+          <div class="flow-row outcome-flow">
+            <span>Outcome</span>
+            <strong>{{ monthlyOutcome | currency:'EUR':'symbol':'1.2-2' }}</strong>
+          </div>
+          <div class="flow-row savings-flow">
+            <span>Savings</span>
+            <strong>{{ monthlySavingsChange | currency:'EUR':'symbol':'1.2-2' }}</strong>
+          </div>
+          <div class="flow-row balance-flow">
+            <span>Result</span>
+            <strong>{{ monthlyIncome - monthlyOutcome | currency:'EUR':'symbol':'1.2-2' }}</strong>
+          </div>
+        </div>
+      </section>
+    }
+  </main>
+</ion-content>
