@@ -1,4 +1,8 @@
 <ion-content>
+  <ion-refresher slot="fixed" (ionRefresh)="refreshMovimentOptions($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
   <form class="moviment-form-page" [formGroup]="movimentForm" (ngSubmit)="saveMoviment()">
     <header class="form-header">
       <button type="button" class="icon-button" aria-label="Back to finance" (click)="cancel()">

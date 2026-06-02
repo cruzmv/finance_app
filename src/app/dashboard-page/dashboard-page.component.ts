@@ -1,6 +1,6 @@
 import { CommonModule, CurrencyPipe } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
-import { IonContent } from '@ionic/angular/standalone';
+import { IonContent, IonRefresher, IonRefresherContent } from '@ionic/angular/standalone';
 import { finalize } from 'rxjs';
 import { BalanceRow, BalanceSnapshot, FinanceDataService } from '../finance-data.service';
 
@@ -26,7 +26,7 @@ interface LedgerAccountRow {
   selector: 'app-dashboard-page',
   templateUrl: './dashboard-page.component.html',
   styleUrls: ['./dashboard-page.component.scss'],
-  imports: [CommonModule, IonContent, CurrencyPipe],
+  imports: [CommonModule, IonContent, IonRefresher, IonRefresherContent, CurrencyPipe],
 })
 export class DashboardPageComponent implements OnInit {
   private readonly financeData = inject(FinanceDataService);
@@ -64,13 +64,20 @@ export class DashboardPageComponent implements OnInit {
     this.selectedLedgerName = this.selectedLedgerName === name ? '' : name;
   }
 
-  private loadDashboard(): void {
+  protected refreshDashboard(event: CustomEvent): void {
+    this.loadDashboard(true, event);
+  }
+
+  private loadDashboard(forceRefresh = false, refreshEvent?: CustomEvent): void {
     this.isLoading = true;
     this.errorMessage = '';
 
     this.financeData
-      .getBalances()
-      .pipe(finalize(() => (this.isLoading = false)))
+      .getBalances(forceRefresh)
+      .pipe(finalize(() => {
+        this.isLoading = false;
+        this.completeRefresh(refreshEvent);
+      }))
       .subscribe({
         next: (data) => {
           this.rows = data;
@@ -81,6 +88,11 @@ export class DashboardPageComponent implements OnInit {
           this.errorMessage = 'Unable to load dashboard data.';
         },
       });
+  }
+
+  private completeRefresh(event?: CustomEvent): void {
+    const refresher = event?.target as unknown as { complete?: () => Promise<void> | void };
+    void refresher?.complete?.();
   }
 
   private buildDashboard(rows: BalanceRow[]): void {

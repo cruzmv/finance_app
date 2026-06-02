@@ -1,3 +1,198 @@
 <ion-content>
-  <div class="example-content">Settings</div>
+  <ion-refresher slot="fixed" (ionRefresh)="refreshSettings($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <div class="settings-page">
+    <header class="settings-header">
+      <h1>Settings</h1>
+      <p>Finance setup tables</p>
+    </header>
+
+    <nav class="settings-tabs" aria-label="Settings sections">
+      <button type="button" [class.active]="activeTab === 'accounts'" (click)="setActiveTab('accounts')">
+        Accounts
+      </button>
+      <button type="button" [class.active]="activeTab === 'ledger'" (click)="setActiveTab('ledger')">
+        Ledger Account
+      </button>
+      <button type="button" [class.active]="activeTab === 'status'" (click)="setActiveTab('status')">
+        Status
+      </button>
+    </nav>
+
+    @if (errorMessage) {
+      <p class="settings-message error">{{ errorMessage }}</p>
+    }
+
+    @if (successMessage) {
+      <p class="settings-message success">{{ successMessage }}</p>
+    }
+
+    @if (isLoading) {
+      <div class="state-block">Loading settings...</div>
+    } @else {
+      @if (activeTab === 'accounts') {
+        <section class="settings-panel">
+          <form class="settings-form" [formGroup]="accountForm" (ngSubmit)="saveAccount()">
+            <div class="form-title-row">
+              <h2>{{ accountEditId ? 'Edit account' : 'Add account' }}</h2>
+              @if (accountEditId) {
+                <button type="button" class="icon-button" aria-label="Cancel account edit" (click)="resetAccountForm()">
+                  <ion-icon name="close-outline"></ion-icon>
+                </button>
+              }
+            </div>
+
+            <label class="form-field">
+              <span>Description</span>
+              <input type="text" formControlName="description" />
+            </label>
+
+            <div class="form-grid">
+              <label class="form-field">
+                <span>Start date</span>
+                <input type="date" formControlName="startDate" />
+              </label>
+
+              <label class="form-field">
+                <span>Start value</span>
+                <input type="number" formControlName="startValue" step="0.01" inputmode="decimal" />
+              </label>
+
+              <label class="form-field">
+                <span>Closing day</span>
+                <input type="number" formControlName="closingDay" min="1" max="31" inputmode="numeric" />
+              </label>
+
+              <label class="form-field">
+                <span>Account type</span>
+                <select formControlName="accountType">
+                  <option [ngValue]="0">Debit</option>
+                  <option [ngValue]="1">Credit</option>
+                </select>
+              </label>
+            </div>
+
+            <button type="submit" class="save-button" [disabled]="isSaving">
+              <ion-icon name="save-outline"></ion-icon>
+              {{ accountEditId ? 'Save account' : 'Add account' }}
+            </button>
+          </form>
+
+          <div class="settings-list">
+            @for (account of accounts; track account.id) {
+              <article class="settings-row">
+                <div>
+                  <strong>{{ account.description }}</strong>
+                  <span>
+                    {{ getAccountTypeLabel(account.account_type) }}
+                    @if (account.closing_day) {
+                      - closes day {{ account.closing_day }}
+                    }
+                  </span>
+                </div>
+                <div class="row-actions">
+                  <button type="button" class="icon-button" aria-label="Edit account" (click)="editAccount(account)">
+                    <ion-icon name="create-outline"></ion-icon>
+                  </button>
+                  <button type="button" class="icon-button danger" aria-label="Delete account" (click)="deleteAccount(account)">
+                    <ion-icon name="trash-outline"></ion-icon>
+                  </button>
+                </div>
+              </article>
+            } @empty {
+              <div class="empty-state">No accounts yet.</div>
+            }
+          </div>
+        </section>
+      }
+
+      @if (activeTab === 'ledger') {
+        <section class="settings-panel">
+          <form class="settings-form compact-form" [formGroup]="ledgerForm" (ngSubmit)="saveLedgerAccount()">
+            <div class="form-title-row">
+              <h2>{{ ledgerEditId ? 'Edit ledger account' : 'Add ledger account' }}</h2>
+              @if (ledgerEditId) {
+                <button type="button" class="icon-button" aria-label="Cancel ledger account edit" (click)="resetLedgerForm()">
+                  <ion-icon name="close-outline"></ion-icon>
+                </button>
+              }
+            </div>
+
+            <label class="form-field">
+              <span>Description</span>
+              <input type="text" formControlName="description" />
+            </label>
+
+            <button type="submit" class="save-button" [disabled]="isSaving">
+              <ion-icon name="save-outline"></ion-icon>
+              {{ ledgerEditId ? 'Save ledger account' : 'Add ledger account' }}
+            </button>
+          </form>
+
+          <div class="settings-list">
+            @for (ledger of ledgerAccounts; track ledger.id) {
+              <article class="settings-row">
+                <strong>{{ ledger.description }}</strong>
+                <div class="row-actions">
+                  <button type="button" class="icon-button" aria-label="Edit ledger account" (click)="editLedgerAccount(ledger)">
+                    <ion-icon name="create-outline"></ion-icon>
+                  </button>
+                  <button type="button" class="icon-button danger" aria-label="Delete ledger account" (click)="deleteLedgerAccount(ledger)">
+                    <ion-icon name="trash-outline"></ion-icon>
+                  </button>
+                </div>
+              </article>
+            } @empty {
+              <div class="empty-state">No ledger accounts yet.</div>
+            }
+          </div>
+        </section>
+      }
+
+      @if (activeTab === 'status') {
+        <section class="settings-panel">
+          <form class="settings-form compact-form" [formGroup]="statusForm" (ngSubmit)="saveStatus()">
+            <div class="form-title-row">
+              <h2>{{ statusEditId ? 'Edit status' : 'Add status' }}</h2>
+              @if (statusEditId) {
+                <button type="button" class="icon-button" aria-label="Cancel status edit" (click)="resetStatusForm()">
+                  <ion-icon name="close-outline"></ion-icon>
+                </button>
+              }
+            </div>
+
+            <label class="form-field">
+              <span>Description</span>
+              <input type="text" formControlName="description" />
+            </label>
+
+            <button type="submit" class="save-button" [disabled]="isSaving">
+              <ion-icon name="save-outline"></ion-icon>
+              {{ statusEditId ? 'Save status' : 'Add status' }}
+            </button>
+          </form>
+
+          <div class="settings-list">
+            @for (status of statuses; track status.id) {
+              <article class="settings-row">
+                <strong>{{ status.description }}</strong>
+                <div class="row-actions">
+                  <button type="button" class="icon-button" aria-label="Edit status" (click)="editStatus(status)">
+                    <ion-icon name="create-outline"></ion-icon>
+                  </button>
+                  <button type="button" class="icon-button danger" aria-label="Delete status" (click)="deleteStatus(status)">
+                    <ion-icon name="trash-outline"></ion-icon>
+                  </button>
+                </div>
+              </article>
+            } @empty {
+              <div class="empty-state">No statuses yet.</div>
+            }
+          </div>
+        </section>
+      }
+    }
+  </div>
 </ion-content>

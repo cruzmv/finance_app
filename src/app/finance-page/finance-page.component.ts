@@ -3,23 +3,36 @@ import { Component, ElementRef, OnInit, ViewChild, inject } from '@angular/core'
 import { Router } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { IonContent, IonIcon } from '@ionic/angular/standalone';
+import {
+  IonContent,
+  IonIcon,
+  IonRefresher,
+  IonRefresherContent,
+} from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
   arrowDownCircleOutline,
   arrowUpCircleOutline,
+  checkmarkCircleOutline,
   createOutline,
   todayOutline,
   swapVerticalOutline,
+  timeOutline,
   trashOutline,
   walletOutline,
 } from 'ionicons/icons';
-import { finalize } from 'rxjs';
-import { BalanceRow, BalanceSnapshot, FinanceDataService } from '../finance-data.service';
+import { finalize, forkJoin } from 'rxjs';
+import {
+  BalanceRow,
+  BalanceSnapshot,
+  FinanceDataService,
+  MovimentAccountSettings,
+} from '../finance-data.service';
 
 interface BalanceEntry {
   name: string;
   value: number;
+  accountType: 0 | 1 | null;
 }
 
 interface MonthSummary {
@@ -82,6 +95,8 @@ interface FinanceFocusTarget {
     CommonModule,
     IonContent,
     IonIcon,
+    IonRefresher,
+    IonRefresherContent,
     MatCardModule,
     MatProgressSpinnerModule,
     CurrencyPipe,
@@ -91,6 +106,7 @@ interface FinanceFocusTarget {
 export class FinancePageComponent implements OnInit {
   private readonly financeData = inject(FinanceDataService);
   private readonly router = inject(Router);
+  private readonly contractId = 1;
   private readonly financeFocusStorageKey = 'financeFocusTarget';
   private readonly expenseChartColors = ['#d94841', '#f07c4a', '#e0b43b'];
   private readonly statusToneClasses = ['status-tone-red', 'status-tone-amber', 'status-tone-orange'];
@@ -133,14 +149,18 @@ export class FinancePageComponent implements OnInit {
   private hasLoadedBalances = false;
   private pendingFocusTarget: FinanceFocusTarget | null = null;
   private scrollTicking = false;
+  private accountById = new Map<string, MovimentAccountSettings>();
+  private accountByDescription = new Map<string, MovimentAccountSettings>();
 
   constructor() {
     addIcons({
       arrowDownCircleOutline,
       arrowUpCircleOutline,
+      checkmarkCircleOutline,
       createOutline,
       swapVerticalOutline,
       todayOutline,
+      timeOutline,
       trashOutline,
       walletOutline,
     });
@@ -158,7 +178,7 @@ export class FinancePageComponent implements OnInit {
       return;
     }
 
-    this.loadBalances(storedFocusTarget);
+    this.loadBalances(storedFocusTarget, true);
   }
 
   protected trackById(_: number, row: BalanceRow): number {
@@ -171,6 +191,17 @@ export class FinancePageComponent implements OnInit {
 
   protected trackByBalanceName(_: number, balance: BalanceEntry): string {
     return balance.name;
+  }
+
+  protected isFutureTimelineBreak(monthGroup: MovementMonthGroup, dayIndex: number): boolean {
+    const dayGroup = monthGroup.dayGroups[dayIndex];
+    const previousDayGroup = monthGroup.dayGroups[dayIndex - 1];
+
+    return (
+      !!dayGroup &&
+      dayGroup.dateKey > this.todayDayKey &&
+      (!previousDayGroup || previousDayGroup.dateKey <= this.todayDayKey)
+    );
   }
 
   protected onTimelineScroll(): void {
@@ -190,10 +221,26 @@ export class FinancePageComponent implements OnInit {
       return [];
     }
 
-    return Object.entries(balances).map(([name, value]) => ({
-      name,
-      value: Number(value) || 0,
-    }));
+    return Object.entries(balances)
+      .map(([key, value]) => {
+        const account = this.getBalanceAccount(key);
+
+        return {
+          name: account?.description ?? key,
+          value: Number(value) || 0,
+          accountType: account?.account_type ?? null,
+        };
+      })
+      .sort((left, right) => {
+        const leftIsCredit = left.accountType === 1;
+        const rightIsCredit = right.accountType === 1;
+
+        if (leftIsCredit !== rightIsCredit) {
+          return leftIsCredit ? 1 : -1;
+        }
+
+        return left.name.localeCompare(right.name);
+      });
   }
 
   protected getPositiveBalanceTotal(balances: BalanceEntry[]): number {
@@ -245,12 +292,53 @@ export class FinancePageComponent implements OnInit {
     return Number(value) < 0 ? 'transaction-value-negative' : 'transaction-value-positive';
   }
 
+  protected getBalanceToneClass(balance: BalanceEntry): string {
+    return balance.accountType === 1 ? 'balance-amount-credit' : 'balance-amount-debit';
+  }
+
   protected getStatusToneClass(status: string | null | undefined): string {
     return this.pickToneClass(status, this.statusToneClasses);
   }
 
   protected getLedgerToneClass(ledgerAccount: string | null | undefined): string {
     return this.pickToneClass(ledgerAccount, this.ledgerToneClasses);
+  }
+
+  protected getAccountToneClass(row: BalanceRow): string {
+    return row.account_type === 1 ? 'account-tone-credit' : 'account-tone-debit';
+  }
+
+  protected isCreditMovement(row: BalanceRow): boolean {
+    return row.account_type === 1;
+  }
+
+  protected isCreditConfirmed(row: BalanceRow): boolean {
+    return !!row.credit_status;
+  }
+
+  protected toggleCreditStatus(row: BalanceRow): void {
+    const shouldConfirm = !this.isCreditConfirmed(row);
+
+    if (!shouldConfirm) {
+      const shouldChange = window.confirm(`Mark "${row.description}" as pending again?`);
+
+      if (!shouldChange) {
+        return;
+      }
+    }
+
+    this.financeData.toggleMovimentCreditStatus(row.id, shouldConfirm).subscribe({
+      next: (response) => {
+        const creditStatus = response.data?.moviment?.credit_status ?? null;
+        this.transactions = this.transactions.map((movement) => {
+          return movement.id === row.id ? { ...movement, credit_status: creditStatus } : movement;
+        });
+        this.rebuildFinanceState(this.buildFocusTargetFromRow(row));
+      },
+      error: () => {
+        this.errorMessage = 'Unable to update credit status.';
+      },
+    });
   }
 
   protected openEditMoviment(row: BalanceRow): void {
@@ -386,21 +474,42 @@ export class FinancePageComponent implements OnInit {
     void this.scrollToFocusTarget(todayTarget);
   }
 
-  private loadBalances(focusTarget?: FinanceFocusTarget | null): void {
+  protected refreshBalances(event: CustomEvent): void {
+    this.loadBalances(this.buildInitialFocusTarget(), true, event);
+  }
+
+  private loadBalances(
+    focusTarget?: FinanceFocusTarget | null,
+    forceRefresh = false,
+    refreshEvent?: CustomEvent,
+  ): void {
     this.isLoading = true;
     this.errorMessage = '';
     this.pendingFocusTarget = focusTarget ?? null;
 
-    this.financeData
-      .getBalances()
-      .pipe(finalize(() => (this.isLoading = false)))
+    forkJoin({
+      balances: this.financeData.getBalances(forceRefresh),
+      settings: this.financeData.getFinanceSettings(this.contractId),
+    })
+      .pipe(finalize(() => {
+        this.isLoading = false;
+        this.completeRefresh(refreshEvent);
+      }))
       .subscribe({
-        next: (data) => this.rebuildFinanceState(this.pendingFocusTarget ?? this.buildInitialFocusTarget(), data),
+        next: ({ balances, settings }) => {
+          this.setAccountLookup(settings.accounts);
+          this.rebuildFinanceState(this.pendingFocusTarget ?? this.buildInitialFocusTarget(), balances);
+        },
         error: () => {
           this.errorMessage =
             'Unable to load finance data from Server.';
         },
     });
+  }
+
+  private completeRefresh(event?: CustomEvent): void {
+    const refresher = event?.target as unknown as { complete?: () => Promise<void> | void };
+    void refresher?.complete?.();
   }
 
   protected scrollToMonth(monthKey: string): void {
@@ -648,12 +757,21 @@ export class FinancePageComponent implements OnInit {
       return null;
     }
 
-    const sortedTransactions = [...this.transactions]
-      .sort((left, right) => new Date(right.datetime).getTime() - new Date(left.datetime).getTime());
+    const movement = this.transactions.reduce<BalanceRow | null>((latestRow, row) => {
+      const rowTime = new Date(row.datetime).getTime();
 
-    return sortedTransactions.find((row) => new Date(row.datetime).getTime() <= targetTime)
-      ?? sortedTransactions[sortedTransactions.length - 1]
-      ?? null;
+      if (Number.isNaN(rowTime) || rowTime > targetTime) {
+        return latestRow;
+      }
+
+      if (!latestRow || rowTime >= new Date(latestRow.datetime).getTime()) {
+        return row;
+      }
+
+      return latestRow;
+    }, null);
+
+    return movement ?? this.transactions[this.transactions.length - 1] ?? null;
   }
 
   private hasDayGroup(dayKey: string): boolean {
@@ -843,10 +961,24 @@ export class FinancePageComponent implements OnInit {
   }
 
   private getLatestBalanceEntries(movements: BalanceRow[]): BalanceEntry[] {
-    const latestMovement = [...movements]
-      .sort((left, right) => new Date(right.datetime).getTime() - new Date(left.datetime).getTime())[0];
+    const latestMovement = this.getLatestRowFromRows(movements);
 
     return this.getBalanceEntries(latestMovement?.balances);
+  }
+
+  private setAccountLookup(accounts: MovimentAccountSettings[]): void {
+    this.accountById = new Map(accounts.map((account) => [String(account.id), account]));
+    this.accountByDescription = new Map(
+      accounts.map((account) => [this.normalizeDescription(account.description), account]),
+    );
+  }
+
+  private getBalanceAccount(key: string): MovimentAccountSettings | undefined {
+    return this.accountById.get(key) ?? this.accountByDescription.get(this.normalizeDescription(key));
+  }
+
+  private normalizeDescription(description: string | null | undefined): string {
+    return (description ?? '').trim().toLocaleLowerCase();
   }
 
   private getMonthSavingsTotals(year: number, monthIndex: number): {
@@ -873,9 +1005,35 @@ export class FinancePageComponent implements OnInit {
   private getLatestRowAtOrBefore(targetDate: Date): BalanceRow | undefined {
     const targetTime = targetDate.getTime();
 
-    return [...this.transactions]
-      .sort((left, right) => new Date(right.datetime).getTime() - new Date(left.datetime).getTime())
-      .find((row) => new Date(row.datetime).getTime() <= targetTime);
+    return this.transactions.reduce<BalanceRow | undefined>((latestRow, row) => {
+      const rowTime = new Date(row.datetime).getTime();
+
+      if (Number.isNaN(rowTime) || rowTime > targetTime) {
+        return latestRow;
+      }
+
+      if (!latestRow || rowTime >= new Date(latestRow.datetime).getTime()) {
+        return row;
+      }
+
+      return latestRow;
+    }, undefined);
+  }
+
+  private getLatestRowFromRows(rows: BalanceRow[]): BalanceRow | undefined {
+    return rows.reduce<BalanceRow | undefined>((latestRow, row) => {
+      const rowTime = new Date(row.datetime).getTime();
+
+      if (Number.isNaN(rowTime)) {
+        return latestRow;
+      }
+
+      if (!latestRow || rowTime >= new Date(latestRow.datetime).getTime()) {
+        return row;
+      }
+
+      return latestRow;
+    }, undefined);
   }
 
   private getMonthEnd(date: Date): Date {

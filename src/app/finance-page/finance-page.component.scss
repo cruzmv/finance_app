@@ -296,6 +296,35 @@
   gap: 12px;
   padding-left: 20px;
 }
+.timeline-future-break {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 34px;
+  padding-left: 20px;
+  color: rgba(19, 49, 39, 0.42);
+}
+.timeline-future-break::before {
+  content: '';
+  position: absolute;
+  top: -18px;
+  bottom: -18px;
+  left: 6px;
+  width: 2px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(44, 122, 93, 0.2), rgba(181, 82, 59, 0.2));
+}
+.timeline-future-break span {
+  position: relative;
+  z-index: 1;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(19, 49, 39, 0.36);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.92);
+}
  .timeline-day::before {
   content: '';
   position: absolute;
@@ -445,23 +474,6 @@
   text-transform: uppercase;
   color: var(--finance-muted);
 }
- .transaction-account {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  max-width: min(100%, 220px);
-  min-height: 24px;
-  padding: 0 9px;
-  border-radius: 999px;
-  background: rgba(181, 82, 59, 0.12);
-  border: 1px solid rgba(181, 82, 59, 0.18);
-  color: #8f3527;
-  font-size: 0.7rem;
-  font-weight: 700;
-  line-height: 1;
-  white-space: nowrap;
-  align-self: center;
-}
  .transaction-actions {
   display: inline-flex;
   align-items: center;
@@ -482,6 +494,14 @@
  .transaction-action.danger {
   border-color: rgba(181, 82, 59, 0.18);
   color: var(--finance-expense);
+}
+.transaction-action.credit-toggle {
+  border-color: rgba(224, 180, 59, 0.28);
+  color: #9c6b12;
+}
+.transaction-action.credit-toggle.confirmed {
+  border-color: rgba(44, 122, 93, 0.2);
+  color: var(--finance-accent);
 }
  .transaction-body {
   display: grid;
@@ -506,10 +526,39 @@
  .transaction-pills {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 7px;
  }
+ .transaction-account,
  .transaction-ledger,
- .transaction-status,
+ .transaction-status {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  max-width: min(100%, 240px);
+  min-height: 28px;
+  padding: 0 11px 0 24px;
+  border: 1px solid rgba(19, 49, 39, 0.08);
+  border-radius: 999px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72), 0 4px 10px rgba(19, 49, 39, 0.06);
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+ .transaction-account::before,
+ .transaction-ledger::before,
+ .transaction-status::before {
+  content: '';
+  position: absolute;
+  left: 10px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 14%, transparent);
+}
  .balance-label {
   display: inline-flex;
   align-items: center;
@@ -520,9 +569,6 @@
   color: var(--finance-muted);
   font-size: 0.68rem;
   font-weight: 700;
-}
- .transaction-status {
-  white-space: nowrap;
 }
  .transaction-value {
   font-size: 0.98rem;
@@ -572,41 +618,65 @@
   color: var(--finance-ink);
   text-align: right;
 }
+ .balance-amount-debit {
+  color: #1f6fb2;
+}
+ .balance-amount-credit {
+  color: var(--finance-expense);
+}
  .savings-amount {
   color: var(--finance-accent);
   font-size: 0.94rem;
   font-weight: 900;
  }
+ .account-tone-debit {
+  background: linear-gradient(135deg, rgba(53, 131, 199, 0.18), rgba(255, 255, 255, 0.78));
+  border-color: rgba(53, 131, 199, 0.22);
+  color: #1f5f9c;
+}
+ .account-tone-credit {
+  background: linear-gradient(135deg, rgba(181, 82, 59, 0.18), rgba(255, 255, 255, 0.78));
+  border-color: rgba(181, 82, 59, 0.24);
+  color: #913a2b;
+}
  .status-tone-red {
-  background: rgba(181, 82, 59, 0.14);
+  background: linear-gradient(135deg, rgba(181, 82, 59, 0.16), rgba(255, 255, 255, 0.78));
+  border-color: rgba(181, 82, 59, 0.22);
   color: #9a3c2c;
 }
  .status-tone-amber {
-  background: rgba(224, 180, 59, 0.18);
+  background: linear-gradient(135deg, rgba(224, 180, 59, 0.2), rgba(255, 255, 255, 0.78));
+  border-color: rgba(224, 180, 59, 0.24);
   color: #996d12;
 }
  .status-tone-orange {
-  background: rgba(240, 124, 74, 0.18);
+  background: linear-gradient(135deg, rgba(240, 124, 74, 0.2), rgba(255, 255, 255, 0.78));
+  border-color: rgba(240, 124, 74, 0.24);
   color: #a34d24;
 }
  .ledger-tone-rose {
-  background: rgba(190, 87, 97, 0.14);
+  background: linear-gradient(135deg, rgba(190, 87, 97, 0.17), rgba(255, 255, 255, 0.78));
+  border-color: rgba(190, 87, 97, 0.23);
   color: #9c3947;
 }
  .ledger-tone-gold {
-  background: rgba(214, 170, 58, 0.18);
+  background: linear-gradient(135deg, rgba(214, 170, 58, 0.2), rgba(255, 255, 255, 0.78));
+  border-color: rgba(214, 170, 58, 0.24);
   color: #8b6a11;
 }
  .ledger-tone-sky {
-  background: rgba(84, 138, 214, 0.16);
+  background: linear-gradient(135deg, rgba(84, 138, 214, 0.18), rgba(255, 255, 255, 0.78));
+  border-color: rgba(84, 138, 214, 0.23);
   color: #295c9b;
 }
  .ledger-tone-violet {
-  background: rgba(131, 102, 202, 0.16);
+  background: linear-gradient(135deg, rgba(131, 102, 202, 0.18), rgba(255, 255, 255, 0.78));
+  border-color: rgba(131, 102, 202, 0.23);
   color: #5d43a9;
 }
  .ledger-tone-teal {
-  background: rgba(55, 150, 143, 0.16);
+  background: linear-gradient(135deg, rgba(55, 150, 143, 0.18), rgba(255, 255, 255, 0.78));
+  border-color: rgba(55, 150, 143, 0.23);
   color: #216c66;
 }
  .state-block {

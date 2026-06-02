@@ -1,6 +1,226 @@
-.example-content {
+.settings-page {
+  min-height: 100%;
+  padding: 20px 16px 32px;
+  background: #f5f7f2;
+  color: #17201a;
+}
+
+.settings-header {
+  margin-bottom: 18px;
+}
+
+.settings-header h1 {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 800;
+}
+
+.settings-header p {
+  margin: 4px 0 0;
+  color: #657064;
+}
+
+.settings-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.settings-tabs button,
+.save-button,
+.icon-button {
+  border: 0;
+  font: inherit;
+}
+
+.settings-tabs button {
+  min-height: 42px;
+  border-radius: 8px;
+  background: #e7ece3;
+  color: #4d5b50;
+  font-weight: 700;
+}
+
+.settings-tabs button.active {
+  background: #1f5132;
+  color: #ffffff;
+}
+
+.settings-message,
+.state-block,
+.empty-state {
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: #ffffff;
+  color: #58645b;
+}
+
+.settings-message.error {
+  background: #ffe9e5;
+  color: #9b2f24;
+}
+
+.settings-message.success {
+  background: #e7f6ec;
+  color: #23633b;
+}
+
+.settings-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.settings-form,
+.settings-list {
+  border: 1px solid #dde5d9;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(45, 61, 48, 0.08);
+}
+
+.settings-form {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.compact-form {
+  align-items: end;
+}
+
+.form-title-row {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.form-title-row h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.form-field {
+  display: grid;
+  gap: 6px;
+  color: #4f5b51;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.form-field input,
+.form-field select {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid #cbd6c7;
+  border-radius: 8px;
+  padding: 0 12px;
+  background: #fbfcfa;
+  color: #17201a;
+  font: inherit;
+  font-weight: 600;
+}
+
+.save-button {
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
-  height: 100%;
+  gap: 8px;
+  min-height: 46px;
+  border-radius: 8px;
+  padding: 0 16px;
+  background: #277343;
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.save-button:disabled {
+  opacity: 0.55;
+}
+
+.settings-list {
+  overflow: hidden;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 64px;
+  padding: 12px 14px;
+  border-bottom: 1px solid #edf1ea;
+}
+
+.settings-row:last-child {
+  border-bottom: 0;
+}
+
+.settings-row div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.settings-row strong {
+  font-size: 0.98rem;
+}
+
+.settings-row span {
+  color: #68746a;
+  font-size: 0.82rem;
+}
+
+.row-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  background: #edf3ea;
+  color: #28573b;
+}
+
+.icon-button.danger {
+  background: #ffe8e4;
+  color: #a1342a;
+}
+
+.icon-button ion-icon,
+.save-button ion-icon {
+  font-size: 1.2rem;
+}
+
+@media (min-width: 760px) {
+  .settings-page {
+    padding: 28px;
+  }
+
+  .settings-panel {
+    grid-template-columns: minmax(300px, 420px) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+@media (max-width: 520px) {
+  .settings-tabs {
+    grid-template-columns: 1fr;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
 }

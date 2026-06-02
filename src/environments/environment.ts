@@ -4,8 +4,8 @@
 
 export const environment = {
   production: false,
-  apiBaseUrl: 'https://camplife.ddns.net',
-  //apiBaseUrl: 'http://localhost:3000',
+  //apiBaseUrl: 'https://camplife.ddns.net',
+  apiBaseUrl: 'http://localhost:3000',
 };
 
 /*

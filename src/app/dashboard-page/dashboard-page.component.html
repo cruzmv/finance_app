@@ -1,4 +1,8 @@
 <ion-content>
+  <ion-refresher slot="fixed" (ionRefresh)="refreshDashboard($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
   <main class="dashboard-page">
     @if (isLoading) {
       <section class="state-panel">

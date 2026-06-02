@@ -17,6 +17,8 @@ export interface BalanceRow {
   status: string;
   value: string;
   balances: BalanceSnapshot;
+  credit_status: string | null;
+  account_type: 0 | 1 | null;
 }
 
 interface BalanceResponse {
@@ -35,10 +37,49 @@ interface MovimentPayload {
 interface MovimentSaveResponse {
   data?: {
     moviment?: Partial<BalanceRow>;
-    balance?: BalanceRow[];
-    balances?: BalanceRow[];
   };
 }
+
+interface CreditStatusToggleResponse {
+  data?: {
+    moviment?: {
+      id?: number;
+      credit_status?: string | null;
+    };
+  };
+}
+
+export interface MovimentAccountSettings {
+  id: number;
+  description: string;
+  contract: number | null;
+  start_date: string | null;
+  start_value: string | number | null;
+  closing_day: number | null;
+  account_type: 0 | 1;
+}
+
+export interface LedgerAccountSettings {
+  id: number;
+  description: string;
+  contract: number | null;
+}
+
+export interface StatusSettings {
+  id: number;
+  description: string;
+  contract: number | null;
+}
+
+export interface FinanceSettingsData {
+  accounts: MovimentAccountSettings[];
+  ledgerAccounts: LedgerAccountSettings[];
+  statuses: StatusSettings[];
+}
+
+export type MovimentAccountPayload = Omit<MovimentAccountSettings, 'id'>;
+export type LedgerAccountPayload = Omit<LedgerAccountSettings, 'id'>;
+export type StatusPayload = Omit<StatusSettings, 'id'>;
 
 @Injectable({ providedIn: 'root' })
 export class FinanceDataService {
@@ -80,7 +121,7 @@ export class FinanceDataService {
       : this.http.post<MovimentSaveResponse>(`${this.apiBaseUrl}/add_moviment`, payload);
 
     return request$.pipe(
-      tap((response) => this.applySaveResponse(response, payload, originalMoviment)),
+      tap(() => this.invalidateBalances()),
     );
   }
 
@@ -96,86 +137,91 @@ export class FinanceDataService {
     );
   }
 
-  private applySaveResponse(
-    response: MovimentSaveResponse,
-    payload: MovimentPayload,
-    originalMoviment: BalanceRow | null,
-  ): void {
-    const returnedRows = response.data?.balance ?? response.data?.balances;
+  toggleMovimentCreditStatus(id: number, confirmed: boolean): Observable<CreditStatusToggleResponse> {
+    return this.http
+      .post<CreditStatusToggleResponse>(`${this.apiBaseUrl}/toggle_moviment_credit_status`, {
+        id,
+        confirmed,
+      })
+      .pipe(
+        tap((response) => {
+          if (!this.balanceCache) {
+            return;
+          }
 
-    if (Array.isArray(returnedRows)) {
-      this.balanceCache = this.sortRows(returnedRows);
-      return;
-    }
-
-    if (!this.balanceCache) {
-      return;
-    }
-
-    const returnedMoviment = response.data?.moviment;
-    const movementId = Number(returnedMoviment?.id ?? originalMoviment?.id);
-
-    if (!Number.isInteger(movementId) || movementId <= 0) {
-      return;
-    }
-
-    const existingRow = this.balanceCache.find((row) => row.id === movementId) ?? originalMoviment;
-    const patchedRow = this.buildPatchedRow(movementId, payload, returnedMoviment, existingRow);
-    const withoutExisting = this.balanceCache.filter((row) => row.id !== movementId);
-    this.balanceCache = this.sortRows([...withoutExisting, patchedRow]);
+          const creditStatus = response.data?.moviment?.credit_status ?? null;
+          this.balanceCache = this.balanceCache.map((row) => {
+            return row.id === id ? { ...row, credit_status: creditStatus } : row;
+          });
+        }),
+      );
   }
 
-  private buildPatchedRow(
-    id: number,
-    payload: MovimentPayload,
-    returnedMoviment: Partial<BalanceRow> | undefined,
-    existingRow: BalanceRow | null,
-  ): BalanceRow {
-    const optionNames = this.getOptionNames();
-
-    return {
-      id,
-      datetime: returnedMoviment?.datetime ?? payload.datetime,
-      description: returnedMoviment?.description ?? payload.description,
-      ledger_account_id: Number(returnedMoviment?.ledger_account_id ?? payload.ledger_account),
-      ledger_account:
-        returnedMoviment?.ledger_account ??
-        optionNames.ledgerAccounts.get(payload.ledger_account) ??
-        existingRow?.ledger_account ??
-        'Ledger account',
-      moviment_account_id: Number(returnedMoviment?.moviment_account_id ?? payload.moviment_account),
-      moviment_account:
-        returnedMoviment?.moviment_account ??
-        optionNames.movimentAccounts.get(payload.moviment_account) ??
-        existingRow?.moviment_account ??
-        'Movement account',
-      status_id: Number(returnedMoviment?.status_id ?? payload.status),
-      status:
-        returnedMoviment?.status ??
-        optionNames.statuses.get(payload.status) ??
-        existingRow?.status ??
-        'Status',
-      value: String(returnedMoviment?.value ?? payload.value),
-      balances: returnedMoviment?.balances ?? existingRow?.balances ?? {},
-    };
+  getFinanceSettings(contract = 1): Observable<FinanceSettingsData> {
+    return this.http
+      .get<{ data: FinanceSettingsData }>(`${this.apiBaseUrl}/get_finance_settings`, {
+        params: { contract },
+      })
+      .pipe(map(({ data }) => data));
   }
 
-  private getOptionNames(): {
-    ledgerAccounts: Map<number, string>;
-    movimentAccounts: Map<number, string>;
-    statuses: Map<number, string>;
-  } {
-    const ledgerAccounts = new Map<number, string>();
-    const movimentAccounts = new Map<number, string>();
-    const statuses = new Map<number, string>();
+  saveMovimentAccount(
+    mode: 'add' | 'edit',
+    payload: MovimentAccountPayload,
+    id?: number,
+  ): Observable<unknown> {
+    const request$ = mode === 'edit'
+      ? this.http.post(`${this.apiBaseUrl}/edit_moviment_account`, { id, ...payload })
+      : this.http.post(`${this.apiBaseUrl}/add_moviment_account`, payload);
 
-    (this.balanceCache ?? []).forEach((row) => {
-      ledgerAccounts.set(row.ledger_account_id, row.ledger_account);
-      movimentAccounts.set(row.moviment_account_id, row.moviment_account);
-      statuses.set(row.status_id, row.status);
-    });
+    return request$.pipe(tap(() => this.invalidateBalances()));
+  }
 
-    return { ledgerAccounts, movimentAccounts, statuses };
+  deleteMovimentAccount(id: number): Observable<unknown> {
+    return this.http.post(`${this.apiBaseUrl}/delete_moviment_account`, { id }).pipe(
+      tap(() => this.invalidateBalances()),
+    );
+  }
+
+  saveLedgerAccount(
+    mode: 'add' | 'edit',
+    payload: LedgerAccountPayload,
+    id?: number,
+  ): Observable<unknown> {
+    const request$ = mode === 'edit'
+      ? this.http.post(`${this.apiBaseUrl}/edit_ledger_account`, { id, ...payload })
+      : this.http.post(`${this.apiBaseUrl}/add_ledger_account`, payload);
+
+    return request$.pipe(tap(() => this.invalidateBalances()));
+  }
+
+  deleteLedgerAccount(id: number): Observable<unknown> {
+    return this.http.post(`${this.apiBaseUrl}/delete_ledger_account`, { id }).pipe(
+      tap(() => this.invalidateBalances()),
+    );
+  }
+
+  saveStatus(
+    mode: 'add' | 'edit',
+    payload: StatusPayload,
+    id?: number,
+  ): Observable<unknown> {
+    const request$ = mode === 'edit'
+      ? this.http.post(`${this.apiBaseUrl}/edit_status`, { id, ...payload })
+      : this.http.post(`${this.apiBaseUrl}/add_status`, payload);
+
+    return request$.pipe(tap(() => this.invalidateBalances()));
+  }
+
+  deleteStatus(id: number): Observable<unknown> {
+    return this.http.post(`${this.apiBaseUrl}/delete_status`, { id }).pipe(
+      tap(() => this.invalidateBalances()),
+    );
+  }
+
+  private invalidateBalances(): void {
+    this.balanceCache = null;
+    this.balanceRequest$ = null;
   }
 
   private sortRows(rows: BalanceRow[]): BalanceRow[] {

@@ -3,7 +3,12 @@ import { HttpClient } from '@angular/common/http';
 import { Component, ElementRef, OnInit, ViewChild, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { IonContent, IonIcon } from '@ionic/angular/standalone';
+import {
+  IonContent,
+  IonIcon,
+  IonRefresher,
+  IonRefresherContent,
+} from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import { arrowBackOutline, cameraOutline, checkmarkCircleOutline } from 'ionicons/icons';
 import { finalize } from 'rxjs';
@@ -57,7 +62,7 @@ interface MovimentSaveResponse {
   selector: 'app-new-page',
   templateUrl: './new-page.component.html',
   styleUrls: ['./new-page.component.scss'],
-  imports: [CommonModule, IonContent, IonIcon, ReactiveFormsModule],
+  imports: [CommonModule, IonContent, IonIcon, IonRefresher, IonRefresherContent, ReactiveFormsModule],
 })
 export class NewPageComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
@@ -136,19 +141,7 @@ export class NewPageComponent implements OnInit {
     if (this.originalMoviment) {
       this.fillFormFromMoviment(this.originalMoviment);
     } else {
-      this.movimentForm.reset({
-        datetime: '',
-        statusId: this.statusOptions[0]?.id ?? 0,
-        movimentAccountId: 0,
-        ledgerAccountId: 0,
-        description: '',
-        value: null,
-      });
-      this.valueSign = -1;
-      this.movimentForm.patchValue({
-        datetime: this.toDatetimeLocalValue(new Date().toISOString()),
-      });
-      sessionStorage.removeItem(this.selectedMovimentStorageKey);
+      this.resetAddMovimentState();
     }
 
     this.applyDefaultOptions();
@@ -211,6 +204,7 @@ export class NewPageComponent implements OnInit {
       .subscribe({
         next: (response: MovimentSaveResponse) => {
           this.storeFinanceFocusTarget(response);
+          sessionStorage.removeItem(this.selectedMovimentStorageKey);
           void this.router.navigate(['/example/finance']);
         },
         error: () => {
@@ -224,6 +218,10 @@ export class NewPageComponent implements OnInit {
   protected cancel(): void {
     sessionStorage.removeItem(this.selectedMovimentStorageKey);
     void this.router.navigate(['/example/finance']);
+  }
+
+  protected refreshMovimentOptions(event: CustomEvent): void {
+    this.loadMovimentOptions(event);
   }
 
   private storeFinanceFocusTarget(response: MovimentSaveResponse): void {
@@ -308,6 +306,7 @@ export class NewPageComponent implements OnInit {
         : this.getStoredMovimentNavigationState();
     }
 
+    sessionStorage.removeItem(this.selectedMovimentStorageKey);
     return { mode: 'add' };
   }
 
@@ -326,16 +325,20 @@ export class NewPageComponent implements OnInit {
     }
   }
 
-  private loadMovimentOptions(): void {
+  private loadMovimentOptions(refreshEvent?: CustomEvent): void {
     if (this.isLoading) {
+      this.completeRefresh(refreshEvent);
       return;
     }
 
     this.isLoading = true;
 
     this.financeData
-      .getBalances()
-      .pipe(finalize(() => (this.isLoading = false)))
+      .getFinanceSettings()
+      .pipe(finalize(() => {
+        this.isLoading = false;
+        this.completeRefresh(refreshEvent);
+      }))
       .subscribe({
         next: (data) => {
           const selectedStatusName = this.statusOptions.find(
@@ -344,15 +347,15 @@ export class NewPageComponent implements OnInit {
 
           this.ledgerAccounts = this.mergeOptions(
             this.ledgerAccounts,
-            data.map((row) => this.toOption(row.ledger_account_id, row.ledger_account)),
+            data.ledgerAccounts.map((row) => this.toOption(row.id, row.description)),
           );
           this.movimentAccounts = this.mergeOptions(
             this.movimentAccounts,
-            data.map((row) => this.toOption(row.moviment_account_id, row.moviment_account)),
+            data.accounts.map((row) => this.toOption(row.id, row.description)),
           );
           this.statusOptions = this.mergeOptions(
             this.statusOptions,
-            data.map((row) => this.toOption(row.status_id, row.status)),
+            data.statuses.map((row) => this.toOption(row.id, row.description)),
           );
           this.syncSelectedStatus(selectedStatusName);
           this.applyDefaultOptions();
@@ -361,6 +364,11 @@ export class NewPageComponent implements OnInit {
           this.applyDefaultOptions();
         },
       });
+  }
+
+  private completeRefresh(event?: CustomEvent): void {
+    const refresher = event?.target as unknown as { complete?: () => Promise<void> | void };
+    void refresher?.complete?.();
   }
 
   private hasMissingOptions(): boolean {
@@ -381,6 +389,24 @@ export class NewPageComponent implements OnInit {
       value: Math.abs(Number(moviment.value)),
     });
     this.valueSign = Number(moviment.value) < 0 ? -1 : 1;
+  }
+
+  private resetAddMovimentState(): void {
+    this.isEditMode = false;
+    this.originalMoviment = null;
+    this.errorMessage = '';
+    this.receiptMessage = '';
+    this.receiptImagePreview = '';
+    this.valueSign = -1;
+    this.movimentForm.reset({
+      datetime: this.toDatetimeLocalValue(new Date().toISOString()),
+      statusId: this.statusOptions[0]?.id ?? 0,
+      movimentAccountId: 0,
+      ledgerAccountId: 0,
+      description: '',
+      value: null,
+    });
+    sessionStorage.removeItem(this.selectedMovimentStorageKey);
   }
 
   private applyDefaultOptions(): void {

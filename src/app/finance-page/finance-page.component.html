@@ -1,4 +1,8 @@
 <ion-content [scrollEvents]="true" (ionScroll)="onTimelineScroll()">
+  <ion-refresher slot="fixed" (ionRefresh)="refreshBalances($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
   <div class="finance-dashboard">
     @if (isLoading) {
       <div class="state-block">
@@ -136,7 +140,9 @@
                         class="balance-row"
                       >
                         <span class="balance-label">{{ balance.name }}</span>
-                        <span class="balance-amount">{{ balance.value | currency:'EUR':'symbol':'1.2-2' }}</span>
+                        <span class="balance-amount" [ngClass]="getBalanceToneClass(balance)">
+                          {{ balance.value | currency:'EUR':'symbol':'1.2-2' }}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -145,14 +151,22 @@
 
               @if (isMonthMovementsExpanded(monthGroup.monthKey)) {
                 <div class="transaction-timeline">
-                  <section
-                    *ngFor="let dayGroup of monthGroup.dayGroups; trackBy: trackByDay"
-                    class="timeline-day"
-                    [class.current-day]="dayGroup.dateKey === todayDayKey"
-                    [class.active-day]="activeDayKey === dayGroup.dateKey"
-                    [id]="getDayElementId(dayGroup.dateKey)"
-                    [attr.data-day-key]="dayGroup.dateKey"
-                  >
+                  @for (dayGroup of monthGroup.dayGroups; track dayGroup.dateKey; let dayIndex = $index) {
+                    @if (isFutureTimelineBreak(monthGroup, dayIndex)) {
+                      <div class="timeline-future-break" aria-label="Future movements">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                      </div>
+                    }
+
+                    <section
+                      class="timeline-day"
+                      [class.current-day]="dayGroup.dateKey === todayDayKey"
+                      [class.active-day]="activeDayKey === dayGroup.dateKey"
+                      [id]="getDayElementId(dayGroup.dateKey)"
+                      [attr.data-day-key]="dayGroup.dateKey"
+                    >
                     <button
                       type="button"
                       class="timeline-date-header"
@@ -172,7 +186,9 @@
                             class="balance-row"
                           >
                             <span class="balance-label">{{ balance.name }}</span>
-                            <span class="balance-amount">{{ balance.value | currency:'EUR':'symbol':'1.2-2' }}</span>
+                            <span class="balance-amount" [ngClass]="getBalanceToneClass(balance)">
+                              {{ balance.value | currency:'EUR':'symbol':'1.2-2' }}
+                            </span>
                           </span>
                         </span>
                       }
@@ -191,6 +207,18 @@
                         <div class="transaction-header">
                           <span class="transaction-time">{{ row.datetime | date:'HH:mm':'UTC' }}</span>
                           <div class="transaction-actions">
+                            @if (isCreditMovement(row)) {
+                              <button
+                                type="button"
+                                class="transaction-action credit-toggle"
+                                [class.confirmed]="isCreditConfirmed(row)"
+                                [attr.aria-label]="isCreditConfirmed(row) ? 'Mark credit movement as pending' : 'Mark credit movement as confirmed'"
+                                [attr.title]="isCreditConfirmed(row) ? 'Confirmed' : 'Pending'"
+                                (click)="$event.stopPropagation(); toggleCreditStatus(row)"
+                              >
+                                <ion-icon [name]="isCreditConfirmed(row) ? 'checkmark-circle-outline' : 'time-outline'"></ion-icon>
+                              </button>
+                            }
                             <button
                               type="button"
                               class="transaction-action"
@@ -220,7 +248,7 @@
 
                           <div class="transaction-pills">
                             <span class="transaction-status" [ngClass]="getStatusToneClass(row.status)">{{ row.status }}</span>
-                            <span class="transaction-account">{{ row.moviment_account }}</span>
+                            <span class="transaction-account" [ngClass]="getAccountToneClass(row)">{{ row.moviment_account }}</span>
                             <span class="transaction-ledger" [ngClass]="getLedgerToneClass(row.ledger_account)">{{ row.ledger_account }}</span>
                           </div>
 
@@ -237,7 +265,9 @@
                                 class="balance-row"
                               >
                                 <span class="balance-label">{{ balance.name }}</span>
-                                <span class="balance-amount">{{ balance.value | currency:'EUR':'symbol':'1.2-2' }}</span>
+                                <span class="balance-amount" [ngClass]="getBalanceToneClass(balance)">
+                                  {{ balance.value | currency:'EUR':'symbol':'1.2-2' }}
+                                </span>
                               </div>
                             </div>
                           }
@@ -245,7 +275,8 @@
                       </mat-card>
                     </div>
 
-                  </section>
+                    </section>
+                  }
                 </div>
               }
             </section>
