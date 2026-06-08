@@ -7,7 +7,7 @@
     @if (isLoading) {
       <div class="state-block">
         <mat-spinner diameter="40"></mat-spinner>
-        <p>Loading finance data...</p>
+        <p>Carregando dados financeiros...</p>
       </div>
     } @else if (errorMessage) {
       <div class="state-block error">
@@ -16,34 +16,39 @@
     } @else {
       @if (timelineMonths.length === 0) {
         <div class="state-block">
-          <p>No movements found.</p>
+          <p>Nenhum movimento encontrado.</p>
         </div>
       } @else {
-        <nav class="timeline-jumpbar" aria-label="Jump to month">
-          <div class="jumpbar-month-list" #jumpbarMonthList>
-            @for (month of timelineMonths; track month.monthKey) {
-              <button
-                type="button"
-                class="jumpbar-item"
-                [class.active]="activeMonthKey === month.monthKey"
-                [attr.data-month-key]="month.monthKey"
-                (click)="scrollToMonth(month.monthKey)"
-              >
-                <span class="jumpbar-month">{{ month.date | date:'MMM':'UTC' }}</span>
-                <span class="jumpbar-year">{{ month.date | date:'yyyy':'UTC' }}</span>
+        <header class="movements-header">
+          <div class="movements-title-row">
+            <h1>Movimentos</h1>
+            <div class="movements-header-actions" aria-label="Ferramentas de movimentos">
+              <button type="button" class="header-icon-button" aria-label="Filtrar movimentos">
+                <ion-icon name="funnel-outline"></ion-icon>
               </button>
-            }
+              <button type="button" class="header-icon-button" aria-label="Buscar movimentos">
+                <ion-icon name="search-outline"></ion-icon>
+              </button>
+            </div>
           </div>
 
-          <button
-            type="button"
-            class="jumpbar-item today-jump"
-            aria-label="Jump to today"
-            (click)="scrollToToday()"
-          >
-            <ion-icon name="today-outline"></ion-icon>
-          </button>
-        </nav>
+          <nav class="timeline-jumpbar" aria-label="Ir para o mês">
+            <div class="jumpbar-month-list" #jumpbarMonthList>
+              @for (month of timelineMonths; track month.monthKey) {
+                <button
+                  type="button"
+                  class="jumpbar-item"
+                  [class.active]="activeMonthKey === month.monthKey"
+                  [attr.data-month-key]="month.monthKey"
+                  (click)="scrollToMonth(month.monthKey)"
+                >
+                  <span class="jumpbar-month">{{ formatMonthShort(month.date) }}</span>
+                  <span class="jumpbar-year">{{ month.date | date:'yyyy':'UTC' }}</span>
+                </button>
+              }
+            </div>
+          </nav>
+        </header>
 
         <section class="finance-timeline">
           @for (monthGroup of timelineMonths; track monthGroup.monthKey) {
@@ -64,87 +69,29 @@
                 (keydown.space)="$event.preventDefault(); toggleMonthMovements(monthGroup.monthKey)"
               >
                 <div class="month-card-layout">
-                  <div class="month-card-top">
-                    <div class="month-card-left chart-panel">
-                      <div
-                        class="expense-donut"
-                        [style.background]="monthGroup.summary.expenseChartBackground"
-                        aria-hidden="true"
-                      >
-                        <span class="expense-donut-center"></span>
-                      </div>
-                    </div>
-
-                    <div class="month-card-right balance-panel">
-                      <span class="month-name">{{ monthGroup.summary.label }}</span>
-                      <span
-                        class="month-figure savings-tone-1"
-                        [class.negative-savings]="monthGroup.summary.previousSavings < 0"
-                        aria-label="Previous savings"
-                      >
-                        <span class="figure-label" title="Previous savings">
-                          <ion-icon name="arrow-up-circle-outline"></ion-icon>
-                        </span>
-                        <strong>{{ monthGroup.summary.previousSavings | currency:'EUR':'symbol':'1.2-2' }}</strong>
-                      </span>
-                      <span
-                        class="month-figure savings-tone-2"
-                        [class.negative-savings]="monthGroup.summary.currentSavings < 0"
-                        aria-label="Current savings"
-                      >
-                        <span class="figure-label" title="Current savings">
-                          <ion-icon name="arrow-down-circle-outline"></ion-icon>
-                        </span>
-                        <strong>{{ monthGroup.summary.currentSavings | currency:'EUR':'symbol':'1.2-2' }}</strong>
-                      </span>
-                      <span
-                        class="month-figure savings-tone-3"
-                        [class.negative-savings]="monthGroup.summary.totalSaved < 0"
-                        aria-label="Total saved"
-                      >
-                        <span class="figure-label" title="Total saved">
-                          <ion-icon name="wallet-outline"></ion-icon>
-                        </span>
-                        <strong>{{ monthGroup.summary.totalSaved | currency:'EUR':'symbol':'1.2-2' }}</strong>
-                      </span>
-                    </div>
-                  </div>
-
-                  <div class="month-card-bottom">
-                    <div class="expense-chart">
-                      @for (ledger of monthGroup.summary.topExpenseLedgers; track ledger.name) {
-                        <div class="expense-row">
-                          <div class="expense-row-top">
-                            <span class="expense-name">
-                              <span
-                                class="expense-dot"
-                                [style.background]="ledger.color"
-                              ></span>
-                              <span class="expense-percent">{{ ledger.percent | number:'1.0-0' }}%</span>
-                              {{ ledger.name }}
-                            </span>
-                            <span class="expense-value">
-                              {{ ledger.total | currency:'EUR':'symbol':'1.2-2' }}
-                            </span>
-                          </div>
-                        </div>
-                      }
-                    </div>
-                    <span class="month-meta">
-                      <ion-icon name="swap-vertical-outline"></ion-icon>
-                      {{ monthGroup.summary.movements.length }} movements
+                  <span class="month-name">{{ monthGroup.summary.label }}</span>
+                  <div class="month-summary-grid">
+                    <span
+                      class="month-figure savings-tone-1"
+                      [class.negative-savings]="monthGroup.summary.previousSavings < 0"
+                    >
+                      <span class="figure-label">Mês anterior</span>
+                      <strong>{{ monthGroup.summary.previousSavings | currency:'EUR':'symbol':'1.2-2' }}</strong>
                     </span>
-                    <div class="timeline-account-balances month-account-balances">
-                      <div
-                        *ngFor="let balance of monthGroup.summary.accountBalances; trackBy: trackByBalanceName"
-                        class="balance-row"
-                      >
-                        <span class="balance-label">{{ balance.name }}</span>
-                        <span class="balance-amount" [ngClass]="getBalanceToneClass(balance)">
-                          {{ balance.value | currency:'EUR':'symbol':'1.2-2' }}
-                        </span>
-                      </div>
-                    </div>
+                    <span
+                      class="month-figure savings-tone-2"
+                      [class.negative-savings]="monthGroup.summary.currentSavings < 0"
+                    >
+                      <span class="figure-label">Fim do mês</span>
+                      <strong>{{ monthGroup.summary.currentSavings | currency:'EUR':'symbol':'1.2-2' }}</strong>
+                    </span>
+                    <span
+                      class="month-figure savings-tone-3"
+                      [class.negative-savings]="monthGroup.summary.totalSaved < 0"
+                    >
+                      <span class="figure-label">Economia</span>
+                      <strong>{{ monthGroup.summary.totalSaved | currency:'EUR':'symbol':'1.2-2' }}</strong>
+                    </span>
                   </div>
                 </div>
               </div>
@@ -153,7 +100,7 @@
                 <div class="transaction-timeline">
                   @for (dayGroup of monthGroup.dayGroups; track dayGroup.dateKey; let dayIndex = $index) {
                     @if (isFutureTimelineBreak(monthGroup, dayIndex)) {
-                      <div class="timeline-future-break" aria-label="Future movements">
+                      <div class="timeline-future-break" aria-label="Movimentos futuros">
                         <span></span>
                         <span></span>
                         <span></span>
@@ -173,9 +120,9 @@
                       [attr.aria-expanded]="isDayExpanded(dayGroup.dateKey)"
                       (click)="toggleDayBalances(dayGroup.dateKey)"
                     >
-                      <span class="timeline-date">{{ dayGroup.date | date:'EEEE, dd/MM/yyyy':'UTC' }}</span>
+                      <span class="timeline-date">{{ formatDayLabel(dayGroup.date) }}</span>
                       <span class="timeline-savings">
-                        <span>Savings:</span>
+                        <span>Economia:</span>
                         {{ getPositiveBalanceTotal(dayGroup.accountBalances) | currency:'EUR':'symbol':'1.2-2' }}
                       </span>
 
@@ -206,56 +153,66 @@
                       >
                         <div class="transaction-header">
                           <span class="transaction-time">{{ row.datetime | date:'HH:mm':'UTC' }}</span>
+                          @if (isMovementExpanded(row.id)) {
                           <div class="transaction-actions">
                             @if (isCreditMovement(row)) {
                               <button
                                 type="button"
                                 class="transaction-action credit-toggle"
                                 [class.confirmed]="isCreditConfirmed(row)"
-                                [attr.aria-label]="isCreditConfirmed(row) ? 'Mark credit movement as pending' : 'Mark credit movement as confirmed'"
-                                [attr.title]="isCreditConfirmed(row) ? 'Confirmed' : 'Pending'"
+                                [attr.aria-label]="isCreditConfirmed(row) ? 'Marcar crédito como pendente' : 'Marcar crédito como confirmado'"
+                                [attr.title]="isCreditConfirmed(row) ? 'Confirmado' : 'Pendente'"
                                 (click)="$event.stopPropagation(); toggleCreditStatus(row)"
                               >
                                 <ion-icon [name]="isCreditConfirmed(row) ? 'checkmark-circle-outline' : 'time-outline'"></ion-icon>
+                                <span>{{ isCreditConfirmed(row) ? 'Confirmado' : 'Confirmar' }}</span>
                               </button>
                             }
                             <button
                               type="button"
                               class="transaction-action"
-                              aria-label="Edit movement"
+                              aria-label="Editar movimento"
                               (click)="$event.stopPropagation(); openEditMoviment(row)"
                             >
                               <ion-icon name="create-outline"></ion-icon>
+                              <span>Editar</span>
                             </button>
                             <button
                               type="button"
                               class="transaction-action danger"
-                              aria-label="Delete movement"
+                              aria-label="Excluir movimento"
                               (click)="$event.stopPropagation(); deleteMoviment(row)"
                             >
                               <ion-icon name="trash-outline"></ion-icon>
+                              <span>Excluir</span>
                             </button>
                           </div>
+                          }
                         </div>
 
                         <div class="transaction-body">
-                          <div class="transaction-primary">
-                            <span class="transaction-description">{{ row.description }}</span>
-                            <span class="transaction-value" [ngClass]="getValueToneClass(row.value)">
-                              {{ +row.value | currency:'EUR':'symbol':'1.2-2' }}
-                            </span>
-                          </div>
+                          <span class="transaction-icon" aria-hidden="true">
+                            <ion-icon name="receipt-outline"></ion-icon>
+                          </span>
+                          <div class="transaction-main">
+                            <div class="transaction-primary">
+                              <span class="transaction-description">{{ row.description }}</span>
+                              <span class="transaction-value" [ngClass]="getValueToneClass(row.value)">
+                                {{ +row.value | currency:'EUR':'symbol':'1.2-2' }}
+                              </span>
+                            </div>
 
-                          <div class="transaction-pills">
-                            <span class="transaction-status" [ngClass]="getStatusToneClass(row.status)">{{ row.status }}</span>
-                            <span class="transaction-account" [ngClass]="getAccountToneClass(row)">{{ row.moviment_account }}</span>
-                            <span class="transaction-ledger" [ngClass]="getLedgerToneClass(row.ledger_account)">{{ row.ledger_account }}</span>
+                            <div class="transaction-meta">
+                              <span>{{ row.ledger_account }}</span>
+                              <span>{{ row.moviment_account }}</span>
+                              <span>{{ row.status }}</span>
+                            </div>
                           </div>
 
                           @if (isMovementExpanded(row.id)) {
                             <div class="timeline-account-balances transaction-account-balances">
                               <div class="balance-row balance-savings-row">
-                                <span class="balance-label">Savings</span>
+                                <span class="balance-label">Economia</span>
                                 <span class="balance-amount savings-amount">
                                   {{ getPositiveBalanceTotal(getBalanceEntries(row.balances)) | currency:'EUR':'symbol':'1.2-2' }}
                                 </span>
@@ -282,6 +239,17 @@
             </section>
           }
         </section>
+        @if (shouldShowCurrentDayFab) {
+          <button
+            type="button"
+            class="current-day-fab"
+            aria-label="Ir para os movimentos de hoje"
+            (click)="scrollToToday()"
+          >
+            <ion-icon name="today-outline"></ion-icon>
+            <span>Hoje</span>
+          </button>
+        }
       }
     }
   </div>

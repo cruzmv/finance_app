@@ -11,15 +11,14 @@ import {
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
-  arrowDownCircleOutline,
-  arrowUpCircleOutline,
   checkmarkCircleOutline,
   createOutline,
+  funnelOutline,
+  receiptOutline,
+  searchOutline,
   todayOutline,
-  swapVerticalOutline,
   timeOutline,
   trashOutline,
-  walletOutline,
 } from 'ionicons/icons';
 import { finalize, forkJoin } from 'rxjs';
 import {
@@ -85,6 +84,11 @@ interface FinanceFocusTarget {
   preferPast?: boolean;
   dayKey?: string;
   monthKey?: string;
+  expandDetails?: boolean;
+}
+
+interface ScrollFocusOptions {
+  expandDetails?: boolean;
 }
 
 @Component({
@@ -106,24 +110,23 @@ interface FinanceFocusTarget {
 export class FinancePageComponent implements OnInit {
   private readonly financeData = inject(FinanceDataService);
   private readonly router = inject(Router);
-  private readonly contractId = 1;
   private readonly financeFocusStorageKey = 'financeFocusTarget';
   private readonly expenseChartColors = ['#d94841', '#f07c4a', '#e0b43b'];
   private readonly statusToneClasses = ['status-tone-red', 'status-tone-amber', 'status-tone-orange'];
   private readonly ledgerToneClasses = ['ledger-tone-rose', 'ledger-tone-gold', 'ledger-tone-sky', 'ledger-tone-violet', 'ledger-tone-teal'];
   private readonly monthLabels = [
-    'January',
-    'February',
-    'March',
-    'April',
-    'May',
-    'June',
-    'July',
-    'August',
-    'September',
-    'October',
-    'November',
-    'December',
+    'Janeiro',
+    'Fevereiro',
+    'Março',
+    'Abril',
+    'Maio',
+    'Junho',
+    'Julho',
+    'Agosto',
+    'Setembro',
+    'Outubro',
+    'Novembro',
+    'Dezembro',
   ];
   @ViewChild(IonContent) private content?: IonContent;
   @ViewChild('resultsAnchor') private resultsAnchor?: ElementRef<HTMLElement>;
@@ -147,6 +150,7 @@ export class FinancePageComponent implements OnInit {
   protected expandedMonthKeys = new Set<string>();
   protected expandedMovementIds = new Set<number>();
   private hasLoadedBalances = false;
+  private loadedToken = '';
   private pendingFocusTarget: FinanceFocusTarget | null = null;
   private scrollTicking = false;
   private accountById = new Map<string, MovimentAccountSettings>();
@@ -154,15 +158,14 @@ export class FinancePageComponent implements OnInit {
 
   constructor() {
     addIcons({
-      arrowDownCircleOutline,
-      arrowUpCircleOutline,
       checkmarkCircleOutline,
       createOutline,
-      swapVerticalOutline,
+      funnelOutline,
+      receiptOutline,
+      searchOutline,
       todayOutline,
       timeOutline,
       trashOutline,
-      walletOutline,
     });
   }
 
@@ -173,6 +176,11 @@ export class FinancePageComponent implements OnInit {
 
   ionViewWillEnter() {
     const storedFocusTarget = this.consumeStoredFocusTarget();
+
+    if (this.loadedToken !== this.authToken) {
+      this.loadBalances(storedFocusTarget ?? this.buildInitialFocusTarget(), true);
+      return;
+    }
 
     if (!storedFocusTarget || !this.hasLoadedBalances) {
       return;
@@ -191,6 +199,26 @@ export class FinancePageComponent implements OnInit {
 
   protected trackByBalanceName(_: number, balance: BalanceEntry): string {
     return balance.name;
+  }
+
+  protected get shouldShowCurrentDayFab(): boolean {
+    return this.timelineMonths.reduce((total, month) => total + month.dayGroups.length, 0) >= 3;
+  }
+
+  protected formatMonthShort(date: Date): string {
+    return new Intl.DateTimeFormat('pt-BR', {
+      month: 'short',
+      timeZone: 'UTC',
+    }).format(date).replace('.', '');
+  }
+
+  protected formatDayLabel(date: Date): string {
+    return new Intl.DateTimeFormat('pt-BR', {
+      weekday: 'long',
+      month: 'short',
+      day: '2-digit',
+      timeZone: 'UTC',
+    }).format(date).replace('.', '');
   }
 
   protected isFutureTimelineBreak(monthGroup: MovementMonthGroup, dayIndex: number): boolean {
@@ -320,7 +348,7 @@ export class FinancePageComponent implements OnInit {
     const shouldConfirm = !this.isCreditConfirmed(row);
 
     if (!shouldConfirm) {
-      const shouldChange = window.confirm(`Mark "${row.description}" as pending again?`);
+      const shouldChange = window.confirm(`Marcar "${row.description}" como pendente novamente?`);
 
       if (!shouldChange) {
         return;
@@ -336,7 +364,7 @@ export class FinancePageComponent implements OnInit {
         this.rebuildFinanceState(this.buildFocusTargetFromRow(row));
       },
       error: () => {
-        this.errorMessage = 'Unable to update credit status.';
+        this.errorMessage = 'Não foi possível atualizar o status do crédito.';
       },
     });
   }
@@ -354,7 +382,7 @@ export class FinancePageComponent implements OnInit {
   }
 
   protected deleteMoviment(row: BalanceRow): void {
-    const shouldDelete = window.confirm(`Delete movement "${row.description}"?`);
+    const shouldDelete = window.confirm(`Excluir o movimento "${row.description}"?`);
 
     if (!shouldDelete) {
       return;
@@ -368,7 +396,7 @@ export class FinancePageComponent implements OnInit {
         this.rebuildFinanceState(focusTarget);
       },
       error: () => {
-        this.errorMessage = 'Unable to delete movement.';
+        this.errorMessage = 'Não foi possível excluir o movimento.';
       },
     });
   }
@@ -431,10 +459,10 @@ export class FinancePageComponent implements OnInit {
 
   protected get selectedMonthLabel(): string {
     if (this.selectedMonthIndex === null) {
-      return 'Selected month';
+      return 'Mês selecionado';
     }
 
-    return this.monthSummaries[this.selectedMonthIndex]?.label ?? 'Selected month';
+    return this.monthSummaries[this.selectedMonthIndex]?.label ?? 'Mês selecionado';
   }
 
   protected onYearChange(year: number): void {
@@ -471,7 +499,7 @@ export class FinancePageComponent implements OnInit {
       dayKey: this.todayDayKey,
       monthKey: this.todayDayKey.slice(0, 7),
     });
-    void this.scrollToFocusTarget(todayTarget);
+    void this.scrollToFocusTarget(todayTarget, { expandDetails: false });
   }
 
   protected refreshBalances(event: CustomEvent): void {
@@ -483,13 +511,14 @@ export class FinancePageComponent implements OnInit {
     forceRefresh = false,
     refreshEvent?: CustomEvent,
   ): void {
+    this.loadedToken = this.authToken;
     this.isLoading = true;
     this.errorMessage = '';
     this.pendingFocusTarget = focusTarget ?? null;
 
     forkJoin({
       balances: this.financeData.getBalances(forceRefresh),
-      settings: this.financeData.getFinanceSettings(this.contractId),
+      settings: this.financeData.getFinanceSettings(),
     })
       .pipe(finalize(() => {
         this.isLoading = false;
@@ -502,9 +531,13 @@ export class FinancePageComponent implements OnInit {
         },
         error: () => {
           this.errorMessage =
-            'Unable to load finance data from Server.';
+            'Não foi possível carregar os dados financeiros do servidor.';
         },
     });
+  }
+
+  private get authToken(): string {
+    return localStorage.getItem('financeAuthSession') ?? '';
   }
 
   private completeRefresh(event?: CustomEvent): void {
@@ -512,15 +545,22 @@ export class FinancePageComponent implements OnInit {
     void refresher?.complete?.();
   }
 
-  protected scrollToMonth(monthKey: string): void {
-    const target = document.getElementById(this.getMonthElementId(monthKey));
+  protected async scrollToMonth(monthKey: string): Promise<void> {
+    this.expandedMonthKeys.add(monthKey);
+    await this.waitForRender();
+
+    const monthGroup = this.timelineMonths.find((month) => month.monthKey === monthKey);
+    const targetDay = this.getPreferredDayKeyForMonth(monthGroup);
+    const targetId = targetDay ? this.getDayElementId(targetDay) : this.getMonthElementId(monthKey);
+    const target = document.getElementById(targetId);
 
     if (!target) {
       return;
     }
 
-    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    void this.scrollElementIntoView(target);
     this.activeMonthKey = monthKey;
+    this.activeDayKey = targetDay ?? this.activeDayKey;
     this.ensureActiveJumpbarItemVisible();
   }
 
@@ -528,18 +568,13 @@ export class FinancePageComponent implements OnInit {
     setTimeout(() => {
       requestAnimationFrame(() => {
         const resolvedTarget = this.getTimelineFocusTarget(focusTarget);
-        this.expandFocusMonth(resolvedTarget);
-        void this.scrollToFocusTarget(resolvedTarget);
+        void this.scrollToFocusTarget(resolvedTarget, this.getScrollFocusOptions(focusTarget));
       });
     }, 80);
   }
 
   private getTimelineFocusTarget(focusTarget: FinanceFocusTarget): FinanceFocusTarget {
     if (focusTarget.movementId && this.transactions.some((row) => row.id === focusTarget.movementId)) {
-      return focusTarget;
-    }
-
-    if (focusTarget.dayKey && this.hasDayGroup(focusTarget.dayKey)) {
       return focusTarget;
     }
 
@@ -559,6 +594,10 @@ export class FinancePageComponent implements OnInit {
       }
     }
 
+    if (focusTarget.dayKey && this.hasDayGroup(focusTarget.dayKey)) {
+      return focusTarget;
+    }
+
     if (focusTarget.monthKey && this.timelineMonths.some((month) => month.monthKey === focusTarget.monthKey)) {
       return focusTarget;
     }
@@ -573,8 +612,11 @@ export class FinancePageComponent implements OnInit {
     return latestMonthKey ? { monthKey: latestMonthKey } : {};
   }
 
-  private async scrollToFocusTarget(focusTarget: FinanceFocusTarget): Promise<void> {
-    this.expandFocusMonth(focusTarget);
+  private async scrollToFocusTarget(
+    focusTarget: FinanceFocusTarget,
+    options: ScrollFocusOptions = {},
+  ): Promise<void> {
+    this.expandFocusTarget(focusTarget, options);
     await this.waitForRender();
 
     const elementId =
@@ -593,7 +635,7 @@ export class FinancePageComponent implements OnInit {
       return;
     }
 
-    element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    await this.scrollElementIntoView(element);
     this.updateActiveTimelineMarkersFromElement(element, focusTarget);
 
     if (focusTarget.movementId) {
@@ -605,7 +647,7 @@ export class FinancePageComponent implements OnInit {
   private updateActiveTimelineMarkers(): void {
     const monthElements = Array.from(document.querySelectorAll<HTMLElement>('.timeline-month'));
     const dayElements = Array.from(document.querySelectorAll<HTMLElement>('.timeline-day'));
-    const markerTop = 92;
+    const markerTop = this.getStickyDayMarkerTop();
     const activeMonth = this.getActiveSectionElement(monthElements, markerTop);
     const activeDay = this.getClosestTimelineElement(dayElements, markerTop);
 
@@ -630,11 +672,20 @@ export class FinancePageComponent implements OnInit {
 
   private ensureActiveJumpbarItemVisible(): void {
     requestAnimationFrame(() => {
-      const activeButton = this.jumpbarMonthList?.nativeElement.querySelector<HTMLElement>(
+      const monthList = this.jumpbarMonthList?.nativeElement;
+      const activeButton = monthList?.querySelector<HTMLElement>(
         `[data-month-key="${this.activeMonthKey}"]`,
       );
 
-      activeButton?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      if (!monthList || !activeButton) {
+        return;
+      }
+
+      const centeredLeft = activeButton.offsetLeft - (monthList.clientWidth - activeButton.offsetWidth) / 2;
+      monthList.scrollTo({
+        left: Math.max(0, centeredLeft),
+        behavior: 'smooth',
+      });
     });
   }
 
@@ -649,26 +700,78 @@ export class FinancePageComponent implements OnInit {
     this.filteredTransactions = [];
     this.filteredTransactionGroups = [];
     this.hasLoadedBalances = true;
-    this.initializeExpandedMonths(focusTarget);
+    this.initializeExpandedMonths(focusTarget, this.getScrollFocusOptions(focusTarget));
     this.restoreTimelineFocus(focusTarget);
   }
 
-  private initializeExpandedMonths(focusTarget: FinanceFocusTarget): void {
+  private initializeExpandedMonths(focusTarget: FinanceFocusTarget, options: ScrollFocusOptions): void {
     const resolvedTarget = this.getTimelineFocusTarget(focusTarget);
     const monthKey = resolvedTarget.monthKey ?? resolvedTarget.dayKey?.slice(0, 7);
+    const expandDetails = options.expandDetails ?? true;
+
     this.expandedMonthKeys = monthKey ? new Set([monthKey]) : new Set<string>();
+    this.expandedDayKeys = expandDetails && resolvedTarget.dayKey ? new Set([resolvedTarget.dayKey]) : new Set<string>();
+    this.expandedMovementIds = expandDetails && resolvedTarget.movementId ? new Set([resolvedTarget.movementId]) : new Set<number>();
   }
 
-  private expandFocusMonth(focusTarget: FinanceFocusTarget): void {
+  private expandFocusTarget(focusTarget: FinanceFocusTarget, options: ScrollFocusOptions = {}): void {
     const monthKey = focusTarget.monthKey ?? focusTarget.dayKey?.slice(0, 7);
+    const expandDetails = options.expandDetails ?? true;
 
     if (monthKey) {
       this.expandedMonthKeys.add(monthKey);
+    }
+
+    if (!expandDetails) {
+      if (focusTarget.dayKey) {
+        this.expandedDayKeys.delete(focusTarget.dayKey);
+      }
+
+      if (focusTarget.movementId) {
+        this.expandedMovementIds.delete(focusTarget.movementId);
+      }
+
+      return;
+    }
+
+    if (expandDetails && focusTarget.dayKey) {
+      this.expandedDayKeys.add(focusTarget.dayKey);
+    }
+
+    if (expandDetails && focusTarget.movementId) {
+      this.expandedMovementIds.add(focusTarget.movementId);
     }
   }
 
   private waitForRender(): Promise<void> {
     return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+  }
+
+  private getScrollFocusOptions(focusTarget: FinanceFocusTarget): ScrollFocusOptions {
+    return { expandDetails: focusTarget.expandDetails ?? true };
+  }
+
+  private async scrollElementIntoView(element: HTMLElement): Promise<void> {
+    const scrollElement = await this.content?.getScrollElement();
+
+    if (!scrollElement || !this.content) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+
+    const stickyOffset = this.getStickyDayMarkerTop();
+    const scrollRect = scrollElement.getBoundingClientRect();
+    const elementRect = element.getBoundingClientRect();
+    const top = scrollElement.scrollTop + elementRect.top - scrollRect.top - stickyOffset;
+
+    await this.content.scrollToPoint(0, Math.max(0, top), 360);
+  }
+
+  private getStickyDayMarkerTop(): number {
+    const stickyHeader = document.querySelector<HTMLElement>('.timeline-date-header');
+    const computedTop = stickyHeader ? Number.parseFloat(getComputedStyle(stickyHeader).top) : Number.NaN;
+
+    return Number.isFinite(computedTop) ? computedTop + 28 : 196;
   }
 
   private getClosestTimelineElement(elements: HTMLElement[], markerTop: number): HTMLElement | null {
@@ -696,6 +799,21 @@ export class FinancePageComponent implements OnInit {
     return containingElement ?? this.getClosestTimelineElement(elements, markerTop);
   }
 
+  private getPreferredDayKeyForMonth(monthGroup: MovementMonthGroup | undefined): string | null {
+    if (!monthGroup || monthGroup.dayGroups.length === 0) {
+      return null;
+    }
+
+    if (monthGroup.monthKey === this.todayDayKey.slice(0, 7)) {
+      const daysAtOrBeforeToday = monthGroup.dayGroups.filter((day) => day.dateKey <= this.todayDayKey);
+      const todayOrNearestPast = daysAtOrBeforeToday[daysAtOrBeforeToday.length - 1];
+
+      return todayOrNearestPast?.dateKey ?? monthGroup.dayGroups[0].dateKey;
+    }
+
+    return monthGroup.dayGroups[0].dateKey;
+  }
+
   private consumeStoredFocusTarget(): FinanceFocusTarget | null {
     const storedTarget = sessionStorage.getItem(this.financeFocusStorageKey);
 
@@ -718,6 +836,7 @@ export class FinancePageComponent implements OnInit {
       preferPast: true,
       dayKey: this.todayDayKey,
       monthKey: this.todayDayKey.slice(0, 7),
+      expandDetails: false,
     };
   }
 
@@ -771,7 +890,7 @@ export class FinancePageComponent implements OnInit {
       return latestRow;
     }, null);
 
-    return movement ?? this.transactions[this.transactions.length - 1] ?? null;
+    return movement ?? this.getNearestMovement(datetime);
   }
 
   private hasDayGroup(dayKey: string): boolean {
@@ -1076,7 +1195,7 @@ export class FinancePageComponent implements OnInit {
     if (topExpenseLedgers.length === 0) {
       return [
         {
-          name: 'No expenses',
+          name: 'Sem despesas',
           total: 0,
           percent: 100,
           color: this.expenseChartColors[0],

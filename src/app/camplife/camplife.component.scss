@@ -32,3 +32,39 @@
   height: 34px;
   color: #2c7a5d;
 }
+
+ion-tab-bar {
+  --background: rgba(255, 255, 255, 0.98);
+  --border: 1px solid rgba(31, 67, 54, 0.08);
+  height: 66px;
+  padding: 4px 4px max(4px, env(safe-area-inset-bottom));
+}
+
+ion-tab-button {
+  --color: #7d8884;
+  --color-selected: #168454;
+  font-size: 0.66rem;
+}
+
+ion-tab-button ion-icon {
+  font-size: 1.35rem;
+}
+
+.add-tab {
+  --color: #fff;
+  --color-selected: #fff;
+}
+
+.add-button {
+  display: grid;
+  width: 50px;
+  height: 50px;
+  place-items: center;
+  border-radius: 50%;
+  background: #168454;
+  box-shadow: 0 6px 14px rgba(22, 132, 84, 0.24);
+}
+
+.add-button ion-icon {
+  font-size: 2rem;
+}

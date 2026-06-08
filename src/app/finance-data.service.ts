@@ -2,6 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, finalize, map, of, shareReplay, tap } from 'rxjs';
 import { environment } from '../environments/environment';
+import { AuthService } from './auth.service';
 
 export type BalanceSnapshot = Record<string, number>;
 
@@ -77,19 +78,27 @@ export interface FinanceSettingsData {
   statuses: StatusSettings[];
 }
 
-export type MovimentAccountPayload = Omit<MovimentAccountSettings, 'id'>;
-export type LedgerAccountPayload = Omit<LedgerAccountSettings, 'id'>;
-export type StatusPayload = Omit<StatusSettings, 'id'>;
+export type MovimentAccountPayload = Omit<MovimentAccountSettings, 'id' | 'contract'>;
+export type LedgerAccountPayload = Omit<LedgerAccountSettings, 'id' | 'contract'>;
+export type StatusPayload = Omit<StatusSettings, 'id' | 'contract'>;
 
 @Injectable({ providedIn: 'root' })
 export class FinanceDataService {
   private readonly http = inject(HttpClient);
+  private readonly auth = inject(AuthService);
   private readonly apiBaseUrl = environment.apiBaseUrl;
   private readonly endpoint = `${this.apiBaseUrl}/get_balance`;
   private balanceCache: BalanceRow[] | null = null;
+  private balanceCacheToken = '';
   private balanceRequest$: Observable<BalanceRow[]> | null = null;
 
   getBalances(forceRefresh = false): Observable<BalanceRow[]> {
+    const activeToken = this.auth.token;
+
+    if (this.balanceCacheToken !== activeToken) {
+      this.invalidateBalances();
+    }
+
     if (!forceRefresh && this.balanceCache) {
       return of(this.balanceCache);
     }
@@ -100,7 +109,10 @@ export class FinanceDataService {
 
     this.balanceRequest$ = this.http.get<BalanceResponse>(this.endpoint).pipe(
       map(({ data }) => this.sortRows(data ?? [])),
-      tap((rows) => (this.balanceCache = rows)),
+      tap((rows) => {
+        this.balanceCache = rows;
+        this.balanceCacheToken = activeToken;
+      }),
       finalize(() => (this.balanceRequest$ = null)),
       shareReplay(1),
     );
@@ -157,11 +169,9 @@ export class FinanceDataService {
       );
   }
 
-  getFinanceSettings(contract = 1): Observable<FinanceSettingsData> {
+  getFinanceSettings(): Observable<FinanceSettingsData> {
     return this.http
-      .get<{ data: FinanceSettingsData }>(`${this.apiBaseUrl}/get_finance_settings`, {
-        params: { contract },
-      })
+      .get<{ data: FinanceSettingsData }>(`${this.apiBaseUrl}/get_finance_settings`)
       .pipe(map(({ data }) => data));
   }
 
@@ -221,6 +231,7 @@ export class FinanceDataService {
 
   private invalidateBalances(): void {
     this.balanceCache = null;
+    this.balanceCacheToken = '';
     this.balanceRequest$ = null;
   }
 

@@ -6,6 +6,10 @@
 }
 
 .settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   margin-bottom: 18px;
 }
 
@@ -27,11 +31,40 @@
   margin-bottom: 16px;
 }
 
+.contract-code-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #e7f6ec;
+  color: #23633b;
+  font-size: 0.78rem;
+}
+
+.contract-code-panel strong {
+  letter-spacing: 0.08em;
+}
+
 .settings-tabs button,
 .save-button,
-.icon-button {
+.icon-button,
+.logout-button {
   border: 0;
   font: inherit;
+}
+
+.logout-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 9px 11px;
+  border-radius: 8px;
+  background: #e7ece3;
+  color: #4d5b50;
+  font-weight: 800;
 }
 
 .settings-tabs button {

@@ -1,0 +1,56 @@
+<ion-content>
+  <main class="register-page">
+    <section class="register-card">
+      <div class="brand-icon"><ion-icon name="wallet-outline"></ion-icon></div>
+      <p class="eyebrow">Camplife Finance</p>
+      <h1>Criar conta</h1>
+      <p class="subtitle">Comece um novo espaço financeiro ou junte-se a alguém da sua família.</p>
+
+      <form [formGroup]="registerForm" (ngSubmit)="register()">
+        <label>
+          <span>Email</span>
+          <input type="email" formControlName="email" autocomplete="email" placeholder="nome@exemplo.com">
+        </label>
+        <label>
+          <span>Utilizador</span>
+          <input type="text" formControlName="username" autocomplete="username" placeholder="Escolha um utilizador">
+        </label>
+        <label>
+          <span>Palavra-passe</span>
+          <div class="password-field">
+            <input
+              [type]="isPasswordVisible ? 'text' : 'password'"
+              formControlName="password"
+              autocomplete="new-password"
+              placeholder="Mínimo de 8 caracteres"
+            >
+            <button
+              type="button"
+              class="password-toggle"
+              [attr.aria-label]="isPasswordVisible ? 'Ocultar palavra-passe' : 'Mostrar palavra-passe'"
+              (click)="togglePasswordVisibility()"
+            >
+              <ion-icon [name]="isPasswordVisible ? 'eye-off-outline' : 'eye-outline'"></ion-icon>
+            </button>
+          </div>
+        </label>
+        <label>
+          <span>Código de contrato <small>opcional</small></span>
+          <input type="text" formControlName="joinCode" autocomplete="off" placeholder="Para juntar-se a um contrato existente">
+        </label>
+        <p class="contract-hint">Deixe o código vazio para criar um novo contrato automaticamente.</p>
+
+        @if (errorMessage) {
+          <p class="error-message">{{ errorMessage }}</p>
+        }
+
+        <button type="submit" class="register-button" [disabled]="isRegistering">
+          <ion-icon name="person-add-outline"></ion-icon>
+          {{ isRegistering ? 'A criar...' : 'Criar conta' }}
+        </button>
+      </form>
+
+      <a class="login-link" routerLink="/login">Já tenho uma conta</a>
+    </section>
+  </main>
+</ion-content>

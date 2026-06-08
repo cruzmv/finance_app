@@ -5,9 +5,22 @@
 
   <div class="settings-page">
     <header class="settings-header">
-      <h1>Settings</h1>
-      <p>Finance setup tables</p>
+      <div>
+        <h1>Mais</h1>
+        <p>Configurações financeiras</p>
+      </div>
+      <button type="button" class="logout-button" (click)="logout()">
+        <ion-icon name="log-out-outline"></ion-icon>
+        Sair
+      </button>
     </header>
+
+    @if (contractJoinCode) {
+      <section class="contract-code-panel">
+        <span>Código para adicionar outro utilizador</span>
+        <strong>{{ contractJoinCode }}</strong>
+      </section>
+    }
 
     <nav class="settings-tabs" aria-label="Settings sections">
       <button type="button" [class.active]="activeTab === 'accounts'" (click)="setActiveTab('accounts')">

@@ -5,17 +5,115 @@
 
   <form class="moviment-form-page" [formGroup]="movimentForm" (ngSubmit)="saveMoviment()">
     <header class="form-header">
-      <button type="button" class="icon-button" aria-label="Back to finance" (click)="cancel()">
-        <ion-icon name="arrow-back-outline"></ion-icon>
+      <button type="button" class="header-action" aria-label="Cancelar" (click)="cancel()">
+        <ion-icon name="close-outline"></ion-icon>
       </button>
       <h1>{{ pageTitle }}</h1>
+      <button
+        type="submit"
+        class="header-action save-action"
+        aria-label="Guardar movimento"
+        [disabled]="isSaving || isLoading"
+      >
+        <ion-icon name="checkmark-outline"></ion-icon>
+      </button>
     </header>
 
     @if (errorMessage) {
       <p class="form-error">{{ errorMessage }}</p>
     }
 
+    <div class="movement-type-switch" aria-label="Tipo de movimento">
+      <button
+        type="button"
+        class="type-button expense"
+        [class.active]="valueSign === -1"
+        [attr.aria-pressed]="valueSign === -1"
+        (click)="setValueSign(-1)"
+      >
+        Despesa
+      </button>
+      <button
+        type="button"
+        class="type-button income"
+        [class.active]="valueSign === 1"
+        [attr.aria-pressed]="valueSign === 1"
+        (click)="setValueSign(1)"
+      >
+        Entrada
+      </button>
+    </div>
+
+    <label class="amount-field">
+      <span aria-hidden="true">€</span>
+      <input
+        type="number"
+        formControlName="value"
+        step="0.01"
+        inputmode="decimal"
+        min="0"
+        placeholder="0,00"
+        aria-label="Valor"
+      />
+    </label>
+
+    <label class="form-field">
+      <span>Descrição</span>
+      <input type="text" formControlName="description" placeholder="Descrição do movimento" />
+    </label>
+
+    <label class="form-field">
+      <span>Categoria</span>
+      <div class="select-shell">
+        <ion-icon class="field-leading-icon expense-icon" name="cart-outline"></ion-icon>
+        <select formControlName="ledgerAccountId" aria-label="Categoria">
+          @for (ledger of ledgerAccounts; track ledger.id) {
+            <option [ngValue]="ledger.id">{{ ledger.name }}</option>
+          }
+        </select>
+        <ion-icon class="field-trailing-icon" name="chevron-forward-outline"></ion-icon>
+      </div>
+    </label>
+
+    <label class="form-field">
+      <span>Conta</span>
+      <div class="select-shell">
+        <ion-icon class="field-leading-icon" name="card-outline"></ion-icon>
+        <select formControlName="movimentAccountId" aria-label="Conta">
+          @for (account of movimentAccounts; track account.id) {
+            <option [ngValue]="account.id">{{ account.name }}</option>
+          }
+        </select>
+        <ion-icon class="field-trailing-icon" name="chevron-forward-outline"></ion-icon>
+      </div>
+    </label>
+
+    <label class="form-field">
+      <span>Data</span>
+      <div class="date-shell">
+        <input type="datetime-local" formControlName="datetime" aria-label="Data" />
+        <ion-icon class="field-trailing-icon" name="calendar-outline"></ion-icon>
+      </div>
+    </label>
+
+    <section class="form-section">
+      <span class="section-label">Status</span>
+      <div class="status-switch">
+        @for (status of statusList; track status.id) {
+          <button
+            type="button"
+            class="status-button"
+            [class.active]="movimentForm.controls.statusId.value === status.id"
+            (click)="selectStatus(status)"
+          >
+            {{ status.name }}
+          </button>
+        }
+      </div>
+    </section>
+
     <section class="receipt-scanner">
+      <span class="receipt-label">Adicionar recibo</span>
       <input
         #receiptInput
         type="file"
@@ -26,104 +124,16 @@
       />
       <button type="button" class="scan-button" [disabled]="isAnalyzingReceipt" (click)="openReceiptCapture()">
         <ion-icon name="camera-outline"></ion-icon>
-        {{ isAnalyzingReceipt ? 'Reading receipt...' : 'Scan receipt' }}
+        {{ isAnalyzingReceipt ? 'A analisar recibo...' : 'Tirar foto do recibo' }}
       </button>
 
       @if (receiptImagePreview) {
-        <img class="receipt-preview" [src]="receiptImagePreview" alt="Receipt preview" />
+        <img class="receipt-preview" [src]="receiptImagePreview" alt="Pré-visualização do recibo" />
       }
 
       @if (receiptMessage) {
         <p class="scan-message">{{ receiptMessage }}</p>
       }
     </section>
-
-    <label class="form-field">
-      <span>Datetime</span>
-      <input type="datetime-local" formControlName="datetime" />
-    </label>
-
-    <section class="form-section">
-      <span class="section-label">Status</span>
-      <div class="pill-list">
-        @for (status of statusList; track status.id) {
-          <button
-            type="button"
-            class="option-pill"
-            [class.active]="movimentForm.controls.statusId.value === status.id"
-            (click)="selectStatus(status)"
-          >
-            {{ status.name }}
-          </button>
-        }
-      </div>
-    </section>
-
-    <section class="form-section">
-      <span class="section-label">Account</span>
-      <div class="pill-list">
-        @for (account of movimentAccounts; track account.id) {
-          <button
-            type="button"
-            class="option-pill"
-            [class.active]="movimentForm.controls.movimentAccountId.value === account.id"
-            (click)="selectMovimentAccount(account)"
-          >
-            {{ account.name }}
-          </button>
-        }
-      </div>
-    </section>
-
-    <section class="form-section">
-      <span class="section-label">Ledger account</span>
-      <div class="pill-list">
-        @for (ledger of ledgerAccounts; track ledger.id) {
-          <button
-            type="button"
-            class="option-pill"
-            [class.active]="movimentForm.controls.ledgerAccountId.value === ledger.id"
-            (click)="selectLedgerAccount(ledger)"
-          >
-            {{ ledger.name }}
-          </button>
-        }
-      </div>
-    </section>
-
-    <label class="form-field">
-      <span>Description</span>
-      <textarea formControlName="description" rows="2"></textarea>
-    </label>
-
-    <label class="form-field value-field">
-      <span>Value</span>
-      <div class="value-sign-controls" aria-label="Value sign">
-        <button
-          type="button"
-          class="sign-button negative"
-          [class.active]="valueSign === -1"
-          [attr.aria-pressed]="valueSign === -1"
-          (click)="setValueSign(-1)"
-        >
-          -
-        </button>
-        <button
-          type="button"
-          class="sign-button positive"
-          [class.active]="valueSign === 1"
-          [attr.aria-pressed]="valueSign === 1"
-          (click)="setValueSign(1)"
-        >
-          +
-        </button>
-      </div>
-      <input type="number" formControlName="value" step="0.01" inputmode="decimal" />
-    </label>
-
-    <button type="submit" class="save-button" [disabled]="isSaving || isLoading">
-      <ion-icon name="checkmark-circle-outline"></ion-icon>
-      {{ isSaving ? 'Saving...' : 'Save' }}
-    </button>
   </form>
 </ion-content>

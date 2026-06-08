@@ -1,22 +1,22 @@
-import { ComponentFixture, TestBed, waitForAsync } from '@angular/core/testing';
-import { IonicModule } from '@ionic/angular';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 
-import { ExampleComponent } from './camplife.component';
+import { CamplifeComponent } from './camplife.component';
 
-describe('ExampleComponent', () => {
-  let component: ExampleComponent;
-  let fixture: ComponentFixture<ExampleComponent>;
+describe('CamplifeComponent', () => {
+  let component: CamplifeComponent;
+  let fixture: ComponentFixture<CamplifeComponent>;
 
-  beforeEach(waitForAsync(() => {
-    TestBed.configureTestingModule({
-      declarations: [ ExampleComponent ],
-      imports: [IonicModule.forRoot()]
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [CamplifeComponent],
+      providers: [provideRouter([])],
     }).compileComponents();
 
-    fixture = TestBed.createComponent(ExampleComponent);
+    fixture = TestBed.createComponent(CamplifeComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
-  }));
+  });
 
   it('should create', () => {
     expect(component).toBeTruthy();

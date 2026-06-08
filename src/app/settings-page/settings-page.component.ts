@@ -8,7 +8,7 @@ import {
   IonRefresherContent,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { closeOutline, createOutline, saveOutline, trashOutline } from 'ionicons/icons';
+import { closeOutline, createOutline, logOutOutline, saveOutline, trashOutline } from 'ionicons/icons';
 import { Observable, finalize } from 'rxjs';
 import {
   FinanceDataService,
@@ -16,6 +16,7 @@ import {
   MovimentAccountSettings,
   StatusSettings,
 } from '../finance-data.service';
+import { AuthService } from '../auth.service';
 
 type SettingsTab = 'accounts' | 'ledger' | 'status';
 
@@ -28,7 +29,8 @@ type SettingsTab = 'accounts' | 'ledger' | 'status';
 export class SettingsPageComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly financeData = inject(FinanceDataService);
-  private readonly contractId = 1;
+  private readonly auth = inject(AuthService);
+  private loadedToken = '';
 
   protected activeTab: SettingsTab = 'accounts';
   protected accounts: MovimentAccountSettings[] = [];
@@ -38,6 +40,7 @@ export class SettingsPageComponent implements OnInit {
   protected isSaving = false;
   protected errorMessage = '';
   protected successMessage = '';
+  protected contractJoinCode = '';
   protected accountEditId: number | null = null;
   protected ledgerEditId: number | null = null;
   protected statusEditId: number | null = null;
@@ -59,11 +62,19 @@ export class SettingsPageComponent implements OnInit {
   });
 
   constructor() {
-    addIcons({ closeOutline, createOutline, saveOutline, trashOutline });
+    addIcons({ closeOutline, createOutline, logOutOutline, saveOutline, trashOutline });
   }
 
   ngOnInit() {
     this.loadSettings();
+    this.loadContractJoinCode();
+  }
+
+  ionViewWillEnter(): void {
+    if (this.loadedToken !== this.auth.token) {
+      this.loadSettings();
+      this.loadContractJoinCode();
+    }
   }
 
   protected setActiveTab(tab: SettingsTab): void {
@@ -96,7 +107,6 @@ export class SettingsPageComponent implements OnInit {
     }
 
     const payload = {
-      contract: this.contractId,
       description,
       start_date: formValue.startDate || null,
       start_value: formValue.startValue,
@@ -163,7 +173,6 @@ export class SettingsPageComponent implements OnInit {
     }
 
     const payload = {
-      contract: this.contractId,
       description: this.ledgerForm.controls.description.value.trim(),
     };
 
@@ -214,7 +223,6 @@ export class SettingsPageComponent implements OnInit {
     }
 
     const payload = {
-      contract: this.contractId,
       description: this.statusForm.controls.description.value.trim(),
     };
 
@@ -263,12 +271,17 @@ export class SettingsPageComponent implements OnInit {
     this.loadSettings(event);
   }
 
+  protected logout(): void {
+    this.auth.logout();
+  }
+
   private loadSettings(refreshEvent?: CustomEvent): void {
+    this.loadedToken = this.auth.token;
     this.isLoading = true;
     this.errorMessage = '';
 
     this.financeData
-      .getFinanceSettings(this.contractId)
+      .getFinanceSettings()
       .pipe(finalize(() => {
         this.isLoading = false;
         this.completeRefresh(refreshEvent);
@@ -283,6 +296,14 @@ export class SettingsPageComponent implements OnInit {
           this.errorMessage = 'Unable to load settings.';
         },
       });
+  }
+
+  private loadContractJoinCode(): void {
+    this.auth.getContractJoinCode().subscribe({
+      next: ({ data }) => {
+        this.contractJoinCode = data.joinCode;
+      },
+    });
   }
 
   private completeRefresh(event?: CustomEvent): void {

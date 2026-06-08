@@ -3,7 +3,13 @@ import { NavigationCancel, NavigationEnd, NavigationError, NavigationStart, Rout
 import { IonIcon, IonSpinner, IonTabBar, IonTabButton, IonTabs } from '@ionic/angular/standalone';
 
 import { addIcons } from 'ionicons';
-import { addCircleOutline, cardOutline, settingsOutline, speedometerOutline } from 'ionicons/icons';
+import {
+  addOutline,
+  calendarClearOutline,
+  ellipsisHorizontalOutline,
+  homeOutline,
+  receiptOutline,
+} from 'ionicons/icons';
 import { Subscription } from 'rxjs';
 
 
@@ -19,7 +25,13 @@ export class CamplifeComponent implements OnInit, OnDestroy {
   protected isFinanceRouteLoading = false;
 
   constructor() {
-    addIcons({ addCircleOutline, cardOutline, settingsOutline, speedometerOutline });
+    addIcons({
+      addOutline,
+      calendarClearOutline,
+      ellipsisHorizontalOutline,
+      homeOutline,
+      receiptOutline,
+    });
   }
 
   ngOnInit() {

@@ -18,11 +18,21 @@
 
 import { Routes } from '@angular/router';
 import { CamplifeComponent } from './camplife/camplife.component';
+import { authGuard } from './auth.guard';
 
 export const routes: Routes = [
   {
+    path: 'login',
+    loadComponent: () => import('./login-page/login-page.component').then((m) => m.LoginPageComponent),
+  },
+  {
+    path: 'register',
+    loadComponent: () => import('./register-page/register-page.component').then((m) => m.RegisterPageComponent),
+  },
+  {
     path: 'example',
     component: CamplifeComponent,
+    canActivate: [authGuard],
     children: [
       {
         path: 'dashboard',
@@ -35,6 +45,10 @@ export const routes: Routes = [
       {
         path: 'new',
         loadComponent: () => import('./new-page/new-page.component').then((m) => m.NewPageComponent),
+      },
+      {
+        path: 'planning',
+        loadComponent: () => import('./planning-page/planning-page.component').then((m) => m.PlanningPageComponent),
       },
       {
         path: 'home',

@@ -4,84 +4,126 @@
   </ion-refresher>
 
   <main class="dashboard-page">
+    <header class="welcome-header">
+      <div class="account-menu">
+        <button
+          type="button"
+          class="account-menu-trigger"
+          aria-haspopup="menu"
+          [attr.aria-expanded]="isAccountMenuOpen"
+          (click)="toggleAccountMenu($event)"
+        >
+          <h1>Olá, {{ username }}! <span aria-hidden="true">👋</span></h1>
+          <ion-icon name="chevron-down-outline"></ion-icon>
+        </button>
+
+        @if (isAccountMenuOpen) {
+          <div class="account-menu-dropdown" role="menu" (click)="$event.stopPropagation()">
+            <button type="button" role="menuitem" (click)="logout()">
+              <ion-icon name="log-out-outline"></ion-icon>
+              Sair
+            </button>
+          </div>
+        }
+      </div>
+      <button type="button" class="notification-button" aria-label="Notificações">
+        <ion-icon name="notifications-outline"></ion-icon>
+      </button>
+    </header>
+
     @if (isLoading) {
-      <section class="state-panel">
-        <p>Loading dashboard...</p>
-      </section>
+      <section class="state-panel"><p>A carregar resumo...</p></section>
     } @else if (errorMessage) {
-      <section class="state-panel error">
-        <p>{{ errorMessage }}</p>
-      </section>
+      <section class="state-panel error"><p>{{ errorMessage }}</p></section>
     } @else {
-      <section class="savings-panel">
-        <div class="panel-heading">
-          <button type="button" class="year-button" aria-label="Previous year" (click)="moveYear(-1)">
-            <span aria-hidden="true">&lt;</span>
-          </button>
+      <section class="dashboard-card summary-card">
+        <header class="card-heading">
           <div>
-            <p class="eyebrow">Savings</p>
-            <h1>{{ focusedYear }}</h1>
+            <h2>Resumo de {{ currentMonth }}, {{ currentDay }}</h2>
+            <p>Até agora, {{ currentDateTimeLabel }}</p>
           </div>
-          <button type="button" class="year-button" aria-label="Next year" (click)="moveYear(1)">
-            <span aria-hidden="true">&gt;</span>
-          </button>
+        </header>
+
+        <h3 class="summary-title">Balanço</h3>
+        <div class="summary-grid">
+          <div>
+            <span>Início mês</span>
+            <strong>{{ summary.monthStartBalance | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
+          </div>
+          <div>
+            <span>Fim do mês</span>
+            <strong>{{ summary.monthEndBalance | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
+          </div>
+          <div class="balance">
+            <span>{{ savingsLabel }}</span>
+            <strong [class.negative]="summary.savings < 0">
+              {{ summary.savings | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
+            </strong>
+          </div>
         </div>
 
-        <div class="savings-results">
-          <div class="savings-result">
-            <span>{{ savingsSummary.lastYearLabel }}</span>
-            <strong>{{ savingsSummary.lastYearTotal | currency:'EUR':'symbol':'1.2-2' }}</strong>
-          </div>
-          <div class="savings-result focus">
-            <span>{{ savingsSummary.focusYearLabel }}</span>
-            <strong>{{ savingsSummary.focusYearTotal | currency:'EUR':'symbol':'1.2-2' }}</strong>
-          </div>
-          <div class="savings-result" [class.negative]="savingsSummary.balance < 0">
-            <span>Balance</span>
-            <strong>{{ savingsSummary.balance | currency:'EUR':'symbol':'1.2-2' }}</strong>
-          </div>
+        <div class="forecast-hint" [ngClass]="'forecast-' + forecastTone">
+          <ion-icon name="bulb-outline"></ion-icon>
+          <span>{{ forecastMessage }}</span>
         </div>
       </section>
 
-      <section class="ledger-panel">
-        <div class="panel-heading ledger-heading">
-          <div>
-            <p class="eyebrow">Ledger accounts</p>
-            <h2>{{ focusedYear }}</h2>
-          </div>
+      <section class="dashboard-card upcoming-card">
+        <header class="card-heading split-heading">
+          <h2>Próximas contas</h2>
+          <button type="button" class="nav-link" (click)="openTodayMovements()">Ver todas</button>
+        </header>
+
+        <div class="upcoming-list">
+          @for (movement of upcomingMovements; track movement.id) {
+            <div class="upcoming-row">
+              <ion-icon name="bag-handle-outline"></ion-icon>
+              <strong>{{ movement.description }}</strong>
+              <span>{{ movement.dateLabel }}</span>
+              <b [class.negative]="movement.value < 0">
+                {{ movement.value | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
+              </b>
+            </div>
+          } @empty {
+            <p class="empty-message">Sem contas provisionadas.</p>
+          }
         </div>
+      </section>
 
-        <div class="ledger-table-scroll" aria-label="Ledger accounts by month">
-          <div class="ledger-grid">
-            <div class="ledger-cell ledger-head ledger-name-head">Ledger</div>
-            @for (month of ledgerMonths; track month.monthKey) {
-              <div class="ledger-cell ledger-head month-head">{{ month.label }}</div>
-            }
-
-            @for (row of ledgerRows; track row.name) {
-              <div
-                class="ledger-cell ledger-name"
-                role="button"
-                tabindex="0"
-                [class.selected-ledger-row]="selectedLedgerName === row.name"
-                [attr.aria-pressed]="selectedLedgerName === row.name"
-                (click)="toggleLedgerSelection(row.name)"
-                (keydown.enter)="toggleLedgerSelection(row.name)"
-                (keydown.space)="$event.preventDefault(); toggleLedgerSelection(row.name)"
-              >
-                {{ row.name }}
-              </div>
-              @for (balance of row.balances; track $index) {
-                <div
-                  class="ledger-cell ledger-amount"
-                  [class.negative]="balance < 0"
-                  [class.selected-ledger-row]="selectedLedgerName === row.name"
-                >
-                  {{ balance | number:'1.2-2' }}
-                </div>
-              }
-            }
+      <section class="dashboard-card goal-card">
+        <h2>Objetivo: Reserva de emergência</h2>
+        <div class="goal-content">
+          <div class="goal-progress" [style.--progress]="goalProgress + '%'">
+            <strong>{{ goalProgress }}%</strong>
           </div>
+          <p>
+            <strong>{{ goalCurrent | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
+            <span>de {{ goalTarget | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</span>
+          </p>
+        </div>
+      </section>
+
+      <section class="quick-section">
+        <header class="card-heading split-heading">
+          <h2>Visão rápida</h2>
+          <button type="button" class="nav-link" (click)="openTodayMovements()">Ver tudo</button>
+        </header>
+        <div class="quick-grid">
+          <article>
+            <span>Entradas</span>
+            <strong>{{ summary.income | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
+            <small>efetuados e esperados</small>
+          </article>
+          <article>
+            <span>Saídas</span>
+            <strong class="negative">{{ summary.consumedExpenses | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
+            <small>efetuado</small>
+          </article>
+          <article>
+            <span>Esperado</span>
+            <strong class="negative">{{ summary.provisionedExpenses | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
+            <small>em aberto</small>
+          </article>
         </div>
       </section>
     }

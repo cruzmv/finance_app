@@ -10,7 +10,15 @@ import {
   IonRefresherContent,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { arrowBackOutline, cameraOutline, checkmarkCircleOutline } from 'ionicons/icons';
+import {
+  calendarOutline,
+  cameraOutline,
+  cardOutline,
+  cartOutline,
+  checkmarkOutline,
+  chevronForwardOutline,
+  closeOutline,
+} from 'ionicons/icons';
 import { finalize } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { BalanceRow, FinanceDataService } from '../finance-data.service';
@@ -21,8 +29,6 @@ interface MovimentOption {
 }
 
 interface MovimentPayload {
-  contract: number;
-  user: number;
   datetime: string;
   description: string;
   ledger_account: number;
@@ -73,8 +79,6 @@ export class NewPageComponent implements OnInit {
   private readonly apiBaseUrl = environment.apiBaseUrl;
   private readonly selectedMovimentStorageKey = 'selectedMoviment';
   private readonly financeFocusStorageKey = 'financeFocusTarget';
-  private readonly contractId = 1;
-  private readonly userId = 1;
   private readonly fallbackStatusOptions: MovimentOption[] = [];
   @ViewChild('receiptInput') private receiptInput?: ElementRef<HTMLInputElement>;
 
@@ -102,7 +106,15 @@ export class NewPageComponent implements OnInit {
   private originalMoviment: BalanceRow | null = null;
 
   constructor() {
-    addIcons({ arrowBackOutline, cameraOutline, checkmarkCircleOutline });
+    addIcons({
+      calendarOutline,
+      cameraOutline,
+      cardOutline,
+      cartOutline,
+      checkmarkOutline,
+      chevronForwardOutline,
+      closeOutline,
+    });
   }
 
   ngOnInit() {
@@ -148,7 +160,7 @@ export class NewPageComponent implements OnInit {
   }
 
   protected get pageTitle(): string {
-    return this.isEditMode ? 'Edit movement' : 'New movement';
+    return this.isEditMode ? 'Editar movimento' : 'Novo movimento';
   }
 
   protected get statusList(): MovimentOption[] {
@@ -192,7 +204,7 @@ export class NewPageComponent implements OnInit {
     this.errorMessage = '';
 
     if (this.movimentForm.invalid) {
-      this.errorMessage = 'Please fill all movement fields.';
+      this.errorMessage = 'Preencha todos os campos do movimento.';
       return;
     }
 
@@ -209,8 +221,8 @@ export class NewPageComponent implements OnInit {
         },
         error: () => {
           this.errorMessage = this.isEditMode
-            ? 'Unable to edit movement.'
-            : 'Unable to add movement.';
+            ? 'Não foi possível editar o movimento.'
+            : 'Não foi possível adicionar o movimento.';
         },
       });
   }
@@ -239,7 +251,7 @@ export class NewPageComponent implements OnInit {
 
   private async analyzeReceipt(file: File): Promise<void> {
     this.isAnalyzingReceipt = true;
-    this.receiptMessage = 'Reading receipt...';
+    this.receiptMessage = 'A analisar recibo...';
 
     try {
       const imageBase64 = await this.fileToDataUrl(file);
@@ -254,15 +266,15 @@ export class NewPageComponent implements OnInit {
         .subscribe({
           next: ({ data }) => {
             this.applyReceiptGuesses(data.guesses);
-            this.receiptMessage = 'Receipt analyzed. Please review the guessed fields before saving.';
+            this.receiptMessage = 'Recibo analisado. Reveja os campos sugeridos antes de guardar.';
           },
           error: (error: any) => {
-            this.receiptMessage = 'Unable to analyze this receipt.';
+            this.receiptMessage = 'Não foi possível analisar este recibo.';
           },
         });
     } catch {
       this.isAnalyzingReceipt = false;
-      this.receiptMessage = 'Unable to read this image.';
+      this.receiptMessage = 'Não foi possível ler esta imagem.';
     }
   }
 
@@ -427,8 +439,6 @@ export class NewPageComponent implements OnInit {
     const formValue = this.movimentForm.getRawValue();
 
     return {
-      contract: this.contractId,
-      user: this.userId,
       datetime: formValue.datetime,
       description: formValue.description.trim(),
       ledger_account: formValue.ledgerAccountId,

@@ -1,0 +1,52 @@
+<ion-content>
+  <main class="login-page">
+    <section class="login-card">
+      <div class="brand-icon"><ion-icon name="wallet-outline"></ion-icon></div>
+      <p class="eyebrow">Camplife Finance</p>
+      <h1>Bem-vindo</h1>
+      <p class="subtitle">Entre para acompanhar as suas finanças.</p>
+
+      <form [formGroup]="signInForm" (ngSubmit)="signIn()">
+        <label>
+          <span>Utilizador</span>
+          <input type="text" formControlName="username" autocomplete="username" placeholder="O seu utilizador">
+        </label>
+        <label>
+          <span>Palavra-passe</span>
+          <div class="password-field">
+            <input
+              [type]="isPasswordVisible ? 'text' : 'password'"
+              formControlName="password"
+              autocomplete="current-password"
+              placeholder="A sua palavra-passe"
+            >
+            <button
+              type="button"
+              class="password-toggle"
+              [attr.aria-label]="isPasswordVisible ? 'Ocultar palavra-passe' : 'Mostrar palavra-passe'"
+              (click)="togglePasswordVisibility()"
+            >
+              <ion-icon [name]="isPasswordVisible ? 'eye-off-outline' : 'eye-outline'"></ion-icon>
+            </button>
+          </div>
+        </label>
+
+        @if (errorMessage) {
+          <p class="error-message">{{ errorMessage }}</p>
+        }
+
+        <button type="submit" class="sign-in-button" [disabled]="isSigningIn">
+          <ion-icon name="lock-closed-outline"></ion-icon>
+          {{ isSigningIn ? 'A entrar...' : 'Entrar' }}
+        </button>
+      </form>
+
+      <a class="register-link" routerLink="/register">Criar conta</a>
+
+      @if (isGoogleConfigured) {
+        <div class="divider"><span>ou</span></div>
+        <div #googleButton class="google-button"></div>
+      }
+    </section>
+  </main>
+</ion-content>
