@@ -91,6 +91,11 @@ export class FinanceDataService {
   private balanceCache: BalanceRow[] | null = null;
   private balanceCacheToken = '';
   private balanceRequest$: Observable<BalanceRow[]> | null = null;
+  private balanceRevision = 0;
+
+  get balancesRevision(): number {
+    return this.balanceRevision;
+  }
 
   getBalances(forceRefresh = false): Observable<BalanceRow[]> {
     const activeToken = this.auth.token;
@@ -133,19 +138,13 @@ export class FinanceDataService {
       : this.http.post<MovimentSaveResponse>(`${this.apiBaseUrl}/add_moviment`, payload);
 
     return request$.pipe(
-      tap(() => this.invalidateBalances()),
+      tap(() => this.markBalancesChanged()),
     );
   }
 
   deleteMoviment(id: number): Observable<unknown> {
     return this.http.post(`${this.apiBaseUrl}/delete_moviment`, { id }).pipe(
-      tap(() => {
-        if (!this.balanceCache) {
-          return;
-        }
-
-        this.balanceCache = this.balanceCache.filter((row) => row.id !== id);
-      }),
+      tap(() => this.markBalancesChanged()),
     );
   }
 
@@ -233,6 +232,11 @@ export class FinanceDataService {
     this.balanceCache = null;
     this.balanceCacheToken = '';
     this.balanceRequest$ = null;
+  }
+
+  private markBalancesChanged(): void {
+    this.invalidateBalances();
+    this.balanceRevision += 1;
   }
 
   private sortRows(rows: BalanceRow[]): BalanceRow[] {

@@ -148,6 +148,7 @@
                         [id]="getMovementElementId(row.id)"
                         [class.positive-transaction]="+row.value >= 0"
                         [class.negative-transaction]="+row.value < 0"
+                        [class.provisioned-transaction]="isProvisionedMovement(row)"
                         [class.expanded-transaction]="isMovementExpanded(row.id)"
                         (click)="toggleMovementBalances(row.id)"
                       >

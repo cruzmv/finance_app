@@ -291,6 +291,10 @@ p {
   background: #fcfdfc;
 }
 
+.transaction-card.provisioned-transaction {
+  background: #fff8ed;
+}
+
 .transaction-card.focused-transaction {
   animation: transaction-focus-pulse 1200ms ease-out;
 }

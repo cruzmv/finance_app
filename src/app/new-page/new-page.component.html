@@ -47,6 +47,7 @@
     <label class="amount-field">
       <span aria-hidden="true">€</span>
       <input
+        #valueInput
         type="number"
         formControlName="value"
         step="0.01"
@@ -113,7 +114,7 @@
     </section>
 
     <section class="receipt-scanner">
-      <span class="receipt-label">Adicionar recibo</span>
+      <span class="receipt-label">Scanear recibo</span>
       <input
         #receiptInput
         type="file"
@@ -124,7 +125,7 @@
       />
       <button type="button" class="scan-button" [disabled]="isAnalyzingReceipt" (click)="openReceiptCapture()">
         <ion-icon name="camera-outline"></ion-icon>
-        {{ isAnalyzingReceipt ? 'A analisar recibo...' : 'Tirar foto do recibo' }}
+        {{ isAnalyzingReceipt ? 'A analisar recibo...' : 'Abrir camera' }}
       </button>
 
       @if (receiptImagePreview) {

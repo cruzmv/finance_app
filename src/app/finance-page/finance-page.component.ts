@@ -344,6 +344,10 @@ export class FinancePageComponent implements OnInit {
     return !!row.credit_status;
   }
 
+  protected isProvisionedMovement(row: BalanceRow): boolean {
+    return row.status?.trim().toLocaleLowerCase('pt-BR') === 'provisionado';
+  }
+
   protected toggleCreditStatus(row: BalanceRow): void {
     const shouldConfirm = !this.isCreditConfirmed(row);
 
@@ -392,8 +396,7 @@ export class FinancePageComponent implements OnInit {
 
     this.financeData.deleteMoviment(row.id).subscribe({
       next: () => {
-        this.transactions = this.transactions.filter((movement) => movement.id !== row.id);
-        this.rebuildFinanceState(focusTarget);
+        this.loadBalances(focusTarget, true);
       },
       error: () => {
         this.errorMessage = 'Não foi possível excluir o movimento.';
@@ -590,6 +593,7 @@ export class FinancePageComponent implements OnInit {
           movementId: nearestMovement.id,
           dayKey,
           monthKey: dayKey.slice(0, 7),
+          expandDetails: focusTarget.expandDetails,
         };
       }
     }
@@ -635,7 +639,7 @@ export class FinancePageComponent implements OnInit {
       return;
     }
 
-    await this.scrollElementIntoView(element);
+    await this.scrollElementIntoView(element, !!focusTarget.movementId);
     this.updateActiveTimelineMarkersFromElement(element, focusTarget);
 
     if (focusTarget.movementId) {
@@ -751,18 +755,21 @@ export class FinancePageComponent implements OnInit {
     return { expandDetails: focusTarget.expandDetails ?? true };
   }
 
-  private async scrollElementIntoView(element: HTMLElement): Promise<void> {
+  private async scrollElementIntoView(element: HTMLElement, center = false): Promise<void> {
     const scrollElement = await this.content?.getScrollElement();
 
     if (!scrollElement || !this.content) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      element.scrollIntoView({ behavior: 'smooth', block: center ? 'center' : 'start' });
       return;
     }
 
     const stickyOffset = this.getStickyDayMarkerTop();
     const scrollRect = scrollElement.getBoundingClientRect();
     const elementRect = element.getBoundingClientRect();
-    const top = scrollElement.scrollTop + elementRect.top - scrollRect.top - stickyOffset;
+    const offset = center
+      ? (scrollRect.height - elementRect.height) / 2
+      : stickyOffset;
+    const top = scrollElement.scrollTop + elementRect.top - scrollRect.top - offset;
 
     await this.content.scrollToPoint(0, Math.max(0, top), 360);
   }
@@ -847,6 +854,7 @@ export class FinancePageComponent implements OnInit {
       datetime: row.datetime,
       dayKey,
       monthKey: dayKey.slice(0, 7),
+      expandDetails: false,
     };
   }
 

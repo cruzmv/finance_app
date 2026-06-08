@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Component, ElementRef, OnInit, ViewChild, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -64,6 +64,14 @@ interface MovimentSaveResponse {
   };
 }
 
+interface PreparedReceiptImage {
+  dataUrl: string;
+  originalBytes: number;
+  uploadBytes: number;
+  width: number;
+  height: number;
+}
+
 @Component({
   selector: 'app-new-page',
   templateUrl: './new-page.component.html',
@@ -81,6 +89,7 @@ export class NewPageComponent implements OnInit {
   private readonly financeFocusStorageKey = 'financeFocusTarget';
   private readonly fallbackStatusOptions: MovimentOption[] = [];
   @ViewChild('receiptInput') private receiptInput?: ElementRef<HTMLInputElement>;
+  @ViewChild('valueInput') private valueInput?: ElementRef<HTMLInputElement>;
 
   protected readonly movimentForm = this.fb.nonNullable.group({
     datetime: ['', Validators.required],
@@ -128,6 +137,10 @@ export class NewPageComponent implements OnInit {
     if (this.hasMissingOptions()) {
       this.loadMovimentOptions();
     }
+  }
+
+  ionViewDidEnter(): void {
+    setTimeout(() => this.valueInput?.nativeElement.focus(), 150);
   }
 
   private hydratePageState(): void {
@@ -246,6 +259,7 @@ export class NewPageComponent implements OnInit {
       movementId: Number.isInteger(movementId) && movementId > 0 ? movementId : undefined,
       dayKey,
       monthKey: dayKey.slice(0, 7),
+      expandDetails: false,
     }));
   }
 
@@ -254,12 +268,20 @@ export class NewPageComponent implements OnInit {
     this.receiptMessage = 'A analisar recibo...';
 
     try {
-      const imageBase64 = await this.fileToDataUrl(file);
-      this.receiptImagePreview = imageBase64;
+      const image = await this.prepareReceiptImage(file);
+      this.receiptImagePreview = image.dataUrl;
+      console.info('[receipt] Image prepared for upload', {
+        fileName: file.name,
+        fileType: file.type,
+        originalBytes: image.originalBytes,
+        uploadBytes: image.uploadBytes,
+        width: image.width,
+        height: image.height,
+      });
 
       this.http
         .post<ReceiptAnalysisResponse>(`${this.apiBaseUrl}/analyze_moviment_receipt`, {
-          imageBase64,
+          imageBase64: image.dataUrl,
           ledgerAccounts: this.ledgerAccounts.map((account) => account.name),
         })
         .pipe(finalize(() => (this.isAnalyzingReceipt = false)))
@@ -268,11 +290,21 @@ export class NewPageComponent implements OnInit {
             this.applyReceiptGuesses(data.guesses);
             this.receiptMessage = 'Recibo analisado. Reveja os campos sugeridos antes de guardar.';
           },
-          error: (error: any) => {
-            this.receiptMessage = 'Não foi possível analisar este recibo.';
+          error: (error: HttpErrorResponse) => {
+            console.error('[receipt] Analysis request failed', {
+              url: error.url,
+              status: error.status,
+              statusText: error.statusText,
+              message: error.message,
+              serverMessage: error.error?.message,
+            });
+            this.receiptMessage = error.status
+              ? `Não foi possível analisar este recibo. Erro ${error.status}.`
+              : 'Não foi possível conectar ao servidor para analisar este recibo.';
           },
         });
-    } catch {
+    } catch (error) {
+      console.error('[receipt] Could not prepare image', error);
       this.isAnalyzingReceipt = false;
       this.receiptMessage = 'Não foi possível ler esta imagem.';
     }
@@ -306,6 +338,49 @@ export class NewPageComponent implements OnInit {
       reader.onerror = () => reject(reader.error);
       reader.readAsDataURL(file);
     });
+  }
+
+  private async prepareReceiptImage(file: File): Promise<PreparedReceiptImage> {
+    const sourceDataUrl = await this.fileToDataUrl(file);
+    const image = await this.loadImage(sourceDataUrl);
+    const maxDimension = 1800;
+    const scale = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight));
+    const width = Math.max(1, Math.round(image.naturalWidth * scale));
+    const height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+
+    if (!context) {
+      throw new Error('Canvas is not available');
+    }
+
+    canvas.width = width;
+    canvas.height = height;
+    context.drawImage(image, 0, 0, width, height);
+
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+
+    return {
+      dataUrl,
+      originalBytes: file.size,
+      uploadBytes: this.getDataUrlBytes(dataUrl),
+      width,
+      height,
+    };
+  }
+
+  private loadImage(dataUrl: string): Promise<HTMLImageElement> {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error('The selected image format could not be opened'));
+      image.src = dataUrl;
+    });
+  }
+
+  private getDataUrlBytes(dataUrl: string): number {
+    const base64 = dataUrl.split(',').pop() ?? '';
+    return Math.floor(base64.length * 0.75);
   }
 
   private getMovimentNavigationState(): MovimentNavigationState {

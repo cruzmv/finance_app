@@ -61,6 +61,7 @@ export class DashboardPageComponent implements OnInit {
   protected readonly goalTarget = 5000;
   protected readonly goalProgress = 62;
   private loadedToken = '';
+  private loadedBalancesRevision = -1;
 
   protected isLoading = false;
   protected errorMessage = '';
@@ -93,7 +94,10 @@ export class DashboardPageComponent implements OnInit {
   }
 
   ionViewWillEnter(): void {
-    if (this.loadedToken !== this.auth.token) {
+    if (
+      this.loadedToken !== this.auth.token ||
+      this.loadedBalancesRevision !== this.financeData.balancesRevision
+    ) {
       this.loadDashboard(true);
     }
   }
@@ -175,6 +179,7 @@ export class DashboardPageComponent implements OnInit {
 
   private loadDashboard(forceRefresh = false, refreshEvent?: CustomEvent): void {
     this.loadedToken = this.auth.token;
+    this.loadedBalancesRevision = this.financeData.balancesRevision;
     this.isLoading = true;
     this.errorMessage = '';
 
