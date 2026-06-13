@@ -17,14 +17,11 @@
 }
 
 .brand-icon {
-  display: grid;
   width: 54px;
   height: 54px;
-  place-items: center;
   border-radius: 17px;
-  background: #168454;
-  color: #fff;
-  font-size: 1.75rem;
+  box-shadow: 0 8px 18px rgba(13, 105, 69, 0.2);
+  object-fit: cover;
 }
 
 h1, p { margin: 0; }

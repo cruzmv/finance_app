@@ -20,6 +20,7 @@ export interface BalanceRow {
   balances: BalanceSnapshot;
   credit_status: string | null;
   account_type: 0 | 1 | null;
+  planning?: number | null;
 }
 
 interface BalanceResponse {
@@ -33,6 +34,32 @@ interface MovimentPayload {
   moviment_account: number;
   status: number;
   value: number;
+}
+
+export interface PlanningPayload {
+  start_datetime: string;
+  end_date: string;
+  day_of_month: number;
+  description: string;
+  ledger_account: number;
+  moviment_account: number;
+  value: number;
+}
+
+export interface PlanningSeries {
+  planning: number;
+  start_datetime: string;
+  end_date: string;
+  day_of_month: number;
+  description: string;
+  ledger_account_id: number;
+  ledger_account: string;
+  moviment_account_id: number;
+  moviment_account: string;
+  status_id: number;
+  status: string;
+  value: string;
+  occurrence_count: number;
 }
 
 interface MovimentSaveResponse {
@@ -144,6 +171,31 @@ export class FinanceDataService {
 
   deleteMoviment(id: number): Observable<unknown> {
     return this.http.post(`${this.apiBaseUrl}/delete_moviment`, { id }).pipe(
+      tap(() => this.markBalancesChanged()),
+    );
+  }
+
+  getPlanningSeries(): Observable<PlanningSeries[]> {
+    return this.http
+      .get<{ data: PlanningSeries[] }>(`${this.apiBaseUrl}/get_plannings`)
+      .pipe(map(({ data }) => data ?? []));
+  }
+
+  savePlanning(
+    mode: 'add' | 'edit',
+    payload: PlanningPayload,
+    planning?: number,
+  ): Observable<unknown> {
+    const endpoint = mode === 'edit' ? 'edit_planning' : 'add_planning';
+    const requestPayload = mode === 'edit' ? { planning, ...payload } : payload;
+
+    return this.http.post(`${this.apiBaseUrl}/${endpoint}`, requestPayload).pipe(
+      tap(() => this.markBalancesChanged()),
+    );
+  }
+
+  deletePlanning(planning: number): Observable<unknown> {
+    return this.http.post(`${this.apiBaseUrl}/delete_planning`, { planning }).pipe(
       tap(() => this.markBalancesChanged()),
     );
   }

@@ -89,10 +89,22 @@ h2 { font-size: 1.05rem; letter-spacing: -0.02em; }
   width: 42px;
   height: 42px;
   place-items: center;
-  border: 0;
-  background: transparent;
-  color: var(--ink);
-  font-size: 1.55rem;
+  border: 2px solid #d3ab60;
+  border-radius: 50%;
+  background: #116c47;
+  box-shadow: 0 6px 14px rgba(22, 132, 84, 0.24), inset 0 0 0 2px rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 1.45rem;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.notification-button:active {
+  transform: scale(0.94);
+}
+
+.notification-button:focus-visible {
+  outline: 2px solid rgba(211, 171, 96, 0.5);
+  outline-offset: 3px;
 }
 
 .dashboard-card {

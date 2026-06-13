@@ -4,7 +4,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { IonContent, IonIcon } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { eyeOffOutline, eyeOutline, lockClosedOutline, walletOutline } from 'ionicons/icons';
+import { eyeOffOutline, eyeOutline, lockClosedOutline } from 'ionicons/icons';
 import { finalize } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth.service';
@@ -48,7 +48,7 @@ export class LoginPageComponent implements OnInit {
   protected readonly isGoogleConfigured = !!this.googleClientId;
 
   constructor() {
-    addIcons({ eyeOffOutline, eyeOutline, lockClosedOutline, walletOutline });
+    addIcons({ eyeOffOutline, eyeOutline, lockClosedOutline });
   }
 
   ngOnInit(): void {

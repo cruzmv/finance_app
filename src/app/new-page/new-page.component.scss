@@ -2,10 +2,12 @@
   --ink: #171d1b;
   --muted: #7b8581;
   --green: #168454;
+  --gold: #b8862f;
+  --gold-soft: rgba(184, 134, 47, 0.18);
   --red: #e34242;
   --border: rgba(31, 67, 54, 0.1);
   min-height: 100%;
-  padding: max(22px, env(safe-area-inset-top)) 20px 34px;
+  padding: calc(max(22px, env(safe-area-inset-top, 0px)) + 8px) 20px 34px;
   background: #fbfcfc;
   color: var(--ink);
 }
@@ -23,23 +25,40 @@ button {
 
 .form-header {
   position: sticky;
-  top: 0;
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
   z-index: 20;
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr) 44px;
   align-items: center;
   margin: 0 -20px 26px;
   padding: 8px 20px;
-  border-bottom: 1px solid rgba(31, 67, 54, 0.06);
+  border-bottom: 1px solid var(--gold-soft);
+  border-radius: 0 0 14px 14px;
   background: rgba(251, 252, 252, 0.96);
   backdrop-filter: blur(12px);
 }
 
 h1 {
   margin: 0;
+  color: #184836;
+  font-family: var(--salarium-display-font);
   text-align: center;
   font-size: 1.28rem;
-  letter-spacing: -0.03em;
+  letter-spacing: 0.02em;
+}
+
+h1::before,
+h1::after {
+  display: inline-block;
+  width: 4px;
+  height: 0.8em;
+  margin: 0 8px;
+  border-top: 2px solid var(--gold);
+  border-bottom: 2px solid var(--gold);
+  background: linear-gradient(90deg, var(--gold), #ecd08a, var(--gold));
+  content: "";
+  opacity: 0.72;
+  vertical-align: -0.05em;
 }
 
 .header-action {
@@ -81,12 +100,22 @@ h1 {
 
 .type-button,
 .status-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   min-height: 47px;
   border: 1px solid var(--border);
   border-radius: 16px;
   background: #f6f7f7;
   color: #343b38;
   font-weight: 800;
+}
+
+.type-button ion-icon,
+.status-button ion-icon {
+  flex: 0 0 auto;
+  font-size: 1.18rem;
 }
 
 .type-button.expense.active {
@@ -148,8 +177,10 @@ input[type="number"]::-webkit-outer-spin-button {
 .section-label,
 .receipt-label {
   color: var(--muted);
+  font-family: var(--salarium-display-font);
   font-size: 0.78rem;
   font-weight: 700;
+  letter-spacing: 0.045em;
 }
 
 .form-field > input,
@@ -167,6 +198,11 @@ input[type="number"]::-webkit-outer-spin-button {
   padding: 0 15px;
   color: var(--ink);
   outline: 0;
+}
+
+.description-field > input {
+  font-size: 1.04rem;
+  font-weight: 800;
 }
 
 .form-field > input:focus,
@@ -252,9 +288,9 @@ select {
 }
 
 .status-button.active {
-  border-color: rgba(227, 66, 66, 0.08);
-  background: #fff0f1;
-  color: var(--red);
+  border-color: rgba(184, 134, 47, 0.25);
+  background: #fff9ed;
+  color: #8a611f;
 }
 
 .receipt-scanner {

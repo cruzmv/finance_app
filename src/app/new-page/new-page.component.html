@@ -31,6 +31,7 @@
         [attr.aria-pressed]="valueSign === -1"
         (click)="setValueSign(-1)"
       >
+        <ion-icon name="arrow-down-circle-outline"></ion-icon>
         Despesa
       </button>
       <button
@@ -40,6 +41,7 @@
         [attr.aria-pressed]="valueSign === 1"
         (click)="setValueSign(1)"
       >
+        <ion-icon name="arrow-up-circle-outline"></ion-icon>
         Entrada
       </button>
     </div>
@@ -58,7 +60,7 @@
       />
     </label>
 
-    <label class="form-field">
+    <label class="form-field description-field">
       <span>Descrição</span>
       <input type="text" formControlName="description" placeholder="Descrição do movimento" />
     </label>
@@ -107,6 +109,7 @@
             [class.active]="movimentForm.controls.statusId.value === status.id"
             (click)="selectStatus(status)"
           >
+            <ion-icon [name]="getStatusIcon(status)"></ion-icon>
             {{ status.name }}
           </button>
         }

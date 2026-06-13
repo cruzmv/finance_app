@@ -129,6 +129,7 @@ export class DashboardPageComponent implements OnInit {
       preferPast: true,
       dayKey,
       monthKey: dayKey.slice(0, 7),
+      expandDetails: false,
     }));
     void this.router.navigate(['/example/finance']);
   }

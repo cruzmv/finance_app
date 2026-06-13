@@ -1,0 +1,161 @@
+<ion-content>
+  <ion-refresher slot="fixed" (ionRefresh)="refresh($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <main class="planning-page">
+    <header class="page-header">
+      <div>
+        <span class="eyebrow">Movimentos provisionados</span>
+        <h1>Planejamento mensal</h1>
+        <p>Crie salários e contas recorrentes até a data escolhida.</p>
+      </div>
+      <button
+        type="button"
+        class="new-planning-action"
+        aria-label="Nova recorrência"
+        title="Nova recorrência"
+        (click)="openCreateForm()"
+      >
+        <ion-icon name="add-outline"></ion-icon>
+      </button>
+    </header>
+
+    @if (errorMessage) {
+      <p class="message error">{{ errorMessage }}</p>
+    }
+    @if (successMessage) {
+      <p class="message success">{{ successMessage }}</p>
+    }
+
+    @if (showForm) {
+      <form class="planning-form" [formGroup]="planningForm" (ngSubmit)="savePlanning()">
+        <div class="form-title-row">
+          <div>
+            <span class="eyebrow">{{ editingPlanningId ? 'Editar série' : 'Nova série' }}</span>
+            <h2>{{ editingPlanningId ? 'Atualizar recorrência' : 'Criar recorrência mensal' }}</h2>
+          </div>
+          <button type="button" class="icon-action" aria-label="Fechar formulário" (click)="closeForm()">
+            <ion-icon name="close-outline"></ion-icon>
+          </button>
+        </div>
+
+        <div class="movement-type-switch" aria-label="Tipo de movimento">
+          <button type="button" class="type-button expense" [class.active]="valueSign === -1" (click)="setValueSign(-1)">
+            <ion-icon name="arrow-down-circle-outline"></ion-icon>
+            Despesa
+          </button>
+          <button type="button" class="type-button income" [class.active]="valueSign === 1" (click)="setValueSign(1)">
+            <ion-icon name="arrow-up-circle-outline"></ion-icon>
+            Entrada
+          </button>
+        </div>
+
+        <label class="amount-field">
+          <span>€</span>
+          <input type="number" formControlName="value" min="0" step="0.01" inputmode="decimal" placeholder="0,00" />
+        </label>
+
+        <div class="form-grid">
+          <label class="form-field full-width">
+            <span>Descrição</span>
+            <input type="text" formControlName="description" placeholder="Ex.: Internet, salário, renda" />
+          </label>
+
+          <label class="form-field">
+            <span>Categoria</span>
+            <select formControlName="ledgerAccountId">
+              @for (ledger of ledgerAccounts; track ledger.id) {
+                <option [ngValue]="ledger.id">{{ ledger.name }}</option>
+              }
+            </select>
+          </label>
+
+          <label class="form-field">
+            <span>Conta</span>
+            <select formControlName="movimentAccountId">
+              @for (account of movimentAccounts; track account.id) {
+                <option [ngValue]="account.id">{{ account.name }}</option>
+              }
+            </select>
+          </label>
+
+          <label class="form-field">
+            <span>Primeiro lançamento</span>
+            <input type="datetime-local" formControlName="startDatetime" />
+          </label>
+
+          <label class="form-field">
+            <span>Dia de cada mês</span>
+            <input type="number" formControlName="dayOfMonth" min="1" max="31" inputmode="numeric" />
+          </label>
+
+          <label class="form-field full-width">
+            <span>Criar lançamentos até</span>
+            <input type="date" formControlName="endDate" />
+          </label>
+        </div>
+
+        <p class="provisioned-note">
+          <ion-icon name="time-outline"></ion-icon>
+          Todos os lançamentos desta série serão criados como Provisionado.
+        </p>
+
+        <div class="form-actions">
+          <button type="button" class="secondary-action" (click)="closeForm()">Cancelar</button>
+          <button type="submit" class="primary-action" [disabled]="isSaving">
+            <ion-icon name="checkmark-outline"></ion-icon>
+            {{ isSaving ? 'Guardando...' : 'Guardar recorrência' }}
+          </button>
+        </div>
+      </form>
+    }
+
+    @if (isLoading) {
+      <section class="empty-state">
+        <ion-icon name="calendar-clear-outline"></ion-icon>
+        <p>Carregando planejamento...</p>
+      </section>
+    } @else if (plannings.length === 0) {
+      <section class="empty-state">
+        <ion-icon name="calendar-clear-outline"></ion-icon>
+        <h2>Nenhuma recorrência criada</h2>
+        <p>Adicione uma conta mensal ou uma entrada recorrente para começar.</p>
+      </section>
+    } @else {
+      <section class="planning-list">
+        @for (planning of plannings; track planning.planning) {
+          <article class="planning-card" [class.income]="toNumber(planning.value) >= 0">
+            <div class="card-icon">
+              <ion-icon [name]="toNumber(planning.value) >= 0 ? 'arrow-up-circle-outline' : 'arrow-down-circle-outline'"></ion-icon>
+            </div>
+            <div class="card-main">
+              <div class="card-heading">
+                <div>
+                  <h2>{{ planning.description }}</h2>
+                  <p>{{ planning.ledger_account }} · {{ planning.moviment_account }}</p>
+                </div>
+                <strong>{{ toNumber(planning.value) | currency:'EUR':'symbol':'1.2-2' }}</strong>
+              </div>
+              <div class="recurrence-summary">
+                <span><ion-icon name="repeat-outline"></ion-icon> Todo dia {{ planning.day_of_month }}</span>
+                <span><ion-icon name="calendar-outline"></ion-icon> Até {{ planning.end_date | date:'dd/MM/yyyy':'UTC' }}</span>
+                <span>{{ planning.occurrence_count }} lançamentos</span>
+              </div>
+              <div class="card-actions">
+                <button type="button" (click)="editPlanning(planning)">
+                  <ion-icon name="create-outline"></ion-icon>
+                  Editar
+                </button>
+                <button type="button" class="danger" (click)="deletePlanning(planning)">
+                  <ion-icon name="trash-outline"></ion-icon>
+                  Excluir
+                </button>
+              </div>
+            </div>
+          </article>
+        }
+      </section>
+    }
+  </main>
+</ion-content>

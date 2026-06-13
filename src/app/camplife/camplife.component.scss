@@ -16,7 +16,7 @@
   gap: 12px;
   min-width: 180px;
   padding: 22px 20px;
-  border: 1px solid rgba(20, 51, 41, 0.1);
+  border: 1px solid var(--salarium-gold-soft);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.94);
   box-shadow: 0 20px 44px rgba(20, 51, 41, 0.12);
@@ -35,7 +35,7 @@
 
 ion-tab-bar {
   --background: rgba(255, 255, 255, 0.98);
-  --border: 1px solid rgba(31, 67, 54, 0.08);
+  --border: 1px solid var(--salarium-gold-soft);
   height: 66px;
   padding: 4px 4px max(4px, env(safe-area-inset-bottom));
 }
@@ -43,11 +43,17 @@ ion-tab-bar {
 ion-tab-button {
   --color: #7d8884;
   --color-selected: #168454;
+  font-family: var(--salarium-display-font);
   font-size: 0.66rem;
+  letter-spacing: 0.025em;
 }
 
 ion-tab-button ion-icon {
   font-size: 1.35rem;
+}
+
+ion-tab-button.tab-selected ion-icon {
+  filter: drop-shadow(0 1px 0 rgba(184, 134, 47, 0.38));
 }
 
 .add-tab {
@@ -61,8 +67,9 @@ ion-tab-button ion-icon {
   height: 50px;
   place-items: center;
   border-radius: 50%;
-  background: #168454;
-  box-shadow: 0 6px 14px rgba(22, 132, 84, 0.24);
+  border: 2px solid #d3ab60;
+  background: #116c47;
+  box-shadow: 0 6px 14px rgba(22, 132, 84, 0.24), inset 0 0 0 2px rgba(255, 255, 255, 0.12);
 }
 
 .add-button ion-icon {

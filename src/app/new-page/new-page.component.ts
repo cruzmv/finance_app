@@ -11,13 +11,17 @@ import {
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
+  arrowDownCircleOutline,
+  arrowUpCircleOutline,
   calendarOutline,
   cameraOutline,
   cardOutline,
   cartOutline,
   checkmarkOutline,
+  checkmarkDoneCircleOutline,
   chevronForwardOutline,
   closeOutline,
+  timeOutline,
 } from 'ionicons/icons';
 import { finalize } from 'rxjs';
 import { environment } from '../../environments/environment';
@@ -116,13 +120,17 @@ export class NewPageComponent implements OnInit {
 
   constructor() {
     addIcons({
+      arrowDownCircleOutline,
+      arrowUpCircleOutline,
       calendarOutline,
       cameraOutline,
       cardOutline,
       cartOutline,
       checkmarkOutline,
+      checkmarkDoneCircleOutline,
       chevronForwardOutline,
       closeOutline,
+      timeOutline,
     });
   }
 
@@ -182,6 +190,14 @@ export class NewPageComponent implements OnInit {
 
   protected selectStatus(status: MovimentOption): void {
     this.movimentForm.controls.statusId.setValue(status.id);
+  }
+
+  protected getStatusIcon(status: MovimentOption): string {
+    const normalizedStatus = status.name.trim().toLocaleLowerCase('pt-PT');
+
+    return normalizedStatus.includes('provision')
+      ? 'time-outline'
+      : 'checkmark-done-circle-outline';
   }
 
   protected selectMovimentAccount(account: MovimentOption): void {

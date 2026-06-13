@@ -3,7 +3,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { IonContent, IonIcon } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { eyeOffOutline, eyeOutline, personAddOutline, walletOutline } from 'ionicons/icons';
+import { eyeOffOutline, eyeOutline, personAddOutline } from 'ionicons/icons';
 import { finalize } from 'rxjs';
 import { AuthService } from '../auth.service';
 
@@ -29,7 +29,7 @@ export class RegisterPageComponent {
   protected errorMessage = '';
 
   constructor() {
-    addIcons({ eyeOffOutline, eyeOutline, personAddOutline, walletOutline });
+    addIcons({ eyeOffOutline, eyeOutline, personAddOutline });
   }
 
   protected register(): void {
