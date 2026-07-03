@@ -326,7 +326,7 @@
               (click)="toggleUpcomingMovement(movement.id)"
             >
               <span class="movement-icon" aria-hidden="true">
-                <ion-icon name="bag-handle-outline"></ion-icon>
+                <ion-icon [name]="movement.icon"></ion-icon>
               </span>
               <span class="movement-main">
                 <strong>{{ movement.description }}</strong>

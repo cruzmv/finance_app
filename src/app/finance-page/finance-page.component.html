@@ -3,7 +3,7 @@
     <ion-refresher-content></ion-refresher-content>
   </ion-refresher>
 
-  <div class="finance-dashboard">
+  <div class="finance-dashboard" #financeDashboard>
     @if (isLoading) {
       <div class="state-block">
         <mat-spinner diameter="40"></mat-spinner>
@@ -14,23 +14,45 @@
         <p>{{ errorMessage }}</p>
       </div>
     } @else {
-      @if (timelineMonths.length === 0) {
+      @if (transactions.length === 0) {
         <div class="state-block">
           <p>Nenhum movimento encontrado.</p>
         </div>
       } @else {
-        <header class="movements-header">
+        <header class="movements-header" #movementsHeader>
           <div class="movements-title-row">
             <h1>Movimentos</h1>
             <div class="movements-header-actions" aria-label="Ferramentas de movimentos">
-              <button type="button" class="header-icon-button" aria-label="Filtrar movimentos">
-                <ion-icon name="funnel-outline"></ion-icon>
-              </button>
-              <button type="button" class="header-icon-button" aria-label="Buscar movimentos">
+              <button
+                type="button"
+                class="header-icon-button"
+                [class.active]="isSearchOpen"
+                [attr.aria-expanded]="isSearchOpen"
+                aria-label="Buscar movimentos"
+                (click)="toggleSearch()"
+              >
                 <ion-icon name="search-outline"></ion-icon>
               </button>
             </div>
           </div>
+
+          @if (isSearchOpen) {
+            <div class="movements-search" role="search">
+              <ion-icon name="search-outline" aria-hidden="true"></ion-icon>
+              <input
+                type="search"
+                [value]="searchQuery"
+                aria-label="Buscar movimentos"
+                placeholder="Buscar por descrição, conta, status ou valor"
+                (input)="onSearchInput($event)"
+              />
+              @if (searchQuery) {
+                <button type="button" aria-label="Limpar busca" (click)="clearSearch()">
+                  <ion-icon name="close-outline"></ion-icon>
+                </button>
+              }
+            </div>
+          }
 
           <nav class="timeline-jumpbar" aria-label="Ir para o mês">
             <div class="jumpbar-month-list" #jumpbarMonthList>
@@ -50,8 +72,13 @@
           </nav>
         </header>
 
-        <section class="finance-timeline">
-          @for (monthGroup of timelineMonths; track monthGroup.monthKey) {
+        @if (timelineMonths.length === 0) {
+          <div class="state-block search-empty">
+            <p>Nenhum movimento encontrado para esta busca.</p>
+          </div>
+        } @else {
+          <section class="finance-timeline">
+            @for (monthGroup of timelineMonths; track monthGroup.monthKey) {
             <section
               class="timeline-month"
               [id]="getMonthElementId(monthGroup.monthKey)"
@@ -149,6 +176,7 @@
                         [class.positive-transaction]="+row.value >= 0"
                         [class.negative-transaction]="+row.value < 0"
                         [class.provisioned-transaction]="isProvisionedMovement(row)"
+                        [class.pending-credit-transaction]="isPendingCreditMovement(row)"
                         [class.expanded-transaction]="isMovementExpanded(row.id)"
                         (click)="toggleMovementBalances(row.id)"
                       >
@@ -193,7 +221,7 @@
 
                         <div class="transaction-body">
                           <span class="transaction-icon" aria-hidden="true">
-                            <ion-icon name="receipt-outline"></ion-icon>
+                            <ion-icon [name]="getMovementIcon(row)"></ion-icon>
                           </span>
                           <div class="transaction-main">
                             <div class="transaction-primary">
@@ -238,8 +266,9 @@
                 </div>
               }
             </section>
-          }
-        </section>
+            }
+          </section>
+        }
         @if (shouldShowCurrentDayFab) {
           <button
             type="button"

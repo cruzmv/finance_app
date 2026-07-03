@@ -3,12 +3,27 @@ import { Component, HostListener, OnInit, inject } from '@angular/core';
 import { IonContent, IonIcon, IonRefresher, IonRefresherContent } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
+  airplaneOutline,
+  alertCircleOutline,
+  bagHandleOutline,
   barChartOutline,
+  businessOutline,
   calculatorOutline,
+  carOutline,
   cardOutline,
+  cartOutline,
+  cashOutline,
   chevronBackOutline,
   chevronDownOutline,
   chevronForwardOutline,
+  checkmarkCircleOutline,
+  gameControllerOutline,
+  homeOutline,
+  medkitOutline,
+  receiptOutline,
+  restaurantOutline,
+  schoolOutline,
+  timeOutline,
   trendingDownOutline,
   trendingUpOutline,
   warningOutline,
@@ -26,6 +41,7 @@ import {
 interface CategoryReportRow {
   ledgerAccountId: number;
   name: string;
+  icon: string;
   total: number;
   incomeTotal: number;
   expenseTotal: number;
@@ -53,6 +69,28 @@ export class ReportsPageComponent implements OnInit {
   private accountById = new Map<string, MovimentAccountSettings>();
   private accountByDescription = new Map<string, MovimentAccountSettings>();
   private monthSavings = 0;
+  private readonly availableIconNames = new Set([
+    'airplane-outline',
+    'alert-circle-outline',
+    'bag-handle-outline',
+    'business-outline',
+    'calculator-outline',
+    'car-outline',
+    'card-outline',
+    'cart-outline',
+    'cash-outline',
+    'checkmark-circle-outline',
+    'game-controller-outline',
+    'home-outline',
+    'medkit-outline',
+    'receipt-outline',
+    'restaurant-outline',
+    'school-outline',
+    'time-outline',
+    'trending-down-outline',
+    'trending-up-outline',
+    'wallet-outline',
+  ]);
 
   protected selectedMonthDate = new Date(this.now.getFullYear(), this.now.getMonth(), 1);
   protected categoryRows: CategoryReportRow[] = [];
@@ -63,12 +101,27 @@ export class ReportsPageComponent implements OnInit {
 
   constructor() {
     addIcons({
+      airplaneOutline,
+      alertCircleOutline,
+      bagHandleOutline,
       barChartOutline,
+      businessOutline,
       calculatorOutline,
+      carOutline,
       cardOutline,
+      cartOutline,
+      cashOutline,
       chevronBackOutline,
       chevronDownOutline,
       chevronForwardOutline,
+      checkmarkCircleOutline,
+      gameControllerOutline,
+      homeOutline,
+      medkitOutline,
+      receiptOutline,
+      restaurantOutline,
+      schoolOutline,
+      timeOutline,
       trendingDownOutline,
       trendingUpOutline,
       warningOutline,
@@ -152,6 +205,13 @@ export class ReportsPageComponent implements OnInit {
 
   protected getPercent(part: number, total: number): number {
     return total ? (part / total) * 100 : 0;
+  }
+
+  protected getCategoryIcon(category: CategoryReportRow): string {
+    return this.normalizeIcon(
+      category.icon,
+      category.isIncomeCategory ? 'trending-up-outline' : 'trending-down-outline',
+    );
   }
 
   protected get cashExpenseTotal(): number {
@@ -247,6 +307,7 @@ export class ReportsPageComponent implements OnInit {
       const current = reportMap.get(ledgerAccountId) ?? {
         ledgerAccountId,
         name: this.getLedgerAccountName(row),
+        icon: this.getLedgerAccountIcon(row),
         total: 0,
         incomeTotal: 0,
         expenseTotal: 0,
@@ -341,6 +402,15 @@ export class ReportsPageComponent implements OnInit {
     return this.ledgerAccounts.get(Number(row.ledger_account_id))?.description
       ?? row.ledger_account
       ?? 'Sem categoria';
+  }
+
+  private getLedgerAccountIcon(row: BalanceRow): string {
+    return this.normalizeIcon(this.ledgerAccounts.get(Number(row.ledger_account_id))?.icon, 'receipt-outline');
+  }
+
+  private normalizeIcon(icon: string | null | undefined, fallbackIcon: string): string {
+    const normalizedIcon = (icon ?? '').trim();
+    return this.availableIconNames.has(normalizedIcon) ? normalizedIcon : fallbackIcon;
   }
 
   private isSelectedMonth(row: BalanceRow): boolean {

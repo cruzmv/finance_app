@@ -10,7 +10,7 @@
   display: grid;
   gap: 16px;
   min-height: 100%;
-  padding: calc(max(24px, env(safe-area-inset-top, 0px)) + 8px) 18px 42px;
+  padding: 0 18px 42px;
   background: #f8faf9;
   color: var(--ink);
 }
@@ -26,7 +26,6 @@ p {
   margin: 0;
 }
 
-.reports-header,
 .month-card,
 .report-overview,
 .category-list,
@@ -38,37 +37,20 @@ p {
   margin-left: auto;
 }
 
-.reports-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.eyebrow {
-  color: var(--gold);
-  font-size: 0.69rem;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.reports-header h1 {
-  margin-top: 3px;
-  color: #184836;
-  font-family: var(--salarium-display-font);
-  font-size: 1.55rem;
-}
-
 .month-card {
-  position: relative;
-  z-index: 5;
+  position: sticky;
+  top: 0;
+  z-index: 30;
   display: grid;
+  width: auto;
+  max-width: none;
   grid-template-columns: 42px minmax(0, 1fr) 42px;
   align-items: center;
   gap: 8px;
-  padding: 18px;
+  margin: 0 -18px;
+  padding: calc(env(safe-area-inset-top, 0px) + 18px) 18px 18px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 0 0 8px 8px;
   background:
     linear-gradient(118deg, rgba(0, 76, 46, 0.98) 0%, rgba(0, 117, 70, 0.98) 56%, rgba(1, 82, 50, 0.98) 100%);
   box-shadow: 0 12px 22px rgba(2, 92, 55, 0.22);
@@ -590,10 +572,6 @@ p {
   }
 
   .category-row {
-    grid-template-columns: 1fr;
-  }
-
-  .category-icon {
-    display: none;
+    grid-template-columns: 42px minmax(0, 1fr);
   }
 }

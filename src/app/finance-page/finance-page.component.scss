@@ -61,8 +61,63 @@ p {
   padding: 0;
 }
 
+.header-icon-button.active,
+.header-icon-button:focus-visible {
+  border-radius: 50%;
+  outline: none;
+  background: rgba(22, 132, 84, 0.1);
+  color: var(--finance-accent);
+}
+
 .header-icon-button ion-icon {
   font-size: 1.55rem;
+}
+
+.movements-search {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) 32px;
+  align-items: center;
+  gap: 8px;
+  margin: -4px 8px 14px;
+  padding: 7px 8px 7px 12px;
+  border: 1px solid rgba(22, 132, 84, 0.18);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--finance-muted);
+  box-shadow: 0 4px 12px rgba(32, 38, 34, 0.04);
+}
+
+.movements-search ion-icon {
+  font-size: 1.08rem;
+}
+
+.movements-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--finance-ink);
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.movements-search input::placeholder {
+  color: #9ba19e;
+  font-weight: 600;
+}
+
+.movements-search button {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(32, 38, 34, 0.06);
+  color: var(--finance-muted);
+  padding: 0;
 }
 
 .timeline-jumpbar {
@@ -223,6 +278,31 @@ p {
   font: inherit;
   text-align: left;
   backdrop-filter: blur(10px);
+  transition:
+    border-radius 160ms ease,
+    box-shadow 160ms ease,
+    padding 160ms ease,
+    background 160ms ease;
+}
+
+.active-day .timeline-date-header {
+  border-bottom-right-radius: 14px;
+  border-bottom-left-radius: 14px;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 8px 18px rgba(32, 38, 34, 0.08);
+}
+
+.active-day .timeline-date {
+  color: #111714;
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.active-day .timeline-savings {
+  font-size: 0.94rem;
+  font-weight: 900;
 }
 
 .timeline-date-header:focus-visible {
@@ -293,6 +373,11 @@ p {
 
 .transaction-card.provisioned-transaction {
   background: #fff8ed;
+}
+
+.transaction-card.pending-credit-transaction {
+  border-left: 3px solid #f0a431;
+  box-shadow: inset 0 1px 0 rgba(240, 164, 49, 0.16), inset 0 -1px 0 rgba(240, 164, 49, 0.16);
 }
 
 .transaction-card.focused-transaction {
@@ -507,6 +592,10 @@ p {
   gap: 16px;
   color: var(--finance-muted);
   text-align: center;
+}
+
+.state-block.search-empty {
+  min-height: 180px;
 }
 
 .current-day-fab {

@@ -17,7 +17,7 @@
 
     @if (contractJoinCode) {
       <section class="contract-code-panel">
-        <span>Código para adicionar outro utilizador</span>
+        <span>Código para adicionar outro usuário</span>
         <strong>{{ contractJoinCode }}</strong>
       </section>
     }
@@ -25,17 +25,17 @@
     <button type="button" class="settings-shortcut" (click)="openRecurringMovements()">
       <span>
         <ion-icon name="repeat-outline"></ion-icon>
-        Movimentos Recorrente
+        Movimentos recorrentes
       </span>
       <ion-icon name="chevron-forward-outline"></ion-icon>
     </button>
 
-    <nav class="settings-tabs" aria-label="Settings sections">
+    <nav class="settings-tabs" aria-label="Seções de configurações">
       <button type="button" [class.active]="activeTab === 'accounts'" (click)="setActiveTab('accounts')">
-        Accounts
+        Contas
       </button>
       <button type="button" [class.active]="activeTab === 'ledger'" (click)="setActiveTab('ledger')">
-        Ledger Account
+        Categorias
       </button>
       <button type="button" [class.active]="activeTab === 'status'" (click)="setActiveTab('status')">
         Status
@@ -51,79 +51,122 @@
     }
 
     @if (isLoading) {
-      <div class="state-block">Loading settings...</div>
+      <div class="state-block">Carregando configurações...</div>
     } @else {
       @if (activeTab === 'accounts') {
         <section class="settings-panel">
           <form class="settings-form" [formGroup]="accountForm" (ngSubmit)="saveAccount()">
             <div class="form-title-row">
-              <h2>{{ accountEditId ? 'Edit account' : 'Add account' }}</h2>
+              <h2>{{ accountEditId ? 'Editar conta' : 'Adicionar conta' }}</h2>
               @if (accountEditId) {
-                <button type="button" class="icon-button" aria-label="Cancel account edit" (click)="resetAccountForm()">
+                <button type="button" class="icon-button" aria-label="Cancelar edição da conta" (click)="resetAccountForm()">
                   <ion-icon name="close-outline"></ion-icon>
                 </button>
               }
             </div>
 
             <label class="form-field">
-              <span>Description</span>
+              <span>Descrição</span>
               <input type="text" formControlName="description" />
+            </label>
+
+            <label class="form-field">
+              <span>Ícone</span>
+              <div class="icon-picker">
+                <button
+                  type="button"
+                  class="icon-picker-trigger"
+                  [attr.aria-expanded]="activeIconPicker === 'account'"
+                  (click)="toggleIconPicker('account')"
+                >
+                  <span class="icon-picker-value">
+                    <ion-icon [name]="getSettingsIcon(accountForm.controls.icon.value, 'wallet-outline')"></ion-icon>
+                    {{ getIconLabel(accountForm.controls.icon.value, 'wallet-outline') }}
+                  </span>
+                  <ion-icon name="chevron-down-outline"></ion-icon>
+                </button>
+                @if (activeIconPicker === 'account') {
+                  <div class="icon-picker-menu" role="listbox" aria-label="Selecionar ícone da conta">
+                    @for (option of iconOptions; track option.name) {
+                      <button
+                        type="button"
+                        class="icon-picker-option"
+                        [class.active]="accountForm.controls.icon.value === option.name"
+                        (click)="selectIcon('account', option.name)"
+                      >
+                        <ion-icon [name]="option.name"></ion-icon>
+                        {{ option.label }}
+                      </button>
+                    }
+                  </div>
+                }
+                <select class="visually-hidden-select" formControlName="icon" tabindex="-1" aria-hidden="true">
+                  @for (option of iconOptions; track option.name) {
+                    <option [value]="option.name">{{ option.label }}</option>
+                  }
+                </select>
+              </div>
             </label>
 
             <div class="form-grid">
               <label class="form-field">
-                <span>Start date</span>
+                <span>Data inicial</span>
                 <input type="date" formControlName="startDate" />
               </label>
 
               <label class="form-field">
-                <span>Start value</span>
+                <span>Valor inicial</span>
                 <input type="number" formControlName="startValue" step="0.01" inputmode="decimal" />
               </label>
 
               <label class="form-field">
-                <span>Closing day</span>
+                <span>Dia de fechamento</span>
                 <input type="number" formControlName="closingDay" min="1" max="31" inputmode="numeric" />
               </label>
 
               <label class="form-field">
-                <span>Account type</span>
+                <span>Tipo de conta</span>
                 <select formControlName="accountType">
-                  <option [ngValue]="0">Debit</option>
-                  <option [ngValue]="1">Credit</option>
+                  <option [ngValue]="0">Débito</option>
+                  <option [ngValue]="1">Crédito</option>
                 </select>
               </label>
             </div>
 
             <button type="submit" class="save-button" [disabled]="isSaving">
               <ion-icon name="save-outline"></ion-icon>
-              {{ accountEditId ? 'Save account' : 'Add account' }}
+              {{ accountEditId ? 'Salvar conta' : 'Adicionar conta' }}
             </button>
           </form>
 
           <div class="settings-list">
             @for (account of accounts; track account.id) {
               <article class="settings-row">
-                <div>
-                  <strong>{{ account.description }}</strong>
-                  <span>
-                    {{ getAccountTypeLabel(account.account_type) }}
-                    @if (account.closing_day) {
-                      - closes day {{ account.closing_day }}
-                    }
+                <div class="settings-row-main">
+                  <span class="settings-row-icon">
+                    <ion-icon [name]="getSettingsIcon(account.icon, 'wallet-outline')"></ion-icon>
                   </span>
+                  <div>
+                    <strong>{{ account.description }}</strong>
+                    <span>
+                      {{ getAccountTypeLabel(account.account_type) }}
+                      @if (account.closing_day) {
+                        - fecha dia {{ account.closing_day }}
+                      }
+                    </span>
+                  </div>
                 </div>
                 <div class="row-actions">
-                  <button type="button" class="icon-button" aria-label="Edit account" (click)="editAccount(account)">
+                  <button type="button" class="icon-button" aria-label="Editar conta" (click)="editAccount(account)">
                     <ion-icon name="create-outline"></ion-icon>
                   </button>
-                  <button type="button" class="icon-button danger" aria-label="Delete account" (click)="deleteAccount(account)">
+                  <button type="button" class="icon-button danger" aria-label="Excluir conta" (click)="deleteAccount(account)">
                     <ion-icon name="trash-outline"></ion-icon>
                   </button>
                 </div>
               </article>
             } @empty {
-              <div class="empty-state">No accounts yet.</div>
+              <div class="empty-state">Nenhuma conta cadastrada.</div>
             }
           </div>
         </section>
@@ -133,40 +176,83 @@
         <section class="settings-panel">
           <form class="settings-form compact-form" [formGroup]="ledgerForm" (ngSubmit)="saveLedgerAccount()">
             <div class="form-title-row">
-              <h2>{{ ledgerEditId ? 'Edit ledger account' : 'Add ledger account' }}</h2>
+              <h2>{{ ledgerEditId ? 'Editar categoria' : 'Adicionar categoria' }}</h2>
               @if (ledgerEditId) {
-                <button type="button" class="icon-button" aria-label="Cancel ledger account edit" (click)="resetLedgerForm()">
+                <button type="button" class="icon-button" aria-label="Cancelar edição da categoria" (click)="resetLedgerForm()">
                   <ion-icon name="close-outline"></ion-icon>
                 </button>
               }
             </div>
 
             <label class="form-field">
-              <span>Description</span>
+              <span>Descrição</span>
               <input type="text" formControlName="description" />
+            </label>
+
+            <label class="form-field">
+              <span>Ícone</span>
+              <div class="icon-picker">
+                <button
+                  type="button"
+                  class="icon-picker-trigger"
+                  [attr.aria-expanded]="activeIconPicker === 'ledger'"
+                  (click)="toggleIconPicker('ledger')"
+                >
+                  <span class="icon-picker-value">
+                    <ion-icon [name]="getSettingsIcon(ledgerForm.controls.icon.value, 'receipt-outline')"></ion-icon>
+                    {{ getIconLabel(ledgerForm.controls.icon.value, 'receipt-outline') }}
+                  </span>
+                  <ion-icon name="chevron-down-outline"></ion-icon>
+                </button>
+                @if (activeIconPicker === 'ledger') {
+                  <div class="icon-picker-menu" role="listbox" aria-label="Selecionar ícone da categoria">
+                    @for (option of iconOptions; track option.name) {
+                      <button
+                        type="button"
+                        class="icon-picker-option"
+                        [class.active]="ledgerForm.controls.icon.value === option.name"
+                        (click)="selectIcon('ledger', option.name)"
+                      >
+                        <ion-icon [name]="option.name"></ion-icon>
+                        {{ option.label }}
+                      </button>
+                    }
+                  </div>
+                }
+                <select class="visually-hidden-select" formControlName="icon" tabindex="-1" aria-hidden="true">
+                  @for (option of iconOptions; track option.name) {
+                    <option [value]="option.name">{{ option.label }}</option>
+                  }
+                </select>
+              </div>
             </label>
 
             <button type="submit" class="save-button" [disabled]="isSaving">
               <ion-icon name="save-outline"></ion-icon>
-              {{ ledgerEditId ? 'Save ledger account' : 'Add ledger account' }}
+              {{ ledgerEditId ? 'Salvar categoria' : 'Adicionar categoria' }}
             </button>
           </form>
 
           <div class="settings-list">
             @for (ledger of ledgerAccounts; track ledger.id) {
               <article class="settings-row">
-                <strong>{{ ledger.description }}</strong>
+                <div class="settings-row-main">
+                  <span class="settings-row-icon">
+                    <ion-icon [name]="getSettingsIcon(ledger.icon, 'receipt-outline')"></ion-icon>
+                  </span>
+                  <strong>{{ ledger.description }}</strong>
+                </div>
                 <div class="row-actions">
-                  <button type="button" class="icon-button" aria-label="Edit ledger account" (click)="editLedgerAccount(ledger)">
+                  <button type="button" class="icon-button" aria-label="Editar categoria" (click)="editLedgerAccount(ledger)">
                     <ion-icon name="create-outline"></ion-icon>
                   </button>
-                  <button type="button" class="icon-button danger" aria-label="Delete ledger account" (click)="deleteLedgerAccount(ledger)">
+                  <button type="button" class="icon-button danger" aria-label="Excluir categoria" (click)="deleteLedgerAccount(ledger)">
                     <ion-icon name="trash-outline"></ion-icon>
                   </button>
                 </div>
               </article>
             } @empty {
-              <div class="empty-state">No ledger accounts yet.</div>
+              <div class="empty-state">Nenhuma categoria cadastrada.</div>
             }
           </div>
         </section>
@@ -176,40 +262,83 @@
         <section class="settings-panel">
           <form class="settings-form compact-form" [formGroup]="statusForm" (ngSubmit)="saveStatus()">
             <div class="form-title-row">
-              <h2>{{ statusEditId ? 'Edit status' : 'Add status' }}</h2>
+              <h2>{{ statusEditId ? 'Editar status' : 'Adicionar status' }}</h2>
               @if (statusEditId) {
-                <button type="button" class="icon-button" aria-label="Cancel status edit" (click)="resetStatusForm()">
+                <button type="button" class="icon-button" aria-label="Cancelar edição do status" (click)="resetStatusForm()">
                   <ion-icon name="close-outline"></ion-icon>
                 </button>
               }
             </div>
 
             <label class="form-field">
-              <span>Description</span>
+              <span>Descrição</span>
               <input type="text" formControlName="description" />
+            </label>
+
+            <label class="form-field">
+              <span>Ícone</span>
+              <div class="icon-picker">
+                <button
+                  type="button"
+                  class="icon-picker-trigger"
+                  [attr.aria-expanded]="activeIconPicker === 'status'"
+                  (click)="toggleIconPicker('status')"
+                >
+                  <span class="icon-picker-value">
+                    <ion-icon [name]="getSettingsIcon(statusForm.controls.icon.value, 'time-outline')"></ion-icon>
+                    {{ getIconLabel(statusForm.controls.icon.value, 'time-outline') }}
+                  </span>
+                  <ion-icon name="chevron-down-outline"></ion-icon>
+                </button>
+                @if (activeIconPicker === 'status') {
+                  <div class="icon-picker-menu" role="listbox" aria-label="Selecionar ícone do status">
+                    @for (option of iconOptions; track option.name) {
+                      <button
+                        type="button"
+                        class="icon-picker-option"
+                        [class.active]="statusForm.controls.icon.value === option.name"
+                        (click)="selectIcon('status', option.name)"
+                      >
+                        <ion-icon [name]="option.name"></ion-icon>
+                        {{ option.label }}
+                      </button>
+                    }
+                  </div>
+                }
+                <select class="visually-hidden-select" formControlName="icon" tabindex="-1" aria-hidden="true">
+                  @for (option of iconOptions; track option.name) {
+                    <option [value]="option.name">{{ option.label }}</option>
+                  }
+                </select>
+              </div>
             </label>
 
             <button type="submit" class="save-button" [disabled]="isSaving">
               <ion-icon name="save-outline"></ion-icon>
-              {{ statusEditId ? 'Save status' : 'Add status' }}
+              {{ statusEditId ? 'Salvar status' : 'Adicionar status' }}
             </button>
           </form>
 
           <div class="settings-list">
             @for (status of statuses; track status.id) {
               <article class="settings-row">
-                <strong>{{ status.description }}</strong>
+                <div class="settings-row-main">
+                  <span class="settings-row-icon">
+                    <ion-icon [name]="getSettingsIcon(status.icon, 'time-outline')"></ion-icon>
+                  </span>
+                  <strong>{{ status.description }}</strong>
+                </div>
                 <div class="row-actions">
-                  <button type="button" class="icon-button" aria-label="Edit status" (click)="editStatus(status)">
+                  <button type="button" class="icon-button" aria-label="Editar status" (click)="editStatus(status)">
                     <ion-icon name="create-outline"></ion-icon>
                   </button>
-                  <button type="button" class="icon-button danger" aria-label="Delete status" (click)="deleteStatus(status)">
+                  <button type="button" class="icon-button danger" aria-label="Excluir status" (click)="deleteStatus(status)">
                     <ion-icon name="trash-outline"></ion-icon>
                   </button>
                 </div>
               </article>
             } @empty {
-              <div class="empty-state">No statuses yet.</div>
+              <div class="empty-state">Nenhum status cadastrado.</div>
             }
           </div>
         </section>

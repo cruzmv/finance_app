@@ -4,13 +4,6 @@
   </ion-refresher>
 
   <main class="reports-page">
-    <header class="reports-header">
-      <div>
-        <span class="eyebrow">Relatórios</span>
-        <h1>Categorias</h1>
-      </div>
-    </header>
-
     <section class="month-card">
       <button
         type="button"
@@ -191,7 +184,7 @@
         @for (category of categoryRows; track category.ledgerAccountId) {
           <article class="category-row" [class.income]="category.isIncomeCategory">
             <div class="category-icon">
-              <ion-icon [name]="category.isIncomeCategory ? 'trending-up-outline' : 'trending-down-outline'"></ion-icon>
+              <ion-icon [name]="getCategoryIcon(category)"></ion-icon>
             </div>
             <div class="category-main">
               <div class="category-heading">

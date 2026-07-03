@@ -19,7 +19,6 @@ import {
   cardOutline,
   cartOutline,
   checkmarkOutline,
-  checkmarkDoneCircleOutline,
   chevronDownOutline,
   chevronForwardOutline,
   closeOutline,
@@ -135,7 +134,6 @@ export class NewPageComponent implements OnInit, OnDestroy {
       cardOutline,
       cartOutline,
       checkmarkOutline,
-      checkmarkDoneCircleOutline,
       chevronDownOutline,
       chevronForwardOutline,
       closeOutline,
@@ -205,20 +203,24 @@ export class NewPageComponent implements OnInit, OnDestroy {
     return this.isEditMode ? 'Editar movimento' : 'Novo movimento';
   }
 
-  protected get statusList(): MovimentOption[] {
-    return this.statusOptions;
+  protected get isSettledStatusSelected(): boolean {
+    return this.getSelectedStatusType() !== 'pending';
   }
 
-  protected selectStatus(status: MovimentOption): void {
-    this.movimentForm.controls.statusId.setValue(status.id);
+  protected get settledStatusLabel(): string {
+    return this.valueSign === -1 ? 'Pago' : 'Recebido';
   }
 
-  protected getStatusIcon(status: MovimentOption): string {
-    const normalizedStatus = status.name.trim().toLocaleLowerCase('pt-PT');
+  protected get pendingStatusLabel(): string {
+    return this.valueSign === -1 ? 'A pagar' : 'A receber';
+  }
 
-    return normalizedStatus.includes('provision')
-      ? 'time-outline'
-      : 'checkmark-done-circle-outline';
+  protected setSettlementStatus(isSettled: boolean): void {
+    const status = isSettled ? this.getSettledStatusOption() : this.getPendingStatusOption();
+
+    if (status) {
+      this.movimentForm.controls.statusId.setValue(status.id);
+    }
   }
 
   protected selectMovimentAccount(account: MovimentOption): void {
@@ -574,7 +576,9 @@ export class NewPageComponent implements OnInit, OnDestroy {
 
   private applyDefaultOptions(): void {
     if (!this.movimentForm.controls.statusId.value && this.statusOptions.length > 0) {
-      this.movimentForm.controls.statusId.setValue(this.statusOptions[0].id);
+      this.movimentForm.controls.statusId.setValue(
+        this.getSettledStatusOption()?.id ?? this.statusOptions[0].id,
+      );
     }
 
     if (!this.movimentForm.controls.movimentAccountId.value && this.movimentAccounts.length > 0) {
@@ -670,7 +674,42 @@ export class NewPageComponent implements OnInit, OnDestroy {
     }
 
     const matchingStatus = this.statusOptions.find((status) => status.name === selectedStatusName);
-    this.movimentForm.controls.statusId.setValue(matchingStatus?.id ?? this.statusOptions[0]?.id ?? 0);
+    this.movimentForm.controls.statusId.setValue(
+      matchingStatus?.id ?? this.getSettledStatusOption()?.id ?? this.statusOptions[0]?.id ?? 0,
+    );
+  }
+
+  private getSelectedStatusType(): 'settled' | 'pending' {
+    const selectedStatus = this.statusOptions.find(
+      (status) => status.id === this.movimentForm.controls.statusId.value,
+    );
+
+    return this.isPendingStatus(selectedStatus) ? 'pending' : 'settled';
+  }
+
+  private getSettledStatusOption(): MovimentOption | undefined {
+    return this.statusOptions.find((status) => !this.isPendingStatus(status));
+  }
+
+  private getPendingStatusOption(): MovimentOption | undefined {
+    return this.statusOptions.find((status) => this.isPendingStatus(status));
+  }
+
+  private isPendingStatus(status: MovimentOption | undefined): boolean {
+    const normalizedStatus = this.normalizeStatusName(status?.name);
+
+    return normalizedStatus.includes('provision') ||
+      normalizedStatus.includes('pagar') ||
+      normalizedStatus.includes('receber') ||
+      normalizedStatus.includes('pending');
+  }
+
+  private normalizeStatusName(status: string | null | undefined): string {
+    return (status ?? '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+      .toLocaleLowerCase('pt-BR');
   }
 
   private normalizeOptions(options: MovimentOption[] | string[]): MovimentOption[] {

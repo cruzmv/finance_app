@@ -80,6 +80,7 @@ interface CreditStatusToggleResponse {
 export interface MovimentAccountSettings {
   id: number;
   description: string;
+  icon: string | null;
   contract: number | null;
   start_date: string | null;
   start_value: string | number | null;
@@ -90,12 +91,14 @@ export interface MovimentAccountSettings {
 export interface LedgerAccountSettings {
   id: number;
   description: string;
+  icon: string | null;
   contract: number | null;
 }
 
 export interface StatusSettings {
   id: number;
   description: string;
+  icon: string | null;
   contract: number | null;
 }
 

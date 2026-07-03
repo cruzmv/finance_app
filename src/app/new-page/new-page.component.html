@@ -54,6 +54,31 @@
       </button>
     </div>
 
+    <div class="settlement-switch" role="radiogroup" aria-label="Estado do movimento">
+      <button
+        type="button"
+        class="settlement-option settled"
+        role="radio"
+        [class.active]="isSettledStatusSelected"
+        [attr.aria-checked]="isSettledStatusSelected"
+        (click)="setSettlementStatus(true)"
+      >
+        <span class="radio-check" aria-hidden="true"></span>
+        {{ settledStatusLabel }}
+      </button>
+      <button
+        type="button"
+        class="settlement-option pending"
+        role="radio"
+        [class.active]="!isSettledStatusSelected"
+        [attr.aria-checked]="!isSettledStatusSelected"
+        (click)="setSettlementStatus(false)"
+      >
+        <span class="radio-check" aria-hidden="true"></span>
+        {{ pendingStatusLabel }}
+      </button>
+    </div>
+
     <label class="amount-field">
       <span aria-hidden="true">€</span>
       <input
@@ -98,23 +123,6 @@
         <ion-icon class="field-trailing-icon" name="chevron-forward-outline"></ion-icon>
       </div>
     </label>
-
-    <section class="form-section">
-      <span class="section-label">Status</span>
-      <div class="status-switch">
-        @for (status of statusList; track status.id) {
-          <button
-            type="button"
-            class="status-button"
-            [class.active]="movimentForm.controls.statusId.value === status.id"
-            (click)="selectStatus(status)"
-          >
-            <ion-icon [name]="getStatusIcon(status)"></ion-icon>
-            {{ status.name }}
-          </button>
-        }
-      </div>
-    </section>
 
     <section class="receipt-scanner">
       <span class="receipt-label">Scanear recibo</span>

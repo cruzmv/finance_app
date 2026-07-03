@@ -4,15 +4,31 @@ import { Router } from '@angular/router';
 import { IonContent, IonIcon, IonRefresher, IonRefresherContent } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
+  airplaneOutline,
+  alertCircleOutline,
   bagHandleOutline,
+  businessOutline,
   calculatorOutline,
+  carOutline,
   cardOutline,
+  cartOutline,
+  cashOutline,
   chevronBackOutline,
   bulbOutline,
   chevronDownOutline,
   chevronForwardOutline,
+  checkmarkCircleOutline,
+  gameControllerOutline,
+  homeOutline,
   logOutOutline,
+  medkitOutline,
   notificationsOutline,
+  receiptOutline,
+  restaurantOutline,
+  schoolOutline,
+  timeOutline,
+  trendingDownOutline,
+  trendingUpOutline,
   walletOutline,
 } from 'ionicons/icons';
 import { finalize, forkJoin } from 'rxjs';
@@ -21,6 +37,7 @@ import {
   BalanceRow,
   BalanceSnapshot,
   FinanceDataService,
+  LedgerAccountSettings,
   MovimentAccountSettings,
 } from '../finance-data.service';
 
@@ -46,6 +63,7 @@ interface UpcomingMovement {
   category: string;
   datetime: string;
   dateLabel: string;
+  icon: string;
   value: number;
   balances: BalanceSnapshot;
   accountType: 0 | 1 | null;
@@ -90,6 +108,7 @@ export class DashboardPageComponent implements OnInit {
   private readonly router = inject(Router);
   private now = new Date();
   private readonly financeFocusStorageKey = 'financeFocusTarget';
+  private ledgerAccounts = new Map<number, LedgerAccountSettings>();
   private accountById = new Map<string, MovimentAccountSettings>();
   private accountByDescription = new Map<string, MovimentAccountSettings>();
   private dashboardRows: BalanceRow[] = [];
@@ -134,15 +153,31 @@ export class DashboardPageComponent implements OnInit {
 
   constructor() {
     addIcons({
+      airplaneOutline,
+      alertCircleOutline,
       bagHandleOutline,
       bulbOutline,
+      businessOutline,
       calculatorOutline,
+      carOutline,
       cardOutline,
+      cartOutline,
+      cashOutline,
       chevronBackOutline,
+      checkmarkCircleOutline,
       chevronDownOutline,
       chevronForwardOutline,
+      gameControllerOutline,
+      homeOutline,
       logOutOutline,
+      medkitOutline,
       notificationsOutline,
+      receiptOutline,
+      restaurantOutline,
+      schoolOutline,
+      timeOutline,
+      trendingDownOutline,
+      trendingUpOutline,
       walletOutline,
     });
   }
@@ -379,6 +414,7 @@ export class DashboardPageComponent implements OnInit {
       }))
       .subscribe({
         next: ({ balances, settings }) => {
+          this.ledgerAccounts = new Map(settings.ledgerAccounts.map((account) => [account.id, account]));
           this.setAccountLookup(settings.accounts);
           this.buildDashboard(balances);
         },
@@ -458,6 +494,7 @@ export class DashboardPageComponent implements OnInit {
         category: row.ledger_account,
         datetime: row.datetime,
         dateLabel: this.getFriendlyDate(row.datetime),
+        icon: this.getLedgerAccountIcon(row),
         value: Number(row.value) || 0,
         balances: row.balances,
         accountType: row.account_type,
@@ -573,6 +610,14 @@ export class DashboardPageComponent implements OnInit {
 
   private getBalanceAccount(key: string): MovimentAccountSettings | undefined {
     return this.accountById.get(key) ?? this.accountByDescription.get(this.normalizeDescription(key));
+  }
+
+  private getLedgerAccountIcon(row: BalanceRow): string {
+    return this.normalizeIcon(this.ledgerAccounts.get(Number(row.ledger_account_id))?.icon, 'receipt-outline');
+  }
+
+  private normalizeIcon(icon: string | null | undefined, fallbackIcon: string): string {
+    return (icon ?? '').trim() || fallbackIcon;
   }
 
   private normalizeDescription(description: string | null | undefined): string {
