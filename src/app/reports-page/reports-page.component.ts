@@ -1,5 +1,5 @@
 import { CommonModule, CurrencyPipe } from '@angular/common';
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, HostListener, OnInit, inject } from '@angular/core';
 import { IonContent, IonIcon, IonRefresher, IonRefresherContent } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
@@ -7,6 +7,7 @@ import {
   calculatorOutline,
   cardOutline,
   chevronBackOutline,
+  chevronDownOutline,
   chevronForwardOutline,
   trendingDownOutline,
   trendingUpOutline,
@@ -32,6 +33,12 @@ interface CategoryReportRow {
   isIncomeCategory: boolean;
 }
 
+interface ReportMonthOption {
+  key: string;
+  label: string;
+  date: Date;
+}
+
 @Component({
   selector: 'app-reports-page',
   templateUrl: './reports-page.component.html',
@@ -49,8 +56,10 @@ export class ReportsPageComponent implements OnInit {
 
   protected selectedMonthDate = new Date(this.now.getFullYear(), this.now.getMonth(), 1);
   protected categoryRows: CategoryReportRow[] = [];
+  protected availableMonthOptions: ReportMonthOption[] = [];
   protected isLoading = false;
   protected errorMessage = '';
+  protected isMonthPickerOpen = false;
 
   constructor() {
     addIcons({
@@ -58,6 +67,7 @@ export class ReportsPageComponent implements OnInit {
       calculatorOutline,
       cardOutline,
       chevronBackOutline,
+      chevronDownOutline,
       chevronForwardOutline,
       trendingDownOutline,
       trendingUpOutline,
@@ -92,6 +102,58 @@ export class ReportsPageComponent implements OnInit {
     return this.categoryRows.reduce((total, row) => total + row.expenseTotal, 0);
   }
 
+  protected get receivedIncomeTotal(): number {
+    return this.getSelectedMonthRows()
+      .filter((row) => Number(row.value) > 0 && this.isStatus(row, 'consumado'))
+      .reduce((total, row) => total + (Number(row.value) || 0), 0);
+  }
+
+  protected get receivableIncomeTotal(): number {
+    return this.getSelectedMonthRows()
+      .filter((row) => Number(row.value) > 0 && this.isStatus(row, 'provisionado'))
+      .reduce((total, row) => total + (Number(row.value) || 0), 0);
+  }
+
+  protected get consumedExpenseTotal(): number {
+    return this.getSelectedMonthRows()
+      .filter((row) => Number(row.value) < 0 && this.isStatus(row, 'consumado'))
+      .reduce((total, row) => total + Math.abs(Number(row.value) || 0), 0);
+  }
+
+  protected get provisionedExpenseTotal(): number {
+    return this.getSelectedMonthRows()
+      .filter((row) => Number(row.value) < 0 && this.isStatus(row, 'provisionado'))
+      .reduce((total, row) => total + Math.abs(Number(row.value) || 0), 0);
+  }
+
+  protected get consumedDebitExpenseTotal(): number {
+    return this.getSelectedMonthRows()
+      .filter((row) => Number(row.value) < 0 && row.account_type !== 1 && this.isStatus(row, 'consumado'))
+      .reduce((total, row) => total + Math.abs(Number(row.value) || 0), 0);
+  }
+
+  protected get consumedCreditExpenseTotal(): number {
+    return this.getSelectedMonthRows()
+      .filter((row) => Number(row.value) < 0 && row.account_type === 1 && this.isStatus(row, 'consumado'))
+      .reduce((total, row) => total + Math.abs(Number(row.value) || 0), 0);
+  }
+
+  protected get provisionedDebitExpenseTotal(): number {
+    return this.getSelectedMonthRows()
+      .filter((row) => Number(row.value) < 0 && row.account_type !== 1 && this.isStatus(row, 'provisionado'))
+      .reduce((total, row) => total + Math.abs(Number(row.value) || 0), 0);
+  }
+
+  protected get provisionedCreditExpenseTotal(): number {
+    return this.getSelectedMonthRows()
+      .filter((row) => Number(row.value) < 0 && row.account_type === 1 && this.isStatus(row, 'provisionado'))
+      .reduce((total, row) => total + Math.abs(Number(row.value) || 0), 0);
+  }
+
+  protected getPercent(part: number, total: number): number {
+    return total ? (part / total) * 100 : 0;
+  }
+
   protected get cashExpenseTotal(): number {
     return this.getSelectedMonthRows()
       .filter((row) => Number(row.value) < 0 && row.account_type !== 1)
@@ -118,7 +180,29 @@ export class ReportsPageComponent implements OnInit {
       this.selectedMonthDate.getMonth() + direction,
       1,
     );
+    this.isMonthPickerOpen = false;
     this.buildCategoryRows();
+  }
+
+  protected toggleMonthPicker(event: Event): void {
+    event.stopPropagation();
+    this.isMonthPickerOpen = !this.isMonthPickerOpen;
+  }
+
+  protected selectMonth(option: ReportMonthOption, event: Event): void {
+    event.stopPropagation();
+    this.selectedMonthDate = new Date(option.date);
+    this.isMonthPickerOpen = false;
+    this.buildCategoryRows();
+  }
+
+  protected isSelectedMonthOption(option: ReportMonthOption): boolean {
+    return option.key === this.getMonthKey(this.selectedMonthDate);
+  }
+
+  @HostListener('document:click')
+  protected closeMonthPicker(): void {
+    this.isMonthPickerOpen = false;
   }
 
   private loadReport(forceRefresh = false, refreshEvent?: CustomEvent): void {
@@ -154,6 +238,7 @@ export class ReportsPageComponent implements OnInit {
   private buildCategoryRows(): void {
     const reportMap = new Map<number, CategoryReportRow>();
     const validRows = this.getValidRows(this.rows);
+    this.availableMonthOptions = this.buildAvailableMonthOptions(validRows);
     const monthRows = validRows.filter((row) => this.isSelectedMonth(row));
 
     monthRows.forEach((row) => {
@@ -199,6 +284,40 @@ export class ReportsPageComponent implements OnInit {
       .sort((left, right) => this.getTime(left) - this.getTime(right));
   }
 
+  private buildAvailableMonthOptions(rows: BalanceRow[]): ReportMonthOption[] {
+    const optionsByKey = new Map<string, ReportMonthOption>();
+
+    rows.forEach((row) => {
+      const date = new Date(row.datetime);
+      const monthDate = new Date(date.getFullYear(), date.getMonth(), 1);
+      const key = this.getMonthKey(monthDate);
+
+      if (optionsByKey.has(key)) {
+        return;
+      }
+
+      optionsByKey.set(key, {
+        key,
+        label: `${this.getMonthLabel(monthDate)} ${monthDate.getFullYear()}`,
+        date: monthDate,
+      });
+    });
+
+    if (optionsByKey.size === 0) {
+      const fallbackDate = new Date(this.selectedMonthDate);
+      const key = this.getMonthKey(fallbackDate);
+
+      optionsByKey.set(key, {
+        key,
+        label: `${this.getMonthLabel(fallbackDate)} ${fallbackDate.getFullYear()}`,
+        date: fallbackDate,
+      });
+    }
+
+    return Array.from(optionsByKey.values())
+      .sort((left, right) => right.date.getTime() - left.date.getTime());
+  }
+
   private getSelectedMonthRows(): BalanceRow[] {
     return this.getValidRows(this.rows).filter((row) => this.isSelectedMonth(row));
   }
@@ -229,6 +348,10 @@ export class ReportsPageComponent implements OnInit {
 
     return date.getFullYear() === this.selectedMonthDate.getFullYear()
       && date.getMonth() === this.selectedMonthDate.getMonth();
+  }
+
+  private isStatus(row: BalanceRow, status: string): boolean {
+    return row.status?.trim().toLowerCase() === status;
   }
 
   private getLatestRowAtOrBefore(rows: BalanceRow[], targetDate: Date): BalanceRow | undefined {
@@ -262,6 +385,18 @@ export class ReportsPageComponent implements OnInit {
 
   private getTime(row: BalanceRow): number {
     return new Date(row.datetime).getTime();
+  }
+
+  private getMonthLabel(date: Date): string {
+    return new Intl.DateTimeFormat('pt-PT', { month: 'long' })
+      .format(date)
+      .replace(/^./, (letter) => letter.toUpperCase());
+  }
+
+  private getMonthKey(date: Date): string {
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+
+    return `${date.getFullYear()}-${month}`;
   }
 
   private completeRefresh(event?: CustomEvent): void {

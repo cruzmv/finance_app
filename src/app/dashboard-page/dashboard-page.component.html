@@ -25,9 +25,11 @@
             </button>
           </div>
         }
+        <p>Aqui está o resumo das suas finanças</p>
       </div>
       <button type="button" class="notification-button" aria-label="Notificações">
         <ion-icon name="notifications-outline"></ion-icon>
+        <span aria-hidden="true"></span>
       </button>
     </header>
 
@@ -36,7 +38,7 @@
     } @else if (errorMessage) {
       <section class="state-panel error"><p>{{ errorMessage }}</p></section>
     } @else {
-      <section class="dashboard-card summary-card">
+      <section class="summary-card">
         <header class="card-heading month-heading">
           <button
             type="button"
@@ -46,8 +48,38 @@
           >
             <ion-icon name="chevron-back-outline"></ion-icon>
           </button>
-          <div>
-            <h2>Resumo de {{ selectedMonthLabel }} {{ selectedYear }}</h2>
+          <div class="month-picker" (click)="$event.stopPropagation()">
+            <button
+              type="button"
+              class="month-picker-trigger"
+              aria-haspopup="listbox"
+              [attr.aria-expanded]="isMonthPickerOpen"
+              (click)="toggleMonthPicker($event)"
+            >
+              @for (monthKey of selectedMonthRenderKeys; track monthKey) {
+                <span class="month-picker-label" [attr.data-month-key]="monthKey">
+                  <span>Resumo de {{ selectedMonthLabel }}</span>
+                  <span>{{ selectedYear }}</span>
+                </span>
+              }
+              <ion-icon name="chevron-down-outline"></ion-icon>
+            </button>
+
+            @if (isMonthPickerOpen) {
+              <div class="month-picker-menu" role="listbox" aria-label="Selecionar mês">
+                @for (option of availableMonthOptions; track option.key) {
+                  <button
+                    type="button"
+                    role="option"
+                    [class.active]="isSelectedMonthOption(option)"
+                    [attr.aria-selected]="isSelectedMonthOption(option)"
+                    (click)="selectMonth(option, $event)"
+                  >
+                    {{ option.label }}
+                  </button>
+                }
+              </div>
+            }
           </div>
           <button
             type="button"
@@ -59,74 +91,183 @@
           </button>
         </header>
 
-        <div class="summary-grid">
-          <div>
-            <span>Início mês</span>
+        <div class="summary-grid" aria-label="Resumo do mês">
+          <div class="summary-metric">
+            <span>Início do mês</span>
             <strong>{{ summary.monthStartBalance | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
           </div>
-          <div>
+          <div class="summary-metric">
             <span>Fim do mês</span>
             <strong>{{ summary.monthEndBalance | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
           </div>
-          <div class="balance">
-            <span>{{ savingsLabel }}</span>
+          <div class="summary-metric balance">
+            <span>Economia do mês</span>
             <strong [class.negative]="summary.savings < 0">
               {{ summary.savings | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
             </strong>
+            <small [class.negative]="savingsStartPercent < 0">
+              {{ savingsStartPercent > 0 ? '+' : '' }}{{ savingsStartPercent | number:'1.2-2':'pt-PT' }}% do início
+            </small>
           </div>
         </div>
 
-        <div class="forecast-hint" [ngClass]="'forecast-' + forecastTone">
-          <ion-icon name="bulb-outline"></ion-icon>
-          <span>{{ forecastMessage }}</span>
+        <div class="summary-bottom">
+          <div class="forecast-hint" [ngClass]="'forecast-' + forecastTone">
+            <ion-icon name="bulb-outline"></ion-icon>
+            <span>{{ forecastMessage }}</span>
+          </div>
+
+          @if (savingsTrend.length > 0) {
+            <svg class="savings-chart" viewBox="0 0 100 88" role="img" aria-label="Economia dos últimos 6 meses">
+              <defs>
+                <linearGradient id="dashboardSavingsFill" x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0%" stop-color="rgba(255,255,255,0.46)" />
+                  <stop offset="100%" stop-color="rgba(255,255,255,0.04)" />
+                </linearGradient>
+              </defs>
+              <polyline
+                class="savings-chart-line"
+                [attr.points]="savingsTrendPolyline"
+                fill="none"
+              />
+              @for (point of savingsTrend; track point.label) {
+                <circle class="savings-chart-point" [attr.cx]="point.x" [attr.cy]="point.y" r="2.8" />
+              }
+            </svg>
+          }
         </div>
       </section>
 
-      <section class="quick-section">
+      <section class="overview-section">
         <header class="card-heading split-heading">
-          <h2>Movimentos</h2>
-          <button type="button" class="nav-link" (click)="openTodayMovements()">Ver tudo</button>
+          <h2>Visão geral</h2>
         </header>
-        <div class="quick-grid">
-          <article>
-            <span>Entradas</span>
-            <strong>{{ summary.income | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
-            <small>Recebidos e a receber</small>
-          </article>
-          <article class="expense-summary">
-            <span>Saídas pagas</span>
-            <div class="expense-lines">
-              <div class="expense-line debit-line">
-                <ion-icon class="expense-kind-icon" name="wallet-outline" aria-label="Débitos" title="Débitos"></ion-icon>
-                <strong>{{ summary.consumedDebitExpenses | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
+
+        <div class="overview-card">
+          <div class="quick-grid">
+            <article class="overview-column income-column">
+              <div class="income-topline">
+                <span class="overview-icon">
+                  <ion-icon name="chevron-forward-outline"></ion-icon>
+                </span>
+                <span
+                  class="overview-donut income-donut"
+                  [style.--first-segment]="getPercent(summary.receivedIncome, summary.income) + '%'"
+                  aria-hidden="true"
+                ></span>
               </div>
-              <div class="expense-line credit-line">
-                <ion-icon class="expense-kind-icon" name="card-outline" aria-label="Créditos" title="Créditos"></ion-icon>
-                <strong>{{ summary.consumedCreditExpenses | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
+              <div class="overview-column-heading">
+                <span>Entradas</span>
+                <strong>{{ summary.income | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
               </div>
-              <div class="expense-line total-line">
-                <ion-icon class="expense-kind-icon" name="calculator-outline" aria-label="Total" title="Total"></ion-icon>
-                <strong>{{ summary.consumedExpenses | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
+              <div class="overview-lines">
+                <div [style.--progress]="getPercent(summary.receivedIncome, summary.income) + '%'">
+                  <span>Recebidos</span>
+                  <strong>
+                    {{ summary.receivedIncome | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
+                    <small>({{ getPercent(summary.receivedIncome, summary.income) | number:'1.0-0':'pt-PT' }}%)</small>
+                  </strong>
+                </div>
+                <div [style.--progress]="getPercent(summary.receivableIncome, summary.income) + '%'">
+                  <span>A receber</span>
+                  <strong>
+                    {{ summary.receivableIncome | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
+                    <small>({{ getPercent(summary.receivableIncome, summary.income) | number:'1.0-0':'pt-PT' }}%)</small>
+                  </strong>
+                </div>
               </div>
-            </div>
-          </article>
-          <article class="expense-summary">
-            <span>Saídas a pagar</span>
-            <div class="expense-lines">
-              <div class="expense-line debit-line">
-                <ion-icon class="expense-kind-icon" name="wallet-outline" aria-label="Débitos" title="Débitos"></ion-icon>
-                <strong>{{ summary.provisionedDebitExpenses | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
+            </article>
+
+            <article class="overview-column expense-comparison-column">
+              <div class="expense-comparison-header">
+                <div>
+                  <span class="overview-icon">
+                    <ion-icon name="wallet-outline"></ion-icon>
+                  </span>
+                  <span class="expense-comparison-title">Saídas</span>
+                </div>
+                <span
+                  class="overview-donut expenses-donut"
+                  [style.--first-segment]="getPercent(summary.consumedExpenses, totalMonthExpenses) + '%'"
+                  aria-hidden="true"
+                ></span>
               </div>
-              <div class="expense-line credit-line">
-                <ion-icon class="expense-kind-icon" name="card-outline" aria-label="Créditos" title="Créditos"></ion-icon>
-                <strong>{{ summary.provisionedCreditExpenses | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
+
+              <div class="expense-compact-grid">
+                <section class="expense-compact-card paid-column">
+                  <div class="overview-column-heading">
+                    <span>Saídas pagas</span>
+                    <strong>
+                      {{ summary.consumedExpenses | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
+                      <small>({{ getPercent(summary.consumedExpenses, totalMonthExpenses) | number:'1.0-0':'pt-PT' }}%)</small>
+                    </strong>
+                  </div>
+                  <div class="overview-lines">
+                    <div [style.--progress]="getPercent(summary.consumedDebitExpenses, summary.consumedExpenses) + '%'">
+                      <span>
+                        <ion-icon name="wallet-outline"></ion-icon>
+                        Débito
+                        <em>({{ getPercent(summary.consumedDebitExpenses, summary.consumedExpenses) | number:'1.0-0':'pt-PT' }}%)</em>
+                      </span>
+                      <strong>
+                        {{ summary.consumedDebitExpenses | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
+                      </strong>
+                    </div>
+                    <div [style.--progress]="getPercent(summary.consumedCreditExpenses, summary.consumedExpenses) + '%'">
+                      <span>
+                        <ion-icon name="card-outline"></ion-icon>
+                        Crédito
+                        <em>({{ getPercent(summary.consumedCreditExpenses, summary.consumedExpenses) | number:'1.0-0':'pt-PT' }}%)</em>
+                      </span>
+                      <strong>
+                        {{ summary.consumedCreditExpenses | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
+                      </strong>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="expense-compact-card pending-column">
+                  <div class="overview-column-heading">
+                    <span>Saídas a pagar</span>
+                    <strong>
+                      {{ summary.provisionedExpenses | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
+                      <small>({{ getPercent(summary.provisionedExpenses, totalMonthExpenses) | number:'1.0-0':'pt-PT' }}%)</small>
+                    </strong>
+                  </div>
+                  <div class="overview-lines">
+                    <div [style.--progress]="getPercent(summary.provisionedDebitExpenses, summary.provisionedExpenses) + '%'">
+                      <span>
+                        <ion-icon name="wallet-outline"></ion-icon>
+                        Débito
+                        <em>({{ getPercent(summary.provisionedDebitExpenses, summary.provisionedExpenses) | number:'1.0-0':'pt-PT' }}%)</em>
+                      </span>
+                      <strong>
+                        {{ summary.provisionedDebitExpenses | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
+                      </strong>
+                    </div>
+                    <div [style.--progress]="getPercent(summary.provisionedCreditExpenses, summary.provisionedExpenses) + '%'">
+                      <span>
+                        <ion-icon name="card-outline"></ion-icon>
+                        Crédito
+                        <em>({{ getPercent(summary.provisionedCreditExpenses, summary.provisionedExpenses) | number:'1.0-0':'pt-PT' }}%)</em>
+                      </span>
+                      <strong>
+                        {{ summary.provisionedCreditExpenses | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
+                      </strong>
+                    </div>
+                  </div>
+                </section>
               </div>
-              <div class="expense-line total-line">
-                <ion-icon class="expense-kind-icon" name="calculator-outline" aria-label="Total" title="Total"></ion-icon>
-                <strong>{{ summary.provisionedExpenses | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
-              </div>
-            </div>
-          </article>
+            </article>
+          </div>
+
+          <div class="forecast-balance">
+            <span class="forecast-balance-icon">
+              <ion-icon name="calculator-outline"></ion-icon>
+            </span>
+            <strong>Saldo previsto para o fim do mês</strong>
+            <b>{{ summary.monthEndBalance | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</b>
+          </div>
         </div>
       </section>
 
@@ -135,19 +276,37 @@
           <h2>Crédito</h2>
         </header>
         <div class="credit-grid">
-          <article>
-            <span>A pagar</span>
-            <strong class="negative">{{ creditSummary.payable | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
+          <article class="credit-payable">
+            <span class="credit-icon">
+              <ion-icon name="wallet-outline"></ion-icon>
+            </span>
+            <div>
+              <span>A pagar</span>
+              <strong class="negative">{{ creditSummary.payable | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
+              <small>{{ getMovementCountLabel(creditSummary.payableCount) }}</small>
+            </div>
           </article>
-          <article>
-            <span>Aberto</span>
-            <strong>{{ creditSummary.open | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
+          <article class="credit-open">
+            <span class="credit-icon">
+              <ion-icon name="card-outline"></ion-icon>
+            </span>
+            <div>
+              <span>Aberto</span>
+              <strong>{{ creditSummary.open | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
+              <small>{{ getMovementCountLabel(creditSummary.openCount) }}</small>
+            </div>
           </article>
-          <article>
-            <span>Saldo</span>
-            <strong [class.negative]="creditSummary.balance < 0">
-              {{ creditSummary.balance | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
-            </strong>
+          <article class="credit-balance">
+            <span class="credit-icon">
+              <ion-icon name="calculator-outline"></ion-icon>
+            </span>
+            <div>
+              <span>Saldo total</span>
+              <strong [class.negative]="creditSummary.balance < 0">
+                {{ creditSummary.balance | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
+              </strong>
+              <small>Disponível</small>
+            </div>
           </article>
         </div>
       </section>
@@ -155,24 +314,58 @@
       <section class="dashboard-card upcoming-card">
         <header class="card-heading split-heading">
           <h2>Próximos movimentos</h2>
-          <button type="button" class="nav-link" (click)="openTodayMovements()">Ver todas</button>
         </header>
 
         <div class="upcoming-list">
           @for (movement of upcomingMovements; track movement.id) {
-            <div class="upcoming-row">
-              <ion-icon name="bag-handle-outline"></ion-icon>
-              <strong>{{ movement.description }}</strong>
-              <span>{{ movement.dateLabel }}</span>
+            <button
+              type="button"
+              class="upcoming-row"
+              [class.expanded]="isUpcomingMovementExpanded(movement.id)"
+              [attr.aria-expanded]="isUpcomingMovementExpanded(movement.id)"
+              (click)="toggleUpcomingMovement(movement.id)"
+            >
+              <span class="movement-icon" aria-hidden="true">
+                <ion-icon name="bag-handle-outline"></ion-icon>
+              </span>
+              <span class="movement-main">
+                <strong>{{ movement.description }}</strong>
+                <small>{{ movement.category }}</small>
+              </span>
+              <span class="movement-date">{{ movement.dateLabel }}</span>
               <b [class.negative]="movement.value < 0">
                 {{ movement.value | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
               </b>
-            </div>
+              <ion-icon class="movement-chevron" name="chevron-forward-outline"></ion-icon>
+            </button>
+
+            @if (isUpcomingMovementExpanded(movement.id)) {
+              <div class="movement-details">
+                <div class="balance-row balance-savings-row">
+                  <span class="balance-label">Economia</span>
+                  <span class="balance-amount savings-amount">
+                    {{ getPositiveBalanceTotal(getBalanceEntries(movement.balances)) | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
+                  </span>
+                </div>
+                @for (balance of getBalanceEntries(movement.balances); track balance.name) {
+                  <div class="balance-row">
+                    <span class="balance-label">{{ balance.name }}</span>
+                    <span class="balance-amount" [ngClass]="getBalanceToneClass(balance)">
+                      {{ balance.value | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
+                    </span>
+                  </div>
+                }
+                <button type="button" class="movement-open-link" (click)="openMovementInFinance(movement, $event)">
+                  Abrir em Movimentos
+                </button>
+              </div>
+            }
           } @empty {
             <p class="empty-message">Sem contas provisionadas.</p>
           }
         </div>
       </section>
+
     }
   </main>
 </ion-content>
