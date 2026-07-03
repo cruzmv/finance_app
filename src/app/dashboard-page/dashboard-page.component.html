@@ -32,19 +32,33 @@
     </header>
 
     @if (isLoading) {
-      <section class="state-panel"><p>A carregar resumo...</p></section>
+      <section class="state-panel"><p>Atualizando...</p></section>
     } @else if (errorMessage) {
       <section class="state-panel error"><p>{{ errorMessage }}</p></section>
     } @else {
       <section class="dashboard-card summary-card">
-        <header class="card-heading">
+        <header class="card-heading month-heading">
+          <button
+            type="button"
+            class="month-nav-button"
+            aria-label="Ver mês anterior"
+            (click)="changeSelectedMonth(-1)"
+          >
+            <ion-icon name="chevron-back-outline"></ion-icon>
+          </button>
           <div>
-            <h2>Resumo de {{ currentMonth }}, {{ currentDay }}</h2>
-            <p>Até agora, {{ currentDateTimeLabel }}</p>
+            <h2>Resumo de {{ selectedMonthLabel }} {{ selectedYear }}</h2>
           </div>
+          <button
+            type="button"
+            class="month-nav-button"
+            aria-label="Ver próximo mês"
+            (click)="changeSelectedMonth(1)"
+          >
+            <ion-icon name="chevron-forward-outline"></ion-icon>
+          </button>
         </header>
 
-        <h3 class="summary-title">Balanço</h3>
         <div class="summary-grid">
           <div>
             <span>Início mês</span>
@@ -68,9 +82,79 @@
         </div>
       </section>
 
+      <section class="quick-section">
+        <header class="card-heading split-heading">
+          <h2>Movimentos</h2>
+          <button type="button" class="nav-link" (click)="openTodayMovements()">Ver tudo</button>
+        </header>
+        <div class="quick-grid">
+          <article>
+            <span>Entradas</span>
+            <strong>{{ summary.income | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
+            <small>Recebidos e a receber</small>
+          </article>
+          <article class="expense-summary">
+            <span>Saídas pagas</span>
+            <div class="expense-lines">
+              <div class="expense-line debit-line">
+                <ion-icon class="expense-kind-icon" name="wallet-outline" aria-label="Débitos" title="Débitos"></ion-icon>
+                <strong>{{ summary.consumedDebitExpenses | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
+              </div>
+              <div class="expense-line credit-line">
+                <ion-icon class="expense-kind-icon" name="card-outline" aria-label="Créditos" title="Créditos"></ion-icon>
+                <strong>{{ summary.consumedCreditExpenses | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
+              </div>
+              <div class="expense-line total-line">
+                <ion-icon class="expense-kind-icon" name="calculator-outline" aria-label="Total" title="Total"></ion-icon>
+                <strong>{{ summary.consumedExpenses | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
+              </div>
+            </div>
+          </article>
+          <article class="expense-summary">
+            <span>Saídas a pagar</span>
+            <div class="expense-lines">
+              <div class="expense-line debit-line">
+                <ion-icon class="expense-kind-icon" name="wallet-outline" aria-label="Débitos" title="Débitos"></ion-icon>
+                <strong>{{ summary.provisionedDebitExpenses | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
+              </div>
+              <div class="expense-line credit-line">
+                <ion-icon class="expense-kind-icon" name="card-outline" aria-label="Créditos" title="Créditos"></ion-icon>
+                <strong>{{ summary.provisionedCreditExpenses | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
+              </div>
+              <div class="expense-line total-line">
+                <ion-icon class="expense-kind-icon" name="calculator-outline" aria-label="Total" title="Total"></ion-icon>
+                <strong>{{ summary.provisionedExpenses | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="credit-section">
+        <header class="card-heading split-heading">
+          <h2>Crédito</h2>
+        </header>
+        <div class="credit-grid">
+          <article>
+            <span>A pagar</span>
+            <strong class="negative">{{ creditSummary.payable | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
+          </article>
+          <article>
+            <span>Aberto</span>
+            <strong>{{ creditSummary.open | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
+          </article>
+          <article>
+            <span>Saldo</span>
+            <strong [class.negative]="creditSummary.balance < 0">
+              {{ creditSummary.balance | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
+            </strong>
+          </article>
+        </div>
+      </section>
+
       <section class="dashboard-card upcoming-card">
         <header class="card-heading split-heading">
-          <h2>Próximas contas</h2>
+          <h2>Próximos movimentos</h2>
           <button type="button" class="nav-link" (click)="openTodayMovements()">Ver todas</button>
         </header>
 
@@ -87,43 +171,6 @@
           } @empty {
             <p class="empty-message">Sem contas provisionadas.</p>
           }
-        </div>
-      </section>
-
-      <section class="dashboard-card goal-card">
-        <h2>Objetivo: Reserva de emergência</h2>
-        <div class="goal-content">
-          <div class="goal-progress" [style.--progress]="goalProgress + '%'">
-            <strong>{{ goalProgress }}%</strong>
-          </div>
-          <p>
-            <strong>{{ goalCurrent | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
-            <span>de {{ goalTarget | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</span>
-          </p>
-        </div>
-      </section>
-
-      <section class="quick-section">
-        <header class="card-heading split-heading">
-          <h2>Visão rápida</h2>
-          <button type="button" class="nav-link" (click)="openTodayMovements()">Ver tudo</button>
-        </header>
-        <div class="quick-grid">
-          <article>
-            <span>Entradas</span>
-            <strong>{{ summary.income | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
-            <small>efetuados e esperados</small>
-          </article>
-          <article>
-            <span>Saídas</span>
-            <strong class="negative">{{ summary.consumedExpenses | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
-            <small>efetuado</small>
-          </article>
-          <article>
-            <span>Esperado</span>
-            <strong class="negative">{{ summary.provisionedExpenses | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
-            <small>em aberto</small>
-          </article>
         </div>
       </section>
     }

@@ -22,6 +22,14 @@
       </section>
     }
 
+    <button type="button" class="settings-shortcut" (click)="openRecurringMovements()">
+      <span>
+        <ion-icon name="repeat-outline"></ion-icon>
+        Movimentos Recorrente
+      </span>
+      <ion-icon name="chevron-forward-outline"></ion-icon>
+    </button>
+
     <nav class="settings-tabs" aria-label="Settings sections">
       <button type="button" [class.active]="activeTab === 'accounts'" (click)="setActiveTab('accounts')">
         Accounts

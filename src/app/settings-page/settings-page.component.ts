@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Router } from '@angular/router';
 import {
   IonContent,
   IonIcon,
@@ -8,7 +9,15 @@ import {
   IonRefresherContent,
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
-import { closeOutline, createOutline, logOutOutline, saveOutline, trashOutline } from 'ionicons/icons';
+import {
+  chevronForwardOutline,
+  closeOutline,
+  createOutline,
+  logOutOutline,
+  repeatOutline,
+  saveOutline,
+  trashOutline,
+} from 'ionicons/icons';
 import { Observable, finalize } from 'rxjs';
 import {
   FinanceDataService,
@@ -30,6 +39,7 @@ export class SettingsPageComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly financeData = inject(FinanceDataService);
   private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
   private loadedToken = '';
 
   protected activeTab: SettingsTab = 'accounts';
@@ -62,7 +72,15 @@ export class SettingsPageComponent implements OnInit {
   });
 
   constructor() {
-    addIcons({ closeOutline, createOutline, logOutOutline, saveOutline, trashOutline });
+    addIcons({
+      chevronForwardOutline,
+      closeOutline,
+      createOutline,
+      logOutOutline,
+      repeatOutline,
+      saveOutline,
+      trashOutline,
+    });
   }
 
   ngOnInit() {
@@ -273,6 +291,10 @@ export class SettingsPageComponent implements OnInit {
 
   protected logout(): void {
     this.auth.logout();
+  }
+
+  protected openRecurringMovements(): void {
+    void this.router.navigate(['/example/planning']);
   }
 
   private loadSettings(refreshEvent?: CustomEvent): void {

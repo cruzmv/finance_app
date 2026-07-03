@@ -1,11 +1,12 @@
 import { CommonModule } from '@angular/common';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { Component, ElementRef, OnInit, ViewChild, inject } from '@angular/core';
+import { Component, ElementRef, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import {
   IonContent,
   IonIcon,
+  Platform,
   IonRefresher,
   IonRefresherContent,
 } from '@ionic/angular/standalone';
@@ -19,13 +20,15 @@ import {
   cartOutline,
   checkmarkOutline,
   checkmarkDoneCircleOutline,
+  chevronDownOutline,
   chevronForwardOutline,
   closeOutline,
+  repeatOutline,
   timeOutline,
 } from 'ionicons/icons';
-import { finalize } from 'rxjs';
+import { finalize, Subscription } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { BalanceRow, FinanceDataService } from '../finance-data.service';
+import { BalanceRow, FinanceDataService, PlanningPayload } from '../finance-data.service';
 
 interface MovimentOption {
   id: number;
@@ -82,12 +85,13 @@ interface PreparedReceiptImage {
   styleUrls: ['./new-page.component.scss'],
   imports: [CommonModule, IonContent, IonIcon, IonRefresher, IonRefresherContent, ReactiveFormsModule],
 })
-export class NewPageComponent implements OnInit {
+export class NewPageComponent implements OnInit, OnDestroy {
   private readonly fb = inject(FormBuilder);
   private readonly http = inject(HttpClient);
   private readonly financeData = inject(FinanceDataService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly platform = inject(Platform);
   private readonly apiBaseUrl = environment.apiBaseUrl;
   private readonly selectedMovimentStorageKey = 'selectedMoviment';
   private readonly financeFocusStorageKey = 'financeFocusTarget';
@@ -102,6 +106,8 @@ export class NewPageComponent implements OnInit {
     ledgerAccountId: [0, [Validators.required, Validators.min(1)]],
     description: ['', Validators.required],
     value: this.fb.control<number | null>(null, Validators.required),
+    recurringDayOfMonth: [1, [Validators.min(1), Validators.max(31)]],
+    recurringEndDate: [''],
   });
 
   protected isEditMode = false;
@@ -111,12 +117,14 @@ export class NewPageComponent implements OnInit {
   protected errorMessage = '';
   protected receiptMessage = '';
   protected receiptImagePreview = '';
+  protected isRecurringOpen = false;
   protected statusOptions: MovimentOption[] = [...this.fallbackStatusOptions];
   protected ledgerAccounts: MovimentOption[] = [];
   protected movimentAccounts: MovimentOption[] = [];
   protected valueSign: -1 | 1 = -1;
 
   private originalMoviment: BalanceRow | null = null;
+  private backButtonSubscription?: Subscription;
 
   constructor() {
     addIcons({
@@ -128,8 +136,10 @@ export class NewPageComponent implements OnInit {
       cartOutline,
       checkmarkOutline,
       checkmarkDoneCircleOutline,
+      chevronDownOutline,
       chevronForwardOutline,
       closeOutline,
+      repeatOutline,
       timeOutline,
     });
   }
@@ -148,7 +158,18 @@ export class NewPageComponent implements OnInit {
   }
 
   ionViewDidEnter(): void {
+    this.backButtonSubscription?.unsubscribe();
+    this.backButtonSubscription = this.platform.backButton.subscribeWithPriority(10, () => this.cancel());
     setTimeout(() => this.valueInput?.nativeElement.focus(), 150);
+  }
+
+  ionViewWillLeave(): void {
+    this.backButtonSubscription?.unsubscribe();
+    this.backButtonSubscription = undefined;
+  }
+
+  ngOnDestroy(): void {
+    this.backButtonSubscription?.unsubscribe();
   }
 
   private hydratePageState(): void {
@@ -212,6 +233,11 @@ export class NewPageComponent implements OnInit {
     this.valueSign = sign;
   }
 
+  protected toggleRecurring(): void {
+    this.isRecurringOpen = !this.isRecurringOpen;
+    this.ensureRecurringDefaults();
+  }
+
   protected openReceiptCapture(): void {
     this.receiptInput?.nativeElement.click();
   }
@@ -237,6 +263,11 @@ export class NewPageComponent implements OnInit {
       return;
     }
 
+    if (this.isRecurringOpen && !this.isEditMode) {
+      this.saveRecurringMoviment();
+      return;
+    }
+
     const payload = this.buildPayload();
     this.isSaving = true;
     this.financeData
@@ -252,6 +283,29 @@ export class NewPageComponent implements OnInit {
           this.errorMessage = this.isEditMode
             ? 'Não foi possível editar o movimento.'
             : 'Não foi possível adicionar o movimento.';
+        },
+      });
+  }
+
+  private saveRecurringMoviment(): void {
+    const payload = this.buildRecurringPayload();
+
+    if (!payload) {
+      return;
+    }
+
+    this.isSaving = true;
+    this.financeData
+      .savePlanning('add', payload)
+      .pipe(finalize(() => (this.isSaving = false)))
+      .subscribe({
+        next: () => {
+          this.storeRecurringFocusTarget(payload.start_datetime);
+          sessionStorage.removeItem(this.selectedMovimentStorageKey);
+          void this.router.navigate(['/example/finance']);
+        },
+        error: (error) => {
+          this.errorMessage = error?.error?.message ?? 'Não foi possível criar a recorrência.';
         },
       });
   }
@@ -492,22 +546,28 @@ export class NewPageComponent implements OnInit {
       value: Math.abs(Number(moviment.value)),
     });
     this.valueSign = Number(moviment.value) < 0 ? -1 : 1;
+    this.isRecurringOpen = false;
   }
 
   private resetAddMovimentState(): void {
+    const now = new Date();
+    const endDate = new Date(now.getFullYear() + 1, now.getMonth(), now.getDate());
     this.isEditMode = false;
     this.originalMoviment = null;
     this.errorMessage = '';
     this.receiptMessage = '';
     this.receiptImagePreview = '';
+    this.isRecurringOpen = false;
     this.valueSign = -1;
     this.movimentForm.reset({
-      datetime: this.toDatetimeLocalValue(new Date().toISOString()),
+      datetime: this.toDatetimeLocalValue(now.toISOString()),
       statusId: this.statusOptions[0]?.id ?? 0,
       movimentAccountId: 0,
       ledgerAccountId: 0,
       description: '',
       value: null,
+      recurringDayOfMonth: now.getDate(),
+      recurringEndDate: this.toDateInputValue(endDate),
     });
     sessionStorage.removeItem(this.selectedMovimentStorageKey);
   }
@@ -537,6 +597,58 @@ export class NewPageComponent implements OnInit {
       status: formValue.statusId,
       value: Math.abs(Number(formValue.value)) * this.valueSign,
     };
+  }
+
+  private buildRecurringPayload(): PlanningPayload | null {
+    const formValue = this.movimentForm.getRawValue();
+    const startDate = formValue.datetime.slice(0, 10);
+
+    if (!formValue.recurringDayOfMonth || !formValue.recurringEndDate) {
+      this.errorMessage = 'Preencha os campos da recorrência.';
+      return null;
+    }
+
+    if (formValue.recurringEndDate < startDate) {
+      this.errorMessage = 'A data final deve ser igual ou posterior ao primeiro lançamento.';
+      return null;
+    }
+
+    return {
+      start_datetime: formValue.datetime,
+      end_date: formValue.recurringEndDate,
+      day_of_month: formValue.recurringDayOfMonth,
+      description: formValue.description.trim(),
+      ledger_account: formValue.ledgerAccountId,
+      moviment_account: formValue.movimentAccountId,
+      value: Math.abs(Number(formValue.value)) * this.valueSign,
+    };
+  }
+
+  private ensureRecurringDefaults(): void {
+    const formValue = this.movimentForm.getRawValue();
+    const movementDate = new Date(formValue.datetime || new Date().toISOString());
+    const safeDate = Number.isNaN(movementDate.getTime()) ? new Date() : movementDate;
+
+    if (!formValue.recurringDayOfMonth) {
+      this.movimentForm.controls.recurringDayOfMonth.setValue(safeDate.getDate());
+    }
+
+    if (!formValue.recurringEndDate) {
+      const endDate = new Date(safeDate.getFullYear() + 1, safeDate.getMonth(), safeDate.getDate());
+      this.movimentForm.controls.recurringEndDate.setValue(this.toDateInputValue(endDate));
+    }
+  }
+
+  private storeRecurringFocusTarget(datetime: string): void {
+    const dayKey = this.getDateKey(datetime);
+
+    sessionStorage.setItem(this.financeFocusStorageKey, JSON.stringify({
+      datetime,
+      preferPast: false,
+      dayKey,
+      monthKey: dayKey.slice(0, 7),
+      expandDetails: false,
+    }));
   }
 
   private mergeOptions(currentOptions: MovimentOption[], nextOptions: MovimentOption[]): MovimentOption[] {
@@ -588,6 +700,14 @@ export class NewPageComponent implements OnInit {
     }
 
     return date.toISOString().slice(0, 16);
+  }
+
+  private toDateInputValue(date: Date): string {
+    return [
+      date.getFullYear(),
+      String(date.getMonth() + 1).padStart(2, '0'),
+      String(date.getDate()).padStart(2, '0'),
+    ].join('-');
   }
 
   private getDateKey(value: string): string {

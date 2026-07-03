@@ -5,6 +5,7 @@ import { IonIcon, IonSpinner, IonTabBar, IonTabButton, IonTabs } from '@ionic/an
 import { addIcons } from 'ionicons';
 import {
   addOutline,
+  barChartOutline,
   ellipsisHorizontalOutline,
 } from 'ionicons/icons';
 import { Subscription } from 'rxjs';
@@ -24,6 +25,7 @@ export class CamplifeComponent implements OnInit, OnDestroy {
   constructor() {
     addIcons({
       addOutline,
+      barChartOutline,
       ellipsisHorizontalOutline,
     });
   }

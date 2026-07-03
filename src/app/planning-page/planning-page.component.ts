@@ -1,10 +1,12 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnInit, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Router } from '@angular/router';
 import { IonContent, IonIcon, IonRefresher, IonRefresherContent } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
   addOutline,
+  arrowBackOutline,
   arrowDownCircleOutline,
   arrowUpCircleOutline,
   calendarClearOutline,
@@ -38,6 +40,7 @@ interface PlanningOption {
 export class PlanningPageComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly financeData = inject(FinanceDataService);
+  private readonly router = inject(Router);
 
   protected plannings: PlanningSeries[] = [];
   protected ledgerAccounts: PlanningOption[] = [];
@@ -63,6 +66,7 @@ export class PlanningPageComponent implements OnInit {
   constructor() {
     addIcons({
       addOutline,
+      arrowBackOutline,
       arrowDownCircleOutline,
       arrowUpCircleOutline,
       calendarClearOutline,
@@ -188,6 +192,10 @@ export class PlanningPageComponent implements OnInit {
 
   protected refresh(event: CustomEvent): void {
     this.loadPage(event);
+  }
+
+  protected goBackToMore(): void {
+    void this.router.navigate(['/example/settings']);
   }
 
   protected toNumber(value: string | number): number {

@@ -23,6 +23,14 @@
       <p class="form-error">{{ errorMessage }}</p>
     }
 
+    <label class="form-field">
+      <span>Data</span>
+      <div class="date-shell">
+        <input type="datetime-local" formControlName="datetime" aria-label="Data" />
+        <ion-icon class="field-trailing-icon" name="calendar-outline"></ion-icon>
+      </div>
+    </label>
+
     <div class="movement-type-switch" aria-label="Tipo de movimento">
       <button
         type="button"
@@ -91,14 +99,6 @@
       </div>
     </label>
 
-    <label class="form-field">
-      <span>Data</span>
-      <div class="date-shell">
-        <input type="datetime-local" formControlName="datetime" aria-label="Data" />
-        <ion-icon class="field-trailing-icon" name="calendar-outline"></ion-icon>
-      </div>
-    </label>
-
     <section class="form-section">
       <span class="section-label">Status</span>
       <div class="status-switch">
@@ -139,5 +139,47 @@
         <p class="scan-message">{{ receiptMessage }}</p>
       }
     </section>
+
+    @if (!isEditMode) {
+      <section class="recurring-section" [class.open]="isRecurringOpen">
+        <button
+          type="button"
+          class="recurring-toggle"
+          [attr.aria-expanded]="isRecurringOpen"
+          (click)="toggleRecurring()"
+        >
+          <span>
+            <ion-icon name="repeat-outline"></ion-icon>
+            Recorrent
+          </span>
+          <ion-icon [name]="isRecurringOpen ? 'chevron-down-outline' : 'chevron-forward-outline'"></ion-icon>
+        </button>
+
+        @if (isRecurringOpen) {
+          <div class="recurring-fields">
+            <label class="form-field">
+              <span>Dia de cada mês</span>
+              <input
+                type="number"
+                formControlName="recurringDayOfMonth"
+                min="1"
+                max="31"
+                inputmode="numeric"
+              />
+            </label>
+
+            <label class="form-field">
+              <span>Criar lançamentos até</span>
+              <input type="date" formControlName="recurringEndDate" />
+            </label>
+
+            <p class="recurring-note">
+              <ion-icon name="time-outline"></ion-icon>
+              Todos os lançamentos desta série serão criados como Provisionado.
+            </p>
+          </div>
+        }
+      </section>
+    }
   </form>
 </ion-content>

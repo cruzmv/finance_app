@@ -1,0 +1,117 @@
+<ion-content>
+  <ion-refresher slot="fixed" (ionRefresh)="refreshReport($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <main class="reports-page">
+    <header class="reports-header">
+      <div>
+        <span class="eyebrow">Relatórios</span>
+        <h1>Categorias</h1>
+      </div>
+    </header>
+
+    <section class="month-card">
+      <button
+        type="button"
+        class="month-nav-button"
+        aria-label="Ver mês anterior"
+        (click)="changeSelectedMonth(-1)"
+      >
+        <ion-icon name="chevron-back-outline"></ion-icon>
+      </button>
+      <h2>{{ selectedMonthLabel }} {{ selectedYear }}</h2>
+      <button
+        type="button"
+        class="month-nav-button"
+        aria-label="Ver próximo mês"
+        (click)="changeSelectedMonth(1)"
+      >
+        <ion-icon name="chevron-forward-outline"></ion-icon>
+      </button>
+    </section>
+
+    @if (errorMessage) {
+      <p class="message error">{{ errorMessage }}</p>
+    }
+
+    @if (isLoading) {
+      <section class="empty-state">
+        <ion-icon name="bar-chart-outline"></ion-icon>
+        <p>Carregando relatório...</p>
+      </section>
+    } @else {
+      <section class="summary-grid">
+        <article>
+          <span>Entradas</span>
+          <strong>{{ incomeTotal | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
+        </article>
+        <article class="expense-summary">
+          <span>Saídas</span>
+          <div class="expense-lines">
+            <div class="expense-line debit-line">
+              <ion-icon class="expense-kind-icon" name="wallet-outline" aria-label="Débitos" title="Débitos"></ion-icon>
+              <strong>{{ cashExpenseTotal | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
+            </div>
+            <div class="expense-line credit-line">
+              <ion-icon class="expense-kind-icon" name="card-outline" aria-label="Créditos" title="Créditos"></ion-icon>
+              <strong>{{ creditExpenseTotal | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
+              <button
+                type="button"
+                class="credit-warning"
+                aria-label="Valores no cartão de crédito"
+                title="Estes valores serão pagos no próximo mês na fatura do cartão de crédito."
+              >
+                <ion-icon name="warning-outline"></ion-icon>
+                <small>Estes valores serão pagos no próximo mês na fatura do cartão de crédito.</small>
+              </button>
+            </div>
+            <div class="expense-line total-line">
+              <ion-icon class="expense-kind-icon" name="calculator-outline" aria-label="Total" title="Total"></ion-icon>
+              <strong>{{ expenseTotal | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
+            </div>
+          </div>
+        </article>
+        <article>
+          <span>Saldo</span>
+          <strong [class.negative]="netTotal < 0">{{ netTotal | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
+        </article>
+      </section>
+
+      <section class="category-list">
+        @for (category of categoryRows; track category.ledgerAccountId) {
+          <article class="category-row" [class.income]="category.isIncomeCategory">
+            <div class="category-icon">
+              <ion-icon [name]="category.isIncomeCategory ? 'trending-up-outline' : 'trending-down-outline'"></ion-icon>
+            </div>
+            <div class="category-main">
+              <div class="category-heading">
+                <div>
+                  <h2>{{ category.name }}</h2>
+                  <span>{{ category.movementCount }} movimentos</span>
+                </div>
+                <strong [class.negative]="category.total < 0">
+                  {{ category.total | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
+                </strong>
+              </div>
+              <div class="category-breakdown">
+                @if (category.incomeTotal > 0) {
+                  <span>Entradas {{ category.incomeTotal | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</span>
+                }
+                @if (category.expenseTotal > 0) {
+                  <span>Saídas {{ category.expenseTotal | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</span>
+                }
+              </div>
+            </div>
+          </article>
+        } @empty {
+          <section class="empty-state">
+            <ion-icon name="bar-chart-outline"></ion-icon>
+            <h2>Sem movimentos neste mês</h2>
+            <p>Use as setas para consultar outro mês.</p>
+          </section>
+        }
+      </section>
+    }
+  </main>
+</ion-content>
