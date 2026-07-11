@@ -1,6 +1,6 @@
 .finance-dashboard {
   --finance-sticky-day-top: calc(168px + env(safe-area-inset-top, 0px));
-  --finance-bg: #fbfcfb;
+  --finance-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.62) 0%, rgba(255, 255, 255, 0.78) 100%);
   --finance-ink: #202622;
   --finance-muted: #7b827f;
   --finance-accent: #168454;
@@ -340,6 +340,7 @@ p {
 .timeline-date-header .timeline-account-balances {
   grid-column: 1 / -1;
   padding: 10px 0 2px;
+  border-top: 0;
 }
 
 .timeline-day-cards {
@@ -526,8 +527,8 @@ p {
 
 .timeline-account-balances {
   grid-column: 1 / -1;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 0 12px;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 8px;
   padding-top: 8px;
   border-top: 1px solid rgba(32, 38, 34, 0.08);
 }
@@ -538,17 +539,26 @@ p {
 
 .balance-row {
   min-width: 0;
-  gap: 10px;
-  padding: 6px 0;
-  border-bottom: 1px solid rgba(32, 38, 34, 0.06);
+  gap: 8px;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid rgba(32, 38, 34, 0.08);
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 4px 10px rgba(32, 38, 34, 0.04);
 }
 
 .balance-savings-row {
   grid-column: 1 / -1;
-  border-bottom-color: rgba(22, 132, 84, 0.18);
+  border-color: rgba(22, 132, 84, 0.18);
+  background: rgba(22, 132, 84, 0.08);
 }
 
 .balance-label {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
   overflow: hidden;
   color: var(--finance-muted);
   font-size: 0.68rem;
@@ -557,6 +567,12 @@ p {
   text-overflow: ellipsis;
   text-transform: uppercase;
   white-space: nowrap;
+}
+
+.balance-label ion-icon {
+  flex: 0 0 auto;
+  color: var(--finance-accent);
+  font-size: 0.9rem;
 }
 
 .balance-amount {

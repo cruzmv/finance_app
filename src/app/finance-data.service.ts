@@ -19,6 +19,7 @@ export interface BalanceRow {
   value: string;
   balances: BalanceSnapshot;
   credit_status: string | null;
+  credit_bill: boolean | null;
   account_type: 0 | 1 | null;
   planning?: number | null;
 }
@@ -34,6 +35,24 @@ interface MovimentPayload {
   moviment_account: number;
   status: number;
   value: number;
+}
+
+export interface CreditBillSyncMissingBill {
+  account_id: number;
+  account_description: string;
+  cycle_key: string;
+  due_datetime: string;
+  value: number;
+  movement_count: number;
+}
+
+export interface CreditBillSyncResponse {
+  data?: {
+    missingBills?: CreditBillSyncMissingBill[];
+    createdBills?: Partial<BalanceRow>[];
+    updatedBills?: Partial<BalanceRow>[];
+    markedBills?: Partial<BalanceRow>[];
+  };
 }
 
 export interface PlanningPayload {
@@ -85,6 +104,8 @@ export interface MovimentAccountSettings {
   start_date: string | null;
   start_value: string | number | null;
   closing_day: number | null;
+  pay_day: number | null;
+  debit_account: number | null;
   account_type: 0 | 1;
 }
 
@@ -172,6 +193,17 @@ export class FinanceDataService {
     );
   }
 
+  updateMovimentStatus(row: BalanceRow, statusId: number): Observable<MovimentSaveResponse> {
+    return this.saveMoviment('edit', {
+      datetime: row.datetime,
+      description: row.description,
+      ledger_account: row.ledger_account_id,
+      moviment_account: row.moviment_account_id,
+      status: statusId,
+      value: Number(row.value) || 0,
+    }, row);
+  }
+
   deleteMoviment(id: number): Observable<unknown> {
     return this.http.post(`${this.apiBaseUrl}/delete_moviment`, { id }).pipe(
       tap(() => this.markBalancesChanged()),
@@ -221,6 +253,14 @@ export class FinanceDataService {
           });
         }),
       );
+  }
+
+  syncCreditBills(createMissing: boolean): Observable<CreditBillSyncResponse> {
+    return this.http
+      .post<CreditBillSyncResponse>(`${this.apiBaseUrl}/sync_credit_bills`, {
+        create_missing: createMissing,
+      })
+      .pipe(tap(() => this.markBalancesChanged()));
   }
 
   getFinanceSettings(): Observable<FinanceSettingsData> {

@@ -149,7 +149,7 @@
                     >
                       <span class="timeline-date">{{ formatDayLabel(dayGroup.date) }}</span>
                       <span class="timeline-savings">
-                        <span>Economia:</span>
+                        <span>Saldo</span>
                         {{ getPositiveBalanceTotal(dayGroup.accountBalances) | currency:'EUR':'symbol':'1.2-2' }}
                       </span>
 
@@ -159,7 +159,10 @@
                             *ngFor="let balance of dayGroup.accountBalances; trackBy: trackByBalanceName"
                             class="balance-row"
                           >
-                            <span class="balance-label">{{ balance.name }}</span>
+                            <span class="balance-label">
+                              <ion-icon [name]="balance.icon" aria-hidden="true"></ion-icon>
+                              {{ balance.name }}
+                            </span>
                             <span class="balance-amount" [ngClass]="getBalanceToneClass(balance)">
                               {{ balance.value | currency:'EUR':'symbol':'1.2-2' }}
                             </span>
@@ -241,7 +244,10 @@
                           @if (isMovementExpanded(row.id)) {
                             <div class="timeline-account-balances transaction-account-balances">
                               <div class="balance-row balance-savings-row">
-                                <span class="balance-label">Economia</span>
+                                <span class="balance-label">
+                                  <ion-icon name="wallet-outline" aria-hidden="true"></ion-icon>
+                                  Saldo atual
+                                </span>
                                 <span class="balance-amount savings-amount">
                                   {{ getPositiveBalanceTotal(getBalanceEntries(row.balances)) | currency:'EUR':'symbol':'1.2-2' }}
                                 </span>
@@ -250,7 +256,10 @@
                                 *ngFor="let balance of getBalanceEntries(row.balances); trackBy: trackByBalanceName"
                                 class="balance-row"
                               >
-                                <span class="balance-label">{{ balance.name }}</span>
+                                <span class="balance-label">
+                                  <ion-icon [name]="balance.icon" aria-hidden="true"></ion-icon>
+                                  {{ balance.name }}
+                                </span>
                                 <span class="balance-amount" [ngClass]="getBalanceToneClass(balance)">
                                   {{ balance.value | currency:'EUR':'symbol':'1.2-2' }}
                                 </span>

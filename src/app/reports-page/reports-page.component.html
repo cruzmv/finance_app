@@ -61,125 +61,6 @@
         <p>Carregando relatório...</p>
       </section>
     } @else {
-      <section class="report-overview">
-        <div class="report-overview-grid">
-          <article class="overview-column income-column">
-            <div class="overview-topline">
-              <span class="overview-icon">
-                <ion-icon name="trending-up-outline"></ion-icon>
-              </span>
-              <span
-                class="overview-donut income-donut"
-                [style.--first-segment]="getPercent(receivedIncomeTotal, incomeTotal) + '%'"
-                aria-hidden="true"
-              ></span>
-            </div>
-            <div class="overview-heading">
-              <span>Entradas</span>
-              <strong>{{ incomeTotal | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
-            </div>
-            <div class="overview-lines">
-              <div [style.--progress]="getPercent(receivedIncomeTotal, incomeTotal) + '%'">
-                <span>Recebidos</span>
-                <strong>
-                  {{ receivedIncomeTotal | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
-                  <small>({{ getPercent(receivedIncomeTotal, incomeTotal) | number:'1.0-0':'pt-PT' }}%)</small>
-                </strong>
-              </div>
-              <div [style.--progress]="getPercent(receivableIncomeTotal, incomeTotal) + '%'">
-                <span>A receber</span>
-                <strong>
-                  {{ receivableIncomeTotal | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
-                  <small>({{ getPercent(receivableIncomeTotal, incomeTotal) | number:'1.0-0':'pt-PT' }}%)</small>
-                </strong>
-              </div>
-            </div>
-          </article>
-
-          <article class="overview-column expense-comparison-column">
-            <div class="expense-comparison-header">
-              <div>
-                <span class="overview-icon">
-                  <ion-icon name="wallet-outline"></ion-icon>
-                </span>
-                <span class="expense-comparison-title">Saídas</span>
-              </div>
-              <span
-                class="overview-donut expenses-donut"
-                [style.--first-segment]="getPercent(consumedExpenseTotal, expenseTotal) + '%'"
-                aria-hidden="true"
-              ></span>
-            </div>
-
-            <div class="expense-compact-grid">
-              <section class="expense-compact-card paid-column">
-                <div class="overview-heading">
-                  <span>Saídas pagas</span>
-                  <strong>
-                    {{ consumedExpenseTotal | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
-                    <small>({{ getPercent(consumedExpenseTotal, expenseTotal) | number:'1.0-0':'pt-PT' }}%)</small>
-                  </strong>
-                </div>
-                <div class="overview-lines">
-                  <div [style.--progress]="getPercent(consumedDebitExpenseTotal, consumedExpenseTotal) + '%'">
-                    <span>
-                      <ion-icon name="wallet-outline"></ion-icon>
-                      Débito
-                      <em>({{ getPercent(consumedDebitExpenseTotal, consumedExpenseTotal) | number:'1.0-0':'pt-PT' }}%)</em>
-                    </span>
-                    <strong>{{ consumedDebitExpenseTotal | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
-                  </div>
-                  <div [style.--progress]="getPercent(consumedCreditExpenseTotal, consumedExpenseTotal) + '%'">
-                    <span>
-                      <ion-icon name="card-outline"></ion-icon>
-                      Crédito
-                      <em>({{ getPercent(consumedCreditExpenseTotal, consumedExpenseTotal) | number:'1.0-0':'pt-PT' }}%)</em>
-                    </span>
-                    <strong>{{ consumedCreditExpenseTotal | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
-                  </div>
-                </div>
-              </section>
-
-              <section class="expense-compact-card pending-column">
-                <div class="overview-heading">
-                  <span>Saídas a pagar</span>
-                  <strong>
-                    {{ provisionedExpenseTotal | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
-                    <small>({{ getPercent(provisionedExpenseTotal, expenseTotal) | number:'1.0-0':'pt-PT' }}%)</small>
-                  </strong>
-                </div>
-                <div class="overview-lines">
-                  <div [style.--progress]="getPercent(provisionedDebitExpenseTotal, provisionedExpenseTotal) + '%'">
-                    <span>
-                      <ion-icon name="wallet-outline"></ion-icon>
-                      Débito
-                      <em>({{ getPercent(provisionedDebitExpenseTotal, provisionedExpenseTotal) | number:'1.0-0':'pt-PT' }}%)</em>
-                    </span>
-                    <strong>{{ provisionedDebitExpenseTotal | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
-                  </div>
-                  <div [style.--progress]="getPercent(provisionedCreditExpenseTotal, provisionedExpenseTotal) + '%'">
-                    <span>
-                      <ion-icon name="card-outline"></ion-icon>
-                      Crédito
-                      <em>({{ getPercent(provisionedCreditExpenseTotal, provisionedExpenseTotal) | number:'1.0-0':'pt-PT' }}%)</em>
-                    </span>
-                    <strong>{{ provisionedCreditExpenseTotal | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
-                  </div>
-                </div>
-              </section>
-            </div>
-          </article>
-        </div>
-
-        <div class="overview-balance">
-          <span class="overview-balance-icon">
-            <ion-icon name="calculator-outline"></ion-icon>
-          </span>
-          <strong>Economia do mês</strong>
-          <b [class.negative]="netTotal < 0">{{ netTotal | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</b>
-        </div>
-      </section>
-
       <section class="category-list">
         @for (category of categoryRows; track category.ledgerAccountId) {
           <article class="category-row" [class.income]="category.isIncomeCategory">
@@ -192,17 +73,35 @@
                   <h2>{{ category.name }}</h2>
                   <span>{{ category.movementCount }} movimentos</span>
                 </div>
-                <strong [class.negative]="category.total < 0">
-                  {{ category.total | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
-                </strong>
-              </div>
-              <div class="category-breakdown">
-                @if (category.incomeTotal > 0) {
-                  <span>Entradas {{ category.incomeTotal | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</span>
-                }
-                @if (category.expenseTotal > 0) {
-                  <span>Saídas {{ category.expenseTotal | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</span>
-                }
+                <div
+                  class="category-breakdown"
+                  [class.single-value]="(category.consumedTotal === 0) !== (category.provisionedTotal === 0)"
+                >
+                  @if (category.consumedTotal !== 0) {
+                    <span>
+                      <small>Consumado</small>
+                      <strong [class.negative]="category.consumedTotal < 0">
+                        {{ category.consumedTotal | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
+                      </strong>
+                    </span>
+                  }
+                  @if (category.provisionedTotal !== 0) {
+                    <span>
+                      <small>Provisionado</small>
+                      <strong [class.negative]="category.provisionedTotal < 0">
+                        {{ category.provisionedTotal | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
+                      </strong>
+                    </span>
+                  }
+                  @if (category.consumedTotal !== 0 && category.provisionedTotal !== 0) {
+                    <span class="category-total">
+                      <small>Total</small>
+                      <strong [class.negative]="category.total < 0">
+                        {{ category.total | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
+                      </strong>
+                    </span>
+                  }
+                </div>
               </div>
             </div>
           </article>

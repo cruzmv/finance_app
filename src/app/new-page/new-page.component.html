@@ -1,193 +1,457 @@
-<ion-content>
+<ion-content [fullscreen]="true">
   <ion-refresher slot="fixed" (ionRefresh)="refreshMovimentOptions($event)">
     <ion-refresher-content></ion-refresher-content>
   </ion-refresher>
 
   <form class="moviment-form-page" [formGroup]="movimentForm" (ngSubmit)="saveMoviment()">
-    <header class="form-header">
-      <button type="button" class="header-action" aria-label="Cancelar" (click)="cancel()">
-        <ion-icon name="close-outline"></ion-icon>
-      </button>
-      <h1>{{ pageTitle }}</h1>
-      <button
-        type="submit"
-        class="header-action save-action"
-        aria-label="Guardar movimento"
-        [disabled]="isSaving || isLoading"
-      >
-        <ion-icon name="checkmark-outline"></ion-icon>
-      </button>
-    </header>
+    <div class="page-backdrop" [ngClass]="backdropClass" aria-hidden="true"></div>
 
-    @if (errorMessage) {
-      <p class="form-error">{{ errorMessage }}</p>
-    }
+    <section class="movement-sheet" [class.details-step]="currentStep === 3">
+      <span class="sheet-handle" aria-hidden="true"></span>
 
-    <label class="form-field">
-      <span>Data</span>
-      <div class="date-shell">
-        <input type="datetime-local" formControlName="datetime" aria-label="Data" />
-        <ion-icon class="field-trailing-icon" name="calendar-outline"></ion-icon>
+      <header class="form-header">
+        <button
+          type="button"
+          class="header-action"
+          [attr.aria-label]="currentStep === 1 || isEditMode ? 'Cancelar' : 'Voltar'"
+          (click)="handleBackAction()"
+        >
+          <ion-icon [name]="currentStep === 1 && !isEditMode ? 'close-outline' : 'chevron-forward-outline'"></ion-icon>
+        </button>
+        <h1>{{ pageTitle }}</h1>
+        @if (currentStep === 3) {
+          <button
+            type="submit"
+            class="header-action save-action"
+            aria-label="Guardar movimento"
+            [disabled]="isSaving || isLoading"
+          >
+            <ion-icon name="checkmark-outline"></ion-icon>
+          </button>
+        } @else {
+          <span class="header-spacer" aria-hidden="true"></span>
+        }
+      </header>
+
+      <div class="step-counter" [attr.aria-label]="'Passo ' + currentStep + ' de 3'">
+        <span>{{ currentStep }}</span>
+        de 3
       </div>
-    </label>
 
-    <div class="movement-type-switch" aria-label="Tipo de movimento">
-      <button
-        type="button"
-        class="type-button expense"
-        [class.active]="valueSign === -1"
-        [attr.aria-pressed]="valueSign === -1"
-        (click)="setValueSign(-1)"
-      >
-        <ion-icon name="arrow-down-circle-outline"></ion-icon>
-        Despesa
-      </button>
-      <button
-        type="button"
-        class="type-button income"
-        [class.active]="valueSign === 1"
-        [attr.aria-pressed]="valueSign === 1"
-        (click)="setValueSign(1)"
-      >
-        <ion-icon name="arrow-up-circle-outline"></ion-icon>
-        Entrada
-      </button>
-    </div>
-
-    <div class="settlement-switch" role="radiogroup" aria-label="Estado do movimento">
-      <button
-        type="button"
-        class="settlement-option settled"
-        role="radio"
-        [class.active]="isSettledStatusSelected"
-        [attr.aria-checked]="isSettledStatusSelected"
-        (click)="setSettlementStatus(true)"
-      >
-        <span class="radio-check" aria-hidden="true"></span>
-        {{ settledStatusLabel }}
-      </button>
-      <button
-        type="button"
-        class="settlement-option pending"
-        role="radio"
-        [class.active]="!isSettledStatusSelected"
-        [attr.aria-checked]="!isSettledStatusSelected"
-        (click)="setSettlementStatus(false)"
-      >
-        <span class="radio-check" aria-hidden="true"></span>
-        {{ pendingStatusLabel }}
-      </button>
-    </div>
-
-    <label class="amount-field">
-      <span aria-hidden="true">€</span>
-      <input
-        #valueInput
-        type="number"
-        formControlName="value"
-        step="0.01"
-        inputmode="decimal"
-        min="0"
-        placeholder="0,00"
-        aria-label="Valor"
-      />
-    </label>
-
-    <label class="form-field description-field">
-      <span>Descrição</span>
-      <input type="text" formControlName="description" placeholder="Descrição do movimento" />
-    </label>
-
-    <label class="form-field">
-      <span>Categoria</span>
-      <div class="select-shell">
-        <ion-icon class="field-leading-icon expense-icon" name="cart-outline"></ion-icon>
-        <select formControlName="ledgerAccountId" aria-label="Categoria">
-          @for (ledger of ledgerAccounts; track ledger.id) {
-            <option [ngValue]="ledger.id">{{ ledger.name }}</option>
-          }
-        </select>
-        <ion-icon class="field-trailing-icon" name="chevron-forward-outline"></ion-icon>
-      </div>
-    </label>
-
-    <label class="form-field">
-      <span>Conta</span>
-      <div class="select-shell">
-        <ion-icon class="field-leading-icon" name="card-outline"></ion-icon>
-        <select formControlName="movimentAccountId" aria-label="Conta">
-          @for (account of movimentAccounts; track account.id) {
-            <option [ngValue]="account.id">{{ account.name }}</option>
-          }
-        </select>
-        <ion-icon class="field-trailing-icon" name="chevron-forward-outline"></ion-icon>
-      </div>
-    </label>
-
-    <section class="receipt-scanner">
-      <span class="receipt-label">Scanear recibo</span>
-      <input
-        #receiptInput
-        type="file"
-        accept="image/*"
-        capture="environment"
-        class="receipt-input"
-        (change)="onReceiptSelected($event)"
-      />
-      <button type="button" class="scan-button" [disabled]="isAnalyzingReceipt" (click)="openReceiptCapture()">
-        <ion-icon name="camera-outline"></ion-icon>
-        {{ isAnalyzingReceipt ? 'A analisar recibo...' : 'Abrir camera' }}
-      </button>
-
-      @if (receiptImagePreview) {
-        <img class="receipt-preview" [src]="receiptImagePreview" alt="Pré-visualização do recibo" />
+      @if (errorMessage) {
+        <p class="form-error">{{ errorMessage }}</p>
       }
 
-      @if (receiptMessage) {
-        <p class="scan-message">{{ receiptMessage }}</p>
+      @if (currentStep === 1) {
+        <div class="choice-step">
+          <h2>O que deseja registrar?</h2>
+
+          <button type="button" class="choice-card expense" (click)="selectMovementType(-1)">
+            <span class="choice-icon">
+              <ion-icon name="arrow-down-circle-outline"></ion-icon>
+            </span>
+            <span>
+              <strong>Despesa</strong>
+              <small>Gastos, contas, compras e outras saídas.</small>
+            </span>
+            <ion-icon class="choice-arrow" name="chevron-forward-outline"></ion-icon>
+          </button>
+
+          <button type="button" class="choice-card income" (click)="selectMovementType(1)">
+            <span class="choice-icon">
+              <ion-icon name="arrow-up-circle-outline"></ion-icon>
+            </span>
+            <span>
+              <strong>Receita</strong>
+              <small>Salário, vendas, reembolsos e outras entradas.</small>
+            </span>
+            <ion-icon class="choice-arrow" name="chevron-forward-outline"></ion-icon>
+          </button>
+
+          <div class="info-card">
+            <ion-icon name="information-circle-outline"></ion-icon>
+            <span>Você poderá adicionar mais detalhes na próxima etapa.</span>
+          </div>
+        </div>
+      }
+
+      @if (currentStep === 2) {
+        <div class="choice-step">
+          <h2>Qual o status deste movimento?</h2>
+
+          <button type="button" class="choice-card income" (click)="selectSettlementAndContinue(true)">
+            <span class="choice-icon">
+              <ion-icon name="wallet-outline"></ion-icon>
+            </span>
+            <span>
+              <strong>{{ settledStatusLabel }}</strong>
+              <small>{{ valueSign === -1 ? 'Já foi pago / já saiu da conta.' : 'Já foi recebido / já entrou na conta.' }}</small>
+            </span>
+            <ion-icon class="choice-arrow" name="chevron-forward-outline"></ion-icon>
+          </button>
+
+          <button type="button" class="choice-card pending" (click)="selectSettlementAndContinue(false)">
+            <span class="choice-icon">
+              <ion-icon name="calendar-outline"></ion-icon>
+            </span>
+            <span>
+              <strong>{{ pendingStatusLabel }}</strong>
+              <small>{{ valueSign === -1 ? 'Será pago no futuro.' : 'Será recebido no futuro.' }}</small>
+            </span>
+            <ion-icon class="choice-arrow" name="chevron-forward-outline"></ion-icon>
+          </button>
+
+          <div class="info-card neutral">
+            <ion-icon name="information-circle-outline"></ion-icon>
+            <span>Você poderá adicionar todos os detalhes na próxima tela.</span>
+          </div>
+        </div>
+      }
+
+      @if (currentStep === 3) {
+        <div class="details-step-content">
+          @if (isEditMode) {
+            <button
+              type="button"
+              class="edit-status-switch"
+              [class.active]="isSettledStatusSelected"
+              [attr.aria-pressed]="isSettledStatusSelected"
+              [attr.aria-label]="isSettledStatusSelected ? 'Consumado' : 'Provisionado'"
+              (click)="toggleEditSettlementStatus()"
+            >
+              <span class="switch-track" aria-hidden="true">
+                <span></span>
+              </span>
+              <strong>{{ isSettledStatusSelected ? 'Consumado' : 'Provisionado' }}</strong>
+            </button>
+          }
+
+          <label class="amount-field">
+            <span aria-hidden="true">€</span>
+            <input
+              #valueInput
+              type="number"
+              formControlName="value"
+              step="0.01"
+              inputmode="decimal"
+              min="0"
+              placeholder="0,00"
+              aria-label="Valor"
+            />
+          </label>
+
+          <div class="detail-list">
+            <label class="detail-row">
+              <ion-icon name="calendar-outline"></ion-icon>
+              <span>
+                <small>Data</small>
+                <input type="datetime-local" formControlName="datetime" aria-label="Data" />
+              </span>
+              <ion-icon class="row-chevron" name="chevron-forward-outline"></ion-icon>
+            </label>
+
+          </div>
+
+          <section class="account-section chip-section">
+            <span class="section-label">Conta</span>
+            <div class="chip-scroll">
+              @for (account of movimentAccounts; track account.id) {
+                <button
+                  type="button"
+                  class="option-chip"
+                  [class.active]="movimentForm.controls.movimentAccountId.value === account.id"
+                  (click)="selectMovimentAccount(account)"
+                >
+                  @if (canDeleteMovimentAccount(account)) {
+                    <span
+                      class="chip-delete"
+                      role="button"
+                      tabindex="0"
+                      [attr.aria-label]="'Excluir conta ' + account.name"
+                      (click)="deleteMovimentAccount(account, $event)"
+                    >
+                      <ion-icon name="trash-outline"></ion-icon>
+                    </span>
+                  }
+                  <ion-icon [name]="getMovimentAccountIcon(account)"></ion-icon>
+                  <span class="chip-label">{{ account.name }}</span>
+                </button>
+              }
+              <button type="button" class="option-chip add-chip" (click)="addMovimentAccount()">
+                <ion-icon name="add-circle-outline"></ion-icon>
+                <span class="chip-label">Nova conta</span>
+              </button>
+            </div>
+          </section>
+
+          <section class="category-section chip-section">
+            <span class="section-label">Categoria</span>
+            <div class="chip-scroll">
+              @for (ledger of ledgerAccounts; track ledger.id) {
+                <button
+                  type="button"
+                  class="option-chip"
+                  [class.active]="movimentForm.controls.ledgerAccountId.value === ledger.id"
+                  (click)="selectLedgerAccount(ledger)"
+                >
+                  @if (canDeleteLedgerAccount(ledger)) {
+                    <span
+                      class="chip-delete"
+                      role="button"
+                      tabindex="0"
+                      [attr.aria-label]="'Excluir categoria ' + ledger.name"
+                      (click)="deleteLedgerAccount(ledger, $event)"
+                    >
+                      <ion-icon name="trash-outline"></ion-icon>
+                    </span>
+                  }
+                  <ion-icon [name]="getLedgerAccountIcon(ledger)"></ion-icon>
+                  <span class="chip-label">{{ ledger.name }}</span>
+                </button>
+              }
+              <button type="button" class="option-chip add-chip" (click)="addLedgerAccount()">
+                <ion-icon name="add-circle-outline"></ion-icon>
+                <span class="chip-label">Nova categoria</span>
+              </button>
+            </div>
+          </section>
+
+          <label class="detail-row description-row">
+            <ion-icon name="cart-outline"></ion-icon>
+            <span>
+              <small>Descrição</small>
+              <input type="text" formControlName="description" placeholder="Ex: Diesel Repsol" required />
+            </span>
+          </label>
+
+          <section class="receipt-scanner">
+            <input
+              #receiptInput
+              type="file"
+              accept="image/*"
+              capture="environment"
+              class="receipt-input"
+              (change)="onReceiptSelected($event)"
+            />
+            <button type="button" class="scan-button" [disabled]="isAnalyzingReceipt" (click)="openReceiptCapture()">
+              <span>
+                <ion-icon name="camera-outline"></ion-icon>
+              </span>
+              <strong>{{ isAnalyzingReceipt ? 'A analisar recibo...' : 'Fotografar recibo' }}</strong>
+              <small>Preenchimento automático com OCR</small>
+              <ion-icon class="row-chevron" name="chevron-forward-outline"></ion-icon>
+            </button>
+
+            @if (receiptImagePreview) {
+              <img class="receipt-preview" [src]="receiptImagePreview" alt="Pré-visualização do recibo" />
+            }
+
+            @if (receiptMessage) {
+              <p class="scan-message">{{ receiptMessage }}</p>
+            }
+          </section>
+
+          @if (!isEditMode) {
+            <section class="recurring-section" [class.open]="isRecurringOpen">
+              <button
+                type="button"
+                class="recurring-toggle"
+                [attr.aria-expanded]="isRecurringOpen"
+                (click)="toggleRecurring()"
+              >
+                <span>
+                  <ion-icon name="repeat-outline"></ion-icon>
+                  Repetir (Recorrente)
+                  <small>Criar lançamentos recorrentes</small>
+                </span>
+                <ion-icon [name]="isRecurringOpen ? 'chevron-down-outline' : 'chevron-forward-outline'"></ion-icon>
+              </button>
+
+              @if (isRecurringOpen) {
+                <div class="recurring-fields">
+                  <label class="form-field">
+                    <span>Dia de cada mês</span>
+                    <input
+                      type="number"
+                      formControlName="recurringDayOfMonth"
+                      min="1"
+                      max="31"
+                      inputmode="numeric"
+                    />
+                  </label>
+
+                  <label class="form-field">
+                    <span>Criar lançamentos até</span>
+                    <input type="date" formControlName="recurringEndDate" />
+                  </label>
+
+                  <p class="recurring-note">
+                    <ion-icon name="time-outline"></ion-icon>
+                    Todos os lançamentos desta série serão criados como Provisionado.
+                  </p>
+                </div>
+              }
+            </section>
+          }
+
+          <button type="submit" class="save-button" [disabled]="isSaving || isLoading">
+            <ion-icon name="save-outline"></ion-icon>
+            Guardar movimento
+          </button>
+        </div>
       }
     </section>
 
-    @if (!isEditMode) {
-      <section class="recurring-section" [class.open]="isRecurringOpen">
-        <button
-          type="button"
-          class="recurring-toggle"
-          [attr.aria-expanded]="isRecurringOpen"
-          (click)="toggleRecurring()"
-        >
-          <span>
-            <ion-icon name="repeat-outline"></ion-icon>
-            Recorrent
-          </span>
-          <ion-icon [name]="isRecurringOpen ? 'chevron-down-outline' : 'chevron-forward-outline'"></ion-icon>
-        </button>
+    @if (quickCreateTarget) {
+      <div class="quick-create-backdrop" (click)="closeQuickCreate()">
+        <section class="quick-create-panel" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+          <span class="sheet-handle" aria-hidden="true"></span>
 
-        @if (isRecurringOpen) {
-          <div class="recurring-fields">
-            <label class="form-field">
-              <span>Dia de cada mês</span>
-              <input
-                type="number"
-                formControlName="recurringDayOfMonth"
-                min="1"
-                max="31"
-                inputmode="numeric"
-              />
-            </label>
+          <header class="quick-create-header">
+            <button type="button" class="header-action" aria-label="Fechar" (click)="closeQuickCreate()">
+              <ion-icon name="close-outline"></ion-icon>
+            </button>
+            <h2>{{ quickCreateTarget === 'account' ? 'Nova conta' : 'Nova categoria' }}</h2>
+            <span class="header-spacer" aria-hidden="true"></span>
+          </header>
 
-            <label class="form-field">
-              <span>Criar lançamentos até</span>
-              <input type="date" formControlName="recurringEndDate" />
-            </label>
+          @if (quickCreateTarget === 'account') {
+            <div class="quick-create-content" [formGroup]="quickAccountForm">
+              <label class="quick-field">
+                <span>Descrição</span>
+                <input type="text" formControlName="description" placeholder="Ex: Cash" />
+              </label>
 
-            <p class="recurring-note">
-              <ion-icon name="time-outline"></ion-icon>
-              Todos os lançamentos desta série serão criados como Provisionado.
-            </p>
-          </div>
-        }
-      </section>
+              <label class="quick-field">
+                <span>Ícone</span>
+                <div class="quick-icon-picker">
+                  <button
+                    type="button"
+                    class="quick-icon-trigger"
+                    [attr.aria-expanded]="activeQuickIconPicker === 'account'"
+                    (click)="toggleQuickIconPicker('account')"
+                  >
+                    <span>
+                      <ion-icon [name]="getQuickIcon(quickAccountForm.controls.icon.value, 'wallet-outline')"></ion-icon>
+                      {{ getQuickIconLabel(quickAccountForm.controls.icon.value, 'wallet-outline') }}
+                    </span>
+                    <ion-icon name="chevron-down-outline"></ion-icon>
+                  </button>
+
+                  @if (activeQuickIconPicker === 'account') {
+                    <div class="quick-icon-menu" role="listbox" aria-label="Selecionar ícone da conta">
+                      @for (option of iconOptions; track option.name) {
+                        <button
+                          type="button"
+                          class="quick-icon-option"
+                          [class.active]="quickAccountForm.controls.icon.value === option.name"
+                          (click)="selectQuickIcon('account', option.name)"
+                        >
+                          <ion-icon [name]="option.name"></ion-icon>
+                          {{ option.label }}
+                        </button>
+                      }
+                    </div>
+                  }
+                </div>
+              </label>
+
+              <div class="quick-grid">
+                <label class="quick-field">
+                  <span>Tipo de conta</span>
+                  <select formControlName="accountType">
+                    <option [ngValue]="0">Débito</option>
+                    <option [ngValue]="1">Crédito</option>
+                  </select>
+                </label>
+
+                <label class="quick-field">
+                  <span>Data inicial</span>
+                  <input type="date" formControlName="startDate" />
+                </label>
+
+                <label class="quick-field">
+                  <span>Valor inicial</span>
+                  <input type="number" formControlName="startValue" step="0.01" inputmode="decimal" />
+                </label>
+
+                <label class="quick-field">
+                  <span>Dia de fechamento</span>
+                  <input type="number" formControlName="closingDay" min="1" max="31" inputmode="numeric" />
+                </label>
+
+                @if (quickAccountForm.controls.accountType.value === 1) {
+                  <label class="quick-field">
+                    <span>Dia de pagamento</span>
+                    <input type="number" formControlName="payDay" min="1" max="31" inputmode="numeric" />
+                  </label>
+
+                  <label class="quick-field">
+                    <span>Conta de débito</span>
+                    <select formControlName="debitAccount">
+                      <option [ngValue]="null">Selecione</option>
+                      @for (account of debitAccountOptions; track account.id) {
+                        <option [ngValue]="account.id">{{ account.name }}</option>
+                      }
+                    </select>
+                  </label>
+                }
+              </div>
+
+              <button type="button" class="quick-save-button" [disabled]="isSaving" (click)="saveQuickAccount()">
+                <ion-icon name="save-outline"></ion-icon>
+                Adicionar conta
+              </button>
+            </div>
+          } @else {
+            <div class="quick-create-content" [formGroup]="quickLedgerForm">
+              <label class="quick-field">
+                <span>Descrição</span>
+                <input type="text" formControlName="description" placeholder="Ex: Combustível" />
+              </label>
+
+              <label class="quick-field">
+                <span>Ícone</span>
+                <div class="quick-icon-picker">
+                  <button
+                    type="button"
+                    class="quick-icon-trigger"
+                    [attr.aria-expanded]="activeQuickIconPicker === 'ledger'"
+                    (click)="toggleQuickIconPicker('ledger')"
+                  >
+                    <span>
+                      <ion-icon [name]="getQuickIcon(quickLedgerForm.controls.icon.value, 'receipt-outline')"></ion-icon>
+                      {{ getQuickIconLabel(quickLedgerForm.controls.icon.value, 'receipt-outline') }}
+                    </span>
+                    <ion-icon name="chevron-down-outline"></ion-icon>
+                  </button>
+
+                  @if (activeQuickIconPicker === 'ledger') {
+                    <div class="quick-icon-menu" role="listbox" aria-label="Selecionar ícone da categoria">
+                      @for (option of iconOptions; track option.name) {
+                        <button
+                          type="button"
+                          class="quick-icon-option"
+                          [class.active]="quickLedgerForm.controls.icon.value === option.name"
+                          (click)="selectQuickIcon('ledger', option.name)"
+                        >
+                          <ion-icon [name]="option.name"></ion-icon>
+                          {{ option.label }}
+                        </button>
+                      }
+                    </div>
+                  }
+                </div>
+              </label>
+
+              <button type="button" class="quick-save-button" [disabled]="isSaving" (click)="saveQuickLedger()">
+                <ion-icon name="save-outline"></ion-icon>
+                Adicionar categoria
+              </button>
+            </div>
+          }
+        </section>
+      </div>
     }
   </form>
 </ion-content>

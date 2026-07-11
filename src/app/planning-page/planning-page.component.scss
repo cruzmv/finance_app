@@ -6,7 +6,7 @@
   --gold: #b8862f;
   min-height: 100%;
   padding: calc(max(24px, env(safe-area-inset-top, 0px)) + 8px) 18px 42px;
-  background: #f8faf9;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.6) 0%, rgba(255, 255, 255, 0.78) 100%);
   color: var(--ink);
 }
 

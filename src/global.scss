@@ -42,6 +42,19 @@ body {
   --salarium-display-font: Georgia, "Times New Roman", serif;
   --salarium-gold: #b8862f;
   --salarium-gold-soft: rgba(184, 134, 47, 0.2);
+  --salarium-app-background:
+    linear-gradient(180deg, rgba(255, 251, 239, 0.28) 0%, rgba(255, 255, 255, 0.68) 56%, rgba(255, 255, 255, 0.78) 100%),
+    url("/assets/backgrounds/new-movement-playful.png") center top / cover fixed no-repeat,
+    #fff6dc;
+  background: var(--salarium-app-background);
+}
+
+ion-app {
+  background: var(--salarium-app-background);
+}
+
+ion-content {
+  --background: transparent;
 }
 
 h1,

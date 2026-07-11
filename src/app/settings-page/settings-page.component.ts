@@ -107,6 +107,8 @@ export class SettingsPageComponent implements OnInit {
     startDate: [''],
     startValue: this.fb.control<number | null>(null),
     closingDay: this.fb.control<number | null>(null, [Validators.min(1), Validators.max(31)]),
+    payDay: this.fb.control<number | null>(null, [Validators.min(1), Validators.max(31)]),
+    debitAccount: this.fb.control<number | null>(null),
     accountType: this.fb.nonNullable.control<0 | 1>(0, Validators.required),
   });
 
@@ -193,12 +195,19 @@ export class SettingsPageComponent implements OnInit {
       return;
     }
 
+    if (formValue.accountType === 1 && (!formValue.payDay || !formValue.debitAccount)) {
+      this.errorMessage = 'Preencha o dia de pagamento e a conta de débito do cartão.';
+      return;
+    }
+
     const payload = {
       description,
       icon: this.normalizeIcon(formValue.icon, 'wallet-outline'),
       start_date: formValue.startDate || null,
       start_value: formValue.startValue,
       closing_day: formValue.closingDay,
+      pay_day: formValue.accountType === 1 ? formValue.payDay : null,
+      debit_account: formValue.accountType === 1 ? formValue.debitAccount : null,
       account_type: formValue.accountType,
     };
 
@@ -221,6 +230,8 @@ export class SettingsPageComponent implements OnInit {
       startDate: this.toDateInputValue(account.start_date),
       startValue: account.start_value === null ? null : Number(account.start_value),
       closingDay: account.closing_day,
+      payDay: account.pay_day,
+      debitAccount: account.debit_account,
       accountType: account.account_type,
     });
   }
@@ -249,6 +260,8 @@ export class SettingsPageComponent implements OnInit {
       startDate: '',
       startValue: null,
       closingDay: null,
+      payDay: null,
+      debitAccount: null,
       accountType: 0,
     });
   }
@@ -363,6 +376,20 @@ export class SettingsPageComponent implements OnInit {
 
   protected getAccountTypeLabel(accountType: number | null): string {
     return accountType === 1 ? 'Crédito' : 'Débito';
+  }
+
+  protected get debitAccountOptions(): MovimentAccountSettings[] {
+    return this.accounts.filter((account) => {
+      return account.account_type === 0 && account.id !== this.accountEditId;
+    });
+  }
+
+  protected getDebitAccountLabel(accountId: number | null | undefined): string {
+    if (!accountId) {
+      return '';
+    }
+
+    return this.accounts.find((account) => account.id === accountId)?.description ?? `Conta ${accountId}`;
   }
 
   protected getSettingsIcon(icon: string | null | undefined, fallbackIcon: string): string {

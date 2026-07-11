@@ -22,23 +22,61 @@
       </section>
     }
 
-    <button type="button" class="settings-shortcut" (click)="openRecurringMovements()">
-      <span>
-        <ion-icon name="repeat-outline"></ion-icon>
-        Movimentos recorrentes
-      </span>
-      <ion-icon name="chevron-forward-outline"></ion-icon>
-    </button>
+    <nav class="settings-options" aria-label="Seções de configurações">
+      <button
+        type="button"
+        class="settings-option"
+        [class.active]="activeTab === 'accounts'"
+        (click)="setActiveTab('accounts')"
+      >
+        <span class="settings-option-icon">
+          <ion-icon name="wallet-outline"></ion-icon>
+        </span>
+        <span>
+          <strong>Contas</strong>
+          <small>Carteiras, bancos e cartões</small>
+        </span>
+      </button>
 
-    <nav class="settings-tabs" aria-label="Seções de configurações">
-      <button type="button" [class.active]="activeTab === 'accounts'" (click)="setActiveTab('accounts')">
-        Contas
+      <button
+        type="button"
+        class="settings-option"
+        [class.active]="activeTab === 'ledger'"
+        (click)="setActiveTab('ledger')"
+      >
+        <span class="settings-option-icon">
+          <ion-icon name="receipt-outline"></ion-icon>
+        </span>
+        <span>
+          <strong>Categorias</strong>
+          <small>Entradas, saídas e grupos</small>
+        </span>
       </button>
-      <button type="button" [class.active]="activeTab === 'ledger'" (click)="setActiveTab('ledger')">
-        Categorias
+
+      <button
+        type="button"
+        class="settings-option"
+        [class.active]="activeTab === 'status'"
+        (click)="setActiveTab('status')"
+      >
+        <span class="settings-option-icon">
+          <ion-icon name="time-outline"></ion-icon>
+        </span>
+        <span>
+          <strong>Status</strong>
+          <small>Consumado e provisionado</small>
+        </span>
       </button>
-      <button type="button" [class.active]="activeTab === 'status'" (click)="setActiveTab('status')">
-        Status
+
+      <button type="button" class="settings-option shortcut-option" (click)="openRecurringMovements()">
+        <span class="settings-option-icon">
+          <ion-icon name="repeat-outline"></ion-icon>
+        </span>
+        <span>
+          <strong>Movimentos recorrentes</strong>
+          <small>Séries e lançamentos planejados</small>
+        </span>
+        <ion-icon class="settings-option-arrow" name="chevron-forward-outline"></ion-icon>
       </button>
     </nav>
 
@@ -124,6 +162,23 @@
                 <input type="number" formControlName="closingDay" min="1" max="31" inputmode="numeric" />
               </label>
 
+              @if (accountForm.controls.accountType.value === 1) {
+                <label class="form-field">
+                  <span>Dia de pagamento</span>
+                  <input type="number" formControlName="payDay" min="1" max="31" inputmode="numeric" />
+                </label>
+
+                <label class="form-field">
+                  <span>Conta de débito</span>
+                  <select formControlName="debitAccount">
+                    <option [ngValue]="null">Selecione</option>
+                    @for (account of debitAccountOptions; track account.id) {
+                      <option [ngValue]="account.id">{{ account.description }}</option>
+                    }
+                  </select>
+                </label>
+              }
+
               <label class="form-field">
                 <span>Tipo de conta</span>
                 <select formControlName="accountType">
@@ -152,6 +207,12 @@
                       {{ getAccountTypeLabel(account.account_type) }}
                       @if (account.closing_day) {
                         - fecha dia {{ account.closing_day }}
+                      }
+                      @if (account.pay_day) {
+                        - paga dia {{ account.pay_day }}
+                      }
+                      @if (account.debit_account) {
+                        - débito em {{ getDebitAccountLabel(account.debit_account) }}
                       }
                     </span>
                   </div>

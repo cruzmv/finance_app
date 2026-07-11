@@ -1,5 +1,5 @@
 import { CommonModule, CurrencyPipe } from '@angular/common';
-import { Component, HostListener, OnInit, inject } from '@angular/core';
+import { Component, HostListener, OnDestroy, OnInit, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { IonContent, IonIcon, IonRefresher, IonRefresherContent } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
@@ -8,7 +8,7 @@ import {
   alertCircleOutline,
   bagHandleOutline,
   businessOutline,
-  calculatorOutline,
+  calendarOutline,
   carOutline,
   cardOutline,
   cartOutline,
@@ -39,6 +39,7 @@ import {
   FinanceDataService,
   LedgerAccountSettings,
   MovimentAccountSettings,
+  StatusSettings,
 } from '../finance-data.service';
 
 interface DashboardSummary {
@@ -69,12 +70,22 @@ interface UpcomingMovement {
   accountType: 0 | 1 | null;
 }
 
+interface DashboardNotification {
+  id: string;
+  movement: BalanceRow;
+  title: string;
+  message: string;
+  dueLabel: string;
+  isRead: boolean;
+}
+
 interface CreditSummary {
   payable: number;
   open: number;
   balance: number;
   payableCount: number;
   openCount: number;
+  payableLabel: string;
 }
 
 interface BalanceEntry {
@@ -102,16 +113,23 @@ interface DashboardMonthOption {
   styleUrls: ['./dashboard-page.component.scss'],
   imports: [CommonModule, IonContent, IonIcon, IonRefresher, IonRefresherContent, CurrencyPipe],
 })
-export class DashboardPageComponent implements OnInit {
+export class DashboardPageComponent implements OnInit, OnDestroy {
   private readonly auth = inject(AuthService);
   private readonly financeData = inject(FinanceDataService);
   private readonly router = inject(Router);
   private now = new Date();
   private readonly financeFocusStorageKey = 'financeFocusTarget';
   private ledgerAccounts = new Map<number, LedgerAccountSettings>();
+  private ledgerAccountOptions: LedgerAccountSettings[] = [];
+  private movimentAccountOptions: MovimentAccountSettings[] = [];
+  private statusOptions: StatusSettings[] = [];
   private accountById = new Map<string, MovimentAccountSettings>();
   private accountByDescription = new Map<string, MovimentAccountSettings>();
   private dashboardRows: BalanceRow[] = [];
+  private readonly notificationReadStorageKey = 'dashboardProvisionNotificationReads';
+  private readonly notificationSentStorageKey = 'dashboardProvisionNotificationSent';
+  private readonly notificationLeadTimeMs = 6 * 60 * 60 * 1000;
+  private notificationTimers: ReturnType<typeof setTimeout>[] = [];
 
   private loadedToken = '';
   private loadedBalancesRevision = -1;
@@ -120,6 +138,7 @@ export class DashboardPageComponent implements OnInit {
   protected errorMessage = '';
   protected isAccountMenuOpen = false;
   protected isMonthPickerOpen = false;
+  protected isNotificationMenuOpen = false;
   protected selectedMonthDate = new Date(this.now.getFullYear(), this.now.getMonth(), 1);
   protected summary: DashboardSummary = {
     monthStartBalance: 0,
@@ -142,6 +161,7 @@ export class DashboardPageComponent implements OnInit {
     balance: 0,
     payableCount: 0,
     openCount: 0,
+    payableLabel: 'A pagar',
   };
   protected creditAccounts: MovimentAccountSettings[] = [];
   protected previousMonthSavings = 0;
@@ -150,6 +170,7 @@ export class DashboardPageComponent implements OnInit {
   protected savingsTrend: SavingsTrendPoint[] = [];
   protected availableMonthOptions: DashboardMonthOption[] = [];
   protected expandedUpcomingMovementIds = new Set<number>();
+  protected dashboardNotifications: DashboardNotification[] = [];
 
   constructor() {
     addIcons({
@@ -158,7 +179,7 @@ export class DashboardPageComponent implements OnInit {
       bagHandleOutline,
       bulbOutline,
       businessOutline,
-      calculatorOutline,
+      calendarOutline,
       carOutline,
       cardOutline,
       cartOutline,
@@ -186,6 +207,10 @@ export class DashboardPageComponent implements OnInit {
     this.loadDashboard();
   }
 
+  ngOnDestroy(): void {
+    this.clearNotificationTimers();
+  }
+
   ionViewWillEnter(): void {
     if (
       this.loadedToken !== this.auth.token ||
@@ -211,6 +236,14 @@ export class DashboardPageComponent implements OnInit {
     return this.selectedMonthDate.getFullYear();
   }
 
+  protected get shouldShowCreditSummary(): boolean {
+    return this.creditAccounts.length > 0;
+  }
+
+  protected get hasUnreadNotifications(): boolean {
+    return this.dashboardNotifications.some((notification) => !notification.isRead);
+  }
+
   protected get selectedMonthKey(): string {
     return this.getMonthKey(this.selectedMonthDate);
   }
@@ -233,6 +266,7 @@ export class DashboardPageComponent implements OnInit {
     event.stopPropagation();
     this.isAccountMenuOpen = !this.isAccountMenuOpen;
     this.isMonthPickerOpen = false;
+    this.isNotificationMenuOpen = false;
   }
 
   protected logout(): void {
@@ -244,6 +278,18 @@ export class DashboardPageComponent implements OnInit {
     event.stopPropagation();
     this.isMonthPickerOpen = !this.isMonthPickerOpen;
     this.isAccountMenuOpen = false;
+    this.isNotificationMenuOpen = false;
+  }
+
+  protected toggleNotificationMenu(event: Event): void {
+    event.stopPropagation();
+    this.isNotificationMenuOpen = !this.isNotificationMenuOpen;
+    this.isAccountMenuOpen = false;
+    this.isMonthPickerOpen = false;
+
+    if (this.isNotificationMenuOpen) {
+      this.markNotificationsAsRead();
+    }
   }
 
   protected selectMonth(option: DashboardMonthOption, event: Event): void {
@@ -315,10 +361,14 @@ export class DashboardPageComponent implements OnInit {
     const comparison = this.formatEuro(this.savingsComparison);
 
     if (this.forecastTone === 'warning') {
-      return `Você está ${comparison} menor que o mês passado.`;
+      return `Você economizou ${comparison} a menos em relação ao mês passado.`;
     }
 
-    return `Você está ${comparison} melhor que o mês passado.`;
+    return `Você economizou ${comparison} em relação ao mês passado.`;
+  }
+
+  protected get forecastTitle(): string {
+    return this.forecastTone === 'positive' && this.movementCount >= 10 ? 'Excelente!' : '';
   }
 
   protected get forecastTone(): 'positive' | 'warning' | 'danger' {
@@ -354,6 +404,64 @@ export class DashboardPageComponent implements OnInit {
       expandDetails: true,
     }));
     void this.router.navigate(['/example/finance']);
+  }
+
+  private openEditMoviment(row: BalanceRow): void {
+    const navigationState = this.buildMovimentNavigationState(row);
+
+    sessionStorage.setItem('selectedMoviment', JSON.stringify(navigationState));
+    void this.router.navigate(['/example/new'], {
+      queryParams: { mode: 'edit' },
+      state: navigationState,
+    });
+  }
+
+  private buildMovimentNavigationState(row: BalanceRow) {
+    return {
+      mode: 'edit',
+      moviment: row,
+      ledgerAccounts: this.ledgerAccountOptions.map((account) => this.toOption(account.id, account.description, account.icon)),
+      movimentAccounts: this.movimentAccountOptions.map((account) => this.toOption(account.id, account.description, account.icon)),
+      statuses: this.statusOptions.map((status) => this.toOption(status.id, status.description, status.icon)),
+    };
+  }
+
+  private toOption(id: number, name: string, icon?: string | null) {
+    return { id, name, icon };
+  }
+
+  protected openNotificationMovement(notification: DashboardNotification, event?: Event): void {
+    event?.stopPropagation();
+    this.markNotificationAsRead(notification.id);
+    this.openEditMoviment(notification.movement);
+  }
+
+  protected confirmNotificationMovement(notification: DashboardNotification, event: Event): void {
+    event.stopPropagation();
+    const settledStatus = this.getSettledStatusOption();
+
+    if (!settledStatus) {
+      this.errorMessage = 'Não foi possível encontrar o status Consumado.';
+      return;
+    }
+
+    const shouldSettle = window.confirm(
+      `Marcar "${notification.movement.description}" como Consumado?`,
+    );
+
+    if (!shouldSettle) {
+      return;
+    }
+
+    this.markNotificationAsRead(notification.id);
+    this.financeData.updateMovimentStatus(notification.movement, settledStatus.id).subscribe({
+      next: () => {
+        this.loadDashboard(true);
+      },
+      error: () => {
+        this.errorMessage = 'Não foi possível marcar o movimento como Consumado.';
+      },
+    });
   }
 
   protected getBalanceEntries(balances: BalanceSnapshot | null | undefined): BalanceEntry[] {
@@ -395,6 +503,7 @@ export class DashboardPageComponent implements OnInit {
   protected closeFloatingMenus(): void {
     this.isAccountMenuOpen = false;
     this.isMonthPickerOpen = false;
+    this.isNotificationMenuOpen = false;
   }
 
   private loadDashboard(forceRefresh = false, refreshEvent?: CustomEvent): void {
@@ -414,6 +523,9 @@ export class DashboardPageComponent implements OnInit {
       }))
       .subscribe({
         next: ({ balances, settings }) => {
+          this.ledgerAccountOptions = settings.ledgerAccounts;
+          this.movimentAccountOptions = settings.accounts;
+          this.statusOptions = settings.statuses;
           this.ledgerAccounts = new Map(settings.ledgerAccounts.map((account) => [account.id, account]));
           this.setAccountLookup(settings.accounts);
           this.buildDashboard(balances);
@@ -439,7 +551,9 @@ export class DashboardPageComponent implements OnInit {
     const selectedMonthStart = new Date(selectedYear, selectedMonth, 1, 0, 0, 0, 0);
     const selectedMonthEnd = this.getEndOfMonth(this.selectedMonthDate);
     const precedingMonthEnd = new Date(selectedYear, selectedMonth - 1, 0, 23, 59, 59, 999);
-    const currentBalance = this.getDebitSnapshotTotal(this.getLatestRowAtOrBefore(validRows, selectedMonthEnd)?.balances);
+    const currentBalance = this.getPositiveBalanceTotalFromSnapshot(
+      this.getCurrentBalanceReferenceRow(validRows, selectedMonthRows, selectedMonthEnd)?.balances,
+    );
     const consumedDebitExpenses = Math.abs(this.sumValues(
       consumedThisMonth.filter((row) => Number(row.value) < 0 && row.account_type !== 1),
     ));
@@ -499,11 +613,172 @@ export class DashboardPageComponent implements OnInit {
         balances: row.balances,
         accountType: row.account_type,
       }));
+    this.dashboardNotifications = this.buildDashboardNotifications(validRows);
+    this.scheduleProvisionNotifications(validRows);
   }
 
   private completeRefresh(event?: CustomEvent): void {
     const refresher = event?.target as unknown as { complete?: () => Promise<void> | void };
     void refresher?.complete?.();
+  }
+
+  private buildDashboardNotifications(rows: BalanceRow[]): DashboardNotification[] {
+    const readIds = this.getStoredIdSet(this.notificationReadStorageKey);
+
+    return rows
+      .filter((row) => this.isProvisionedNotificationCandidate(row, this.now))
+      .sort((left, right) => this.getTime(left) - this.getTime(right))
+      .map((row) => {
+        const id = this.getProvisionNotificationId(row);
+
+        return {
+          id,
+          movement: row,
+          title: 'Conta perto de ser executada',
+          message: `"${row.description}" está prevista para acontecer em breve.`,
+          dueLabel: this.getFriendlyDateTime(row.datetime),
+          isRead: readIds.has(id),
+        };
+      });
+  }
+
+  private scheduleProvisionNotifications(rows: BalanceRow[]): void {
+    this.clearNotificationTimers();
+
+    if ('Notification' in window && Notification.permission === 'default') {
+      void Notification.requestPermission().then((permission) => {
+        if (permission === 'granted') {
+          this.scheduleProvisionNotifications(rows);
+        }
+      });
+    }
+
+    const sentIds = this.getStoredIdSet(this.notificationSentStorageKey);
+
+    rows
+      .filter((row) => this.isStatus(row, 'provisionado'))
+      .forEach((row) => {
+        const notificationTime = this.getTime(row) - this.notificationLeadTimeMs;
+        const delay = notificationTime - this.now.getTime();
+
+        if (delay > 2_147_483_647) {
+          return;
+        }
+
+        if (delay <= 0) {
+          if (this.isProvisionedNotificationCandidate(row, this.now)) {
+            this.publishProvisionNotification(row, sentIds);
+          }
+          return;
+        }
+
+        this.notificationTimers.push(setTimeout(() => {
+          this.publishProvisionNotification(row, this.getStoredIdSet(this.notificationSentStorageKey));
+        }, delay));
+      });
+  }
+
+  private publishProvisionNotification(row: BalanceRow, sentIds: Set<string>): void {
+    this.now = new Date();
+    this.dashboardNotifications = this.buildDashboardNotifications(this.dashboardRows);
+    this.showProvisionSystemNotification(row, sentIds);
+  }
+
+  private showProvisionSystemNotification(row: BalanceRow, sentIds: Set<string>): void {
+    const id = this.getProvisionNotificationId(row);
+
+    if (!this.canUseSystemNotifications() || sentIds.has(id)) {
+      return;
+    }
+
+    const notification = new Notification('Conta perto de ser executada', {
+      body: `${row.description}. Deseja marcar como Consumado?`,
+      tag: id,
+    });
+
+    notification.onclick = () => {
+      window.focus();
+      this.openEditMoviment(row);
+    };
+
+    sentIds.add(id);
+    this.storeIdSet(this.notificationSentStorageKey, sentIds);
+  }
+
+  private clearNotificationTimers(): void {
+    this.notificationTimers.forEach((timer) => clearTimeout(timer));
+    this.notificationTimers = [];
+  }
+
+  private canUseSystemNotifications(): boolean {
+    if (!('Notification' in window)) {
+      return false;
+    }
+
+    if (Notification.permission === 'granted') {
+      return true;
+    }
+
+    return false;
+  }
+
+  private isProvisionedNotificationCandidate(row: BalanceRow, referenceDate: Date): boolean {
+    const movementTime = this.getTime(row);
+    const nowTime = referenceDate.getTime();
+
+    return this.isStatus(row, 'provisionado') &&
+      movementTime >= nowTime &&
+      movementTime - nowTime <= this.notificationLeadTimeMs;
+  }
+
+  private markNotificationsAsRead(): void {
+    if (this.dashboardNotifications.length === 0) {
+      return;
+    }
+
+    const readIds = this.getStoredIdSet(this.notificationReadStorageKey);
+
+    this.dashboardNotifications.forEach((notification) => readIds.add(notification.id));
+    this.storeIdSet(this.notificationReadStorageKey, readIds);
+    this.dashboardNotifications = this.dashboardNotifications.map((notification) => ({
+      ...notification,
+      isRead: true,
+    }));
+  }
+
+  private markNotificationAsRead(id: string): void {
+    const readIds = this.getStoredIdSet(this.notificationReadStorageKey);
+
+    readIds.add(id);
+    this.storeIdSet(this.notificationReadStorageKey, readIds);
+    this.dashboardNotifications = this.dashboardNotifications.map((notification) => {
+      return notification.id === id ? { ...notification, isRead: true } : notification;
+    });
+  }
+
+  private getStoredIdSet(key: string): Set<string> {
+    try {
+      return new Set(JSON.parse(localStorage.getItem(key) ?? '[]') as string[]);
+    } catch {
+      return new Set<string>();
+    }
+  }
+
+  private storeIdSet(key: string, values: Set<string>): void {
+    localStorage.setItem(key, JSON.stringify(Array.from(values)));
+  }
+
+  private getProvisionNotificationId(row: BalanceRow): string {
+    return `${row.id}:${row.datetime}`;
+  }
+
+  private getFriendlyDateTime(datetime: string): string {
+    const date = new Date(datetime);
+
+    return `${this.getFriendlyDate(datetime)}, ${new Intl.DateTimeFormat('pt-PT', {
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(date)}`;
   }
 
   private getFriendlyDate(datetime: string): string {
@@ -549,8 +824,8 @@ export class DashboardPageComponent implements OnInit {
     return monthReferences.map((monthDate, index) => ({
       label: new Intl.DateTimeFormat('pt-PT', { month: 'short' }).format(monthDate).replace('.', ''),
       value: values[index],
-      x: 8 + index * 16.8,
-      y: 78 - ((values[index] - minValue) / range) * 56,
+      x: 15.83 + index * 31.67,
+      y: 60 - ((values[index] - minValue) / range) * 44,
     }));
   }
 
@@ -592,11 +867,33 @@ export class DashboardPageComponent implements OnInit {
     return [...rows].reverse().find((row) => this.getTime(row) <= targetTime);
   }
 
+  private getCurrentBalanceReferenceRow(
+    rows: BalanceRow[],
+    selectedMonthRows: BalanceRow[],
+    selectedMonthEnd: Date,
+  ): BalanceRow | undefined {
+    if (this.isCurrentSelectedMonth()) {
+      const nowTime = this.now.getTime();
+
+      return [...rows].reverse().find((row) => {
+        return this.getTime(row) <= nowTime && this.isStatus(row, 'consumado');
+      });
+    }
+
+    return this.getLatestRowAtOrBefore(selectedMonthRows, selectedMonthEnd);
+  }
+
   private getDebitSnapshotTotal(balances: BalanceSnapshot | null | undefined): number {
     return Object.entries(balances ?? {}).reduce((total, [key, value]) => {
       const account = this.getBalanceAccount(key);
 
       return account?.account_type === 0 ? total + (Number(value) || 0) : total;
+    }, 0);
+  }
+
+  private getPositiveBalanceTotalFromSnapshot(balances: BalanceSnapshot | null | undefined): number {
+    return this.getBalanceEntries(balances).reduce((total, balance) => {
+      return balance.value > 0 ? total + balance.value : total;
     }, 0);
   }
 
@@ -637,24 +934,46 @@ export class DashboardPageComponent implements OnInit {
   }
 
   private buildCreditSummary(rows: BalanceRow[]): CreditSummary {
-    return this.creditAccounts.reduce<CreditSummary>((summary, account) => {
+    const isCurrentMonth = this.isCurrentSelectedMonth();
+    const isPastMonth = this.isPastSelectedMonth();
+    const initialSummary: CreditSummary = {
+      payable: 0,
+      open: 0,
+      balance: 0,
+      payableCount: 0,
+      openCount: 0,
+      payableLabel: isPastMonth ? 'Pago' : 'A pagar',
+    };
+
+    const summary = this.creditAccounts.reduce<CreditSummary>((creditSummary, account) => {
       const accountRows = rows.filter((row) => this.isCreditAccountMovement(row, account));
-      const lastClosingDate = this.getLastClosingDate(account);
+      const lastClosingDate = this.getCreditClosingDate(account);
       const previousClosingDate = this.getPreviousClosingDate(lastClosingDate, account);
+      const nextClosingDate = this.getNextClosingDate(lastClosingDate, account);
       const payableRows = this.getCreditExpenseRows(accountRows, previousClosingDate, lastClosingDate);
-      const openRows = this.getCreditExpenseRows(accountRows, lastClosingDate, this.getCreditReferenceDate());
+      const openRows = this.getCreditConsumedRows(accountRows, lastClosingDate, nextClosingDate);
       const payable = Math.abs(this.sumValues(payableRows));
       const open = Math.abs(this.sumValues(openRows));
       const limit = this.toNumber(account.start_value);
+      const isBillPaid = this.hasPaidCreditBill(rows, account, payable);
+      const payableAffectsBalance = isPastMonth || (isCurrentMonth && isBillPaid) ? 0 : payable;
 
       return {
-        payable: summary.payable + payable,
-        open: summary.open + open,
-        balance: summary.balance + limit - payable - open,
-        payableCount: summary.payableCount + payableRows.length,
-        openCount: summary.openCount + openRows.length,
+        ...creditSummary,
+        payable: creditSummary.payable + payable,
+        open: creditSummary.open + open,
+        balance: creditSummary.balance + limit - payableAffectsBalance - open,
+        payableCount: creditSummary.payableCount + payableRows.length,
+        openCount: creditSummary.openCount + openRows.length,
+        payableLabel: creditSummary.payableLabel,
       };
-    }, { payable: 0, open: 0, balance: 0, payableCount: 0, openCount: 0 });
+    }, initialSummary);
+
+    if (isCurrentMonth && summary.payable > 0 && this.areSelectedMonthCreditBillsPaid(rows)) {
+      summary.payableLabel = 'Pago';
+    }
+
+    return summary;
   }
 
   private isCreditAccountMovement(row: BalanceRow, account: MovimentAccountSettings): boolean {
@@ -668,7 +987,24 @@ export class DashboardPageComponent implements OnInit {
     return rows.filter((row) => {
       const time = this.getTime(row);
 
-      return Number(row.value) < 0 && time > afterTime && time <= untilTime;
+      return Number(row.value) < 0 &&
+        this.isStatus(row, 'consumado') &&
+        time > afterTime &&
+        time <= untilTime;
+    });
+  }
+
+  private getCreditConsumedRows(rows: BalanceRow[], afterDate: Date, untilDate: Date): BalanceRow[] {
+    const afterTime = afterDate.getTime();
+    const untilTime = untilDate.getTime();
+
+    return rows.filter((row) => {
+      const time = this.getTime(row);
+
+      return Number(row.value) !== 0 &&
+        this.isStatus(row, 'consumado') &&
+        time > afterTime &&
+        time <= untilTime;
     });
   }
 
@@ -682,8 +1018,10 @@ export class DashboardPageComponent implements OnInit {
       : selectedMonthEnd;
   }
 
-  private getLastClosingDate(account: MovimentAccountSettings): Date {
-    const referenceDate = this.getCreditReferenceDate();
+  private getCreditClosingDate(account: MovimentAccountSettings): Date {
+    const referenceDate = this.isCurrentSelectedMonth()
+      ? this.getCreditReferenceDate()
+      : this.getEndOfMonth(this.selectedMonthDate);
     const closingDay = this.getSafeClosingDay(account, referenceDate);
     const closingDate = new Date(
       referenceDate.getFullYear(),
@@ -726,6 +1064,78 @@ export class DashboardPageComponent implements OnInit {
     );
   }
 
+  private getNextClosingDate(lastClosingDate: Date, account: MovimentAccountSettings): Date {
+    const nextMonthReference = new Date(lastClosingDate.getFullYear(), lastClosingDate.getMonth() + 1, 1);
+
+    return new Date(
+      nextMonthReference.getFullYear(),
+      nextMonthReference.getMonth(),
+      this.getSafeClosingDay(account, nextMonthReference),
+      23,
+      59,
+      59,
+      999,
+    );
+  }
+
+  private hasPaidCreditBill(
+    rows: BalanceRow[],
+    account: MovimentAccountSettings,
+    payable: number,
+  ): boolean {
+    if (!payable) {
+      return false;
+    }
+
+    const billRows = rows.filter((row) => {
+      const rowDate = new Date(row.datetime);
+
+      if (!this.isStatus(row, 'consumado') || !this.isSelectedMonth(row)) {
+        return false;
+      }
+
+      if (account.debit_account && Number(row.moviment_account_id) !== account.debit_account) {
+        return false;
+      }
+
+      if (!account.debit_account && row.account_type === 1) {
+        return false;
+      }
+
+      if (account.pay_day) {
+        return this.isSameDay(rowDate, this.getSelectedMonthPayDate(account));
+      }
+
+      return true;
+    });
+
+    return billRows.some((row) => Math.abs(Math.abs(Number(row.value) || 0) - payable) < 0.01);
+  }
+
+  private areSelectedMonthCreditBillsPaid(rows: BalanceRow[]): boolean {
+    return this.creditAccounts.every((account) => {
+      const accountRows = rows.filter((row) => this.isCreditAccountMovement(row, account));
+      const closingDate = this.getCreditClosingDate(account);
+      const previousClosingDate = this.getPreviousClosingDate(closingDate, account);
+      const payable = Math.abs(this.sumValues(
+        this.getCreditExpenseRows(accountRows, previousClosingDate, closingDate),
+      ));
+
+      return payable === 0 || this.hasPaidCreditBill(rows, account, payable);
+    });
+  }
+
+  private getSelectedMonthPayDate(account: MovimentAccountSettings): Date {
+    const lastDayOfMonth = new Date(
+      this.selectedMonthDate.getFullYear(),
+      this.selectedMonthDate.getMonth() + 1,
+      0,
+    ).getDate();
+    const payDay = Math.min(Math.max(account.pay_day ?? lastDayOfMonth, 1), lastDayOfMonth);
+
+    return new Date(this.selectedMonthDate.getFullYear(), this.selectedMonthDate.getMonth(), payDay);
+  }
+
   private getSafeClosingDay(account: MovimentAccountSettings, referenceDate: Date): number {
     const lastDayOfMonth = new Date(referenceDate.getFullYear(), referenceDate.getMonth() + 1, 0).getDate();
     const closingDay = account.closing_day ?? lastDayOfMonth;
@@ -739,8 +1149,51 @@ export class DashboardPageComponent implements OnInit {
       && date.getMonth() === this.selectedMonthDate.getMonth();
   }
 
+  private isCurrentSelectedMonth(): boolean {
+    return this.selectedMonthDate.getFullYear() === this.now.getFullYear()
+      && this.selectedMonthDate.getMonth() === this.now.getMonth();
+  }
+
+  private isPastSelectedMonth(): boolean {
+    return this.selectedMonthDate.getFullYear() < this.now.getFullYear()
+      || (
+        this.selectedMonthDate.getFullYear() === this.now.getFullYear()
+        && this.selectedMonthDate.getMonth() < this.now.getMonth()
+      );
+  }
+
+  private isSameMonth(left: Date, right: Date): boolean {
+    return left.getFullYear() === right.getFullYear() && left.getMonth() === right.getMonth();
+  }
+
+  private isSameDay(left: Date, right: Date): boolean {
+    return this.isSameMonth(left, right) && left.getDate() === right.getDate();
+  }
+
   private isStatus(row: BalanceRow, status: string): boolean {
     return row.status?.trim().toLowerCase() === status;
+  }
+
+  private getSettledStatusOption(): StatusSettings | undefined {
+    return this.statusOptions.find((status) => this.normalizeStatusName(status.description) === 'consumado')
+      ?? this.statusOptions.find((status) => !this.isPendingStatus(status));
+  }
+
+  private isPendingStatus(status: StatusSettings | undefined): boolean {
+    const normalizedStatus = this.normalizeStatusName(status?.description);
+
+    return normalizedStatus.includes('provision') ||
+      normalizedStatus.includes('pagar') ||
+      normalizedStatus.includes('receber') ||
+      normalizedStatus.includes('pending');
+  }
+
+  private normalizeStatusName(status: string | null | undefined): string {
+    return (status ?? '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+      .toLocaleLowerCase('pt-BR');
   }
 
   private getTime(row: BalanceRow): number {

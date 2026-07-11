@@ -12,26 +12,58 @@ import {
 } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
 import {
+  addCircleOutline,
+  airplaneOutline,
+  alertCircleOutline,
   arrowDownCircleOutline,
   arrowUpCircleOutline,
+  bonfireOutline,
+  businessOutline,
   calendarOutline,
   cameraOutline,
+  carOutline,
   cardOutline,
   cartOutline,
+  cashOutline,
   checkmarkOutline,
+  checkmarkCircleOutline,
   chevronDownOutline,
   chevronForwardOutline,
   closeOutline,
+  ellipsisHorizontalOutline,
+  fastFoodOutline,
+  gameControllerOutline,
+  homeOutline,
+  informationCircleOutline,
+  medkitOutline,
   repeatOutline,
+  receiptOutline,
+  restaurantOutline,
+  saveOutline,
+  schoolOutline,
+  storefrontOutline,
   timeOutline,
+  trailSignOutline,
+  trashOutline,
+  trendingDownOutline,
+  trendingUpOutline,
+  walletOutline,
 } from 'ionicons/icons';
-import { finalize, Subscription } from 'rxjs';
+import { finalize, forkJoin, Subscription } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { BalanceRow, FinanceDataService, PlanningPayload } from '../finance-data.service';
+import { AuthService } from '../auth.service';
+import {
+  BalanceRow,
+  CreditBillSyncMissingBill,
+  CreditBillSyncResponse,
+  FinanceDataService,
+  PlanningPayload,
+} from '../finance-data.service';
 
 interface MovimentOption {
   id: number;
   name: string;
+  icon?: string | null;
 }
 
 interface MovimentPayload {
@@ -78,6 +110,14 @@ interface PreparedReceiptImage {
   height: number;
 }
 
+type NewMovementSource = 'dashboard' | 'finance' | 'generic';
+type QuickCreateTarget = 'account' | 'ledger';
+
+interface IconOption {
+  name: string;
+  label: string;
+}
+
 @Component({
   selector: 'app-new-page',
   templateUrl: './new-page.component.html',
@@ -86,6 +126,7 @@ interface PreparedReceiptImage {
 })
 export class NewPageComponent implements OnInit, OnDestroy {
   private readonly fb = inject(FormBuilder);
+  private readonly auth = inject(AuthService);
   private readonly http = inject(HttpClient);
   private readonly financeData = inject(FinanceDataService);
   private readonly route = inject(ActivatedRoute);
@@ -94,7 +135,36 @@ export class NewPageComponent implements OnInit, OnDestroy {
   private readonly apiBaseUrl = environment.apiBaseUrl;
   private readonly selectedMovimentStorageKey = 'selectedMoviment';
   private readonly financeFocusStorageKey = 'financeFocusTarget';
+  private readonly declinedCreditBillStorageKey = 'declinedCreditBillCycles';
+  private readonly newMovementSourceStorageKey = 'newMovementSourceRoute';
+  private readonly lastMovimentAccountStorageKey = 'newMovementLastMovimentAccountId';
+  private readonly lastLedgerAccountStorageKey = 'newMovementLastLedgerAccountId';
   private readonly fallbackStatusOptions: MovimentOption[] = [];
+  private readonly availableIconNames = new Set([
+    'airplane-outline',
+    'alert-circle-outline',
+    'bonfire-outline',
+    'business-outline',
+    'car-outline',
+    'card-outline',
+    'cart-outline',
+    'cash-outline',
+    'checkmark-circle-outline',
+    'ellipsis-horizontal-outline',
+    'fast-food-outline',
+    'game-controller-outline',
+    'home-outline',
+    'medkit-outline',
+    'receipt-outline',
+    'restaurant-outline',
+    'school-outline',
+    'storefront-outline',
+    'time-outline',
+    'trail-sign-outline',
+    'trending-down-outline',
+    'trending-up-outline',
+    'wallet-outline',
+  ]);
   @ViewChild('receiptInput') private receiptInput?: ElementRef<HTMLInputElement>;
   @ViewChild('valueInput') private valueInput?: ElementRef<HTMLInputElement>;
 
@@ -121,24 +191,92 @@ export class NewPageComponent implements OnInit, OnDestroy {
   protected ledgerAccounts: MovimentOption[] = [];
   protected movimentAccounts: MovimentOption[] = [];
   protected valueSign: -1 | 1 = -1;
+  protected currentStep: 1 | 2 | 3 = 1;
+  protected sourceContext: NewMovementSource = 'dashboard';
+  protected usedMovimentAccountIds = new Set<number>();
+  protected usedLedgerAccountIds = new Set<number>();
+  protected quickCreateTarget: QuickCreateTarget | null = null;
+  protected activeQuickIconPicker: QuickCreateTarget | null = null;
+  protected readonly iconOptions: IconOption[] = [
+    { name: 'wallet-outline', label: 'Carteira' },
+    { name: 'card-outline', label: 'Cartão' },
+    { name: 'cash-outline', label: 'Dinheiro' },
+    { name: 'business-outline', label: 'Banco' },
+    { name: 'home-outline', label: 'Casa' },
+    { name: 'restaurant-outline', label: 'Alimentação' },
+    { name: 'cart-outline', label: 'Compras' },
+    { name: 'car-outline', label: 'Transporte' },
+    { name: 'airplane-outline', label: 'Viagem' },
+    { name: 'medkit-outline', label: 'Saúde' },
+    { name: 'school-outline', label: 'Educação' },
+    { name: 'game-controller-outline', label: 'Lazer' },
+    { name: 'receipt-outline', label: 'Recibo' },
+    { name: 'trending-up-outline', label: 'Entrada' },
+    { name: 'trending-down-outline', label: 'Saída' },
+    { name: 'checkmark-circle-outline', label: 'Confirmado' },
+    { name: 'time-outline', label: 'Pendente' },
+    { name: 'alert-circle-outline', label: 'Atenção' },
+  ];
 
+  protected readonly quickAccountForm = this.fb.nonNullable.group({
+    description: ['', Validators.required],
+    icon: ['wallet-outline', Validators.required],
+    startDate: [''],
+    startValue: this.fb.control<number | null>(null),
+    closingDay: this.fb.control<number | null>(null, [Validators.min(1), Validators.max(31)]),
+    payDay: this.fb.control<number | null>(null, [Validators.min(1), Validators.max(31)]),
+    debitAccount: this.fb.control<number | null>(null),
+    accountType: this.fb.nonNullable.control<0 | 1>(0, Validators.required),
+  });
+
+  protected readonly quickLedgerForm = this.fb.nonNullable.group({
+    description: ['', Validators.required],
+    icon: ['receipt-outline', Validators.required],
+  });
+
+  private readonly host = inject(ElementRef<HTMLElement>);
   private originalMoviment: BalanceRow | null = null;
   private backButtonSubscription?: Subscription;
+  private movimentAccountTypes = new Map<number, 0 | 1>();
 
   constructor() {
     addIcons({
+      addCircleOutline,
+      airplaneOutline,
+      alertCircleOutline,
       arrowDownCircleOutline,
       arrowUpCircleOutline,
+      bonfireOutline,
+      businessOutline,
       calendarOutline,
       cameraOutline,
+      carOutline,
       cardOutline,
       cartOutline,
+      cashOutline,
       checkmarkOutline,
+      checkmarkCircleOutline,
       chevronDownOutline,
       chevronForwardOutline,
       closeOutline,
+      ellipsisHorizontalOutline,
+      fastFoodOutline,
+      gameControllerOutline,
+      homeOutline,
+      informationCircleOutline,
+      medkitOutline,
       repeatOutline,
+      receiptOutline,
+      restaurantOutline,
+      saveOutline,
+      schoolOutline,
+      storefrontOutline,
       timeOutline,
+      trailSignOutline,
+      trashOutline,
+      trendingDownOutline,
+      trendingUpOutline,
+      walletOutline,
     });
   }
 
@@ -157,8 +295,11 @@ export class NewPageComponent implements OnInit, OnDestroy {
 
   ionViewDidEnter(): void {
     this.backButtonSubscription?.unsubscribe();
-    this.backButtonSubscription = this.platform.backButton.subscribeWithPriority(10, () => this.cancel());
-    setTimeout(() => this.valueInput?.nativeElement.focus(), 150);
+    this.backButtonSubscription = this.platform.backButton.subscribeWithPriority(10, () => this.handleBackAction());
+
+    if (this.currentStep === 3) {
+      setTimeout(() => this.valueInput?.nativeElement.focus(), 150);
+    }
   }
 
   ionViewWillLeave(): void {
@@ -172,6 +313,7 @@ export class NewPageComponent implements OnInit, OnDestroy {
 
   private hydratePageState(): void {
     const navigationState = this.getMovimentNavigationState();
+    this.sourceContext = this.getSourceContext();
     const navigationStatuses = this.normalizeOptions(navigationState.statuses ?? []);
     const navigationLedgerAccounts = this.normalizeOptions(navigationState.ledgerAccounts ?? []);
     const navigationMovimentAccounts = this.normalizeOptions(navigationState.movimentAccounts ?? []);
@@ -203,6 +345,22 @@ export class NewPageComponent implements OnInit, OnDestroy {
     return this.isEditMode ? 'Editar movimento' : 'Novo movimento';
   }
 
+  protected get username(): string {
+    return this.auth.user?.username || 'Utilizador';
+  }
+
+  protected get selectedMonthSummaryLabel(): string {
+    const now = new Date();
+    const month = new Intl.DateTimeFormat('pt-PT', { month: 'long' }).format(now);
+    const label = month.charAt(0).toLocaleUpperCase('pt-PT') + month.slice(1);
+
+    return `${label} ${now.getFullYear()}`;
+  }
+
+  protected get backdropClass(): string {
+    return `source-${this.sourceContext}`;
+  }
+
   protected get isSettledStatusSelected(): boolean {
     return this.getSelectedStatusType() !== 'pending';
   }
@@ -215,6 +373,28 @@ export class NewPageComponent implements OnInit, OnDestroy {
     return this.valueSign === -1 ? 'A pagar' : 'A receber';
   }
 
+  protected get typeLabel(): string {
+    return this.valueSign === -1 ? 'Despesa' : 'Receita';
+  }
+
+  protected get typeDescription(): string {
+    return this.valueSign === -1
+      ? 'Gastos, contas, compras e outras saídas.'
+      : 'Salário, vendas, reembolsos e outras entradas.';
+  }
+
+  protected get typeIcon(): string {
+    return this.valueSign === -1 ? 'arrow-down-circle-outline' : 'arrow-up-circle-outline';
+  }
+
+  protected get typeTone(): 'expense' | 'income' {
+    return this.valueSign === -1 ? 'expense' : 'income';
+  }
+
+  protected get statusLabel(): string {
+    return this.isSettledStatusSelected ? this.settledStatusLabel : this.pendingStatusLabel;
+  }
+
   protected setSettlementStatus(isSettled: boolean): void {
     const status = isSettled ? this.getSettledStatusOption() : this.getPendingStatusOption();
 
@@ -223,16 +403,284 @@ export class NewPageComponent implements OnInit, OnDestroy {
     }
   }
 
+  protected toggleEditSettlementStatus(): void {
+    this.setSettlementStatus(!this.isSettledStatusSelected);
+  }
+
+  protected selectMovementType(sign: -1 | 1): void {
+    this.setValueSign(sign);
+    this.currentStep = 2;
+  }
+
+  protected selectSettlementAndContinue(isSettled: boolean): void {
+    this.setSettlementStatus(isSettled);
+    this.currentStep = 3;
+    setTimeout(() => this.valueInput?.nativeElement.focus(), 150);
+    this.scheduleSelectedOptionFocus();
+  }
+
+  protected handleBackAction(): void {
+    if (this.isEditMode || this.currentStep === 1) {
+      this.cancel();
+      return;
+    }
+
+    this.currentStep = this.currentStep === 3 ? 2 : 1;
+  }
+
   protected selectMovimentAccount(account: MovimentOption): void {
     this.movimentForm.controls.movimentAccountId.setValue(account.id);
+    this.rememberSelectedOptions();
   }
 
   protected selectLedgerAccount(account: MovimentOption): void {
     this.movimentForm.controls.ledgerAccountId.setValue(account.id);
+    this.rememberSelectedOptions();
+  }
+
+  protected getLedgerAccountIcon(account: MovimentOption): string {
+    return this.normalizeIcon(account.icon, 'receipt-outline');
+  }
+
+  protected getMovimentAccountIcon(account: MovimentOption): string {
+    return this.normalizeIcon(account.icon, 'card-outline');
+  }
+
+  protected canDeleteMovimentAccount(account: MovimentOption): boolean {
+    return !this.usedMovimentAccountIds.has(account.id);
+  }
+
+  protected canDeleteLedgerAccount(account: MovimentOption): boolean {
+    return !this.usedLedgerAccountIds.has(account.id);
+  }
+
+  protected addMovimentAccount(): void {
+    this.openQuickCreate('account');
+  }
+
+  protected addLedgerAccount(): void {
+    this.openQuickCreate('ledger');
+  }
+
+  protected deleteMovimentAccount(account: MovimentOption, event: Event): void {
+    event.stopPropagation();
+
+    if (!this.canDeleteMovimentAccount(account)) {
+      return;
+    }
+
+    if (!window.confirm(`Excluir a conta "${account.name}"?`)) {
+      return;
+    }
+
+    this.isLoading = true;
+    this.errorMessage = '';
+    this.financeData
+      .deleteMovimentAccount(account.id)
+      .pipe(finalize(() => (this.isLoading = false)))
+      .subscribe({
+        next: () => {
+          if (this.movimentForm.controls.movimentAccountId.value === account.id) {
+            this.movimentForm.controls.movimentAccountId.setValue(0);
+          }
+
+          if (this.getStoredOptionId(this.lastMovimentAccountStorageKey) === account.id) {
+            localStorage.removeItem(this.lastMovimentAccountStorageKey);
+          }
+
+          this.isLoading = false;
+          this.loadMovimentOptions();
+        },
+        error: () => {
+          this.errorMessage = 'Não foi possível excluir a conta.';
+        },
+      });
+  }
+
+  protected deleteLedgerAccount(account: MovimentOption, event: Event): void {
+    event.stopPropagation();
+
+    if (!this.canDeleteLedgerAccount(account)) {
+      return;
+    }
+
+    if (!window.confirm(`Excluir a categoria "${account.name}"?`)) {
+      return;
+    }
+
+    this.isLoading = true;
+    this.errorMessage = '';
+    this.financeData
+      .deleteLedgerAccount(account.id)
+      .pipe(finalize(() => (this.isLoading = false)))
+      .subscribe({
+        next: () => {
+          if (this.movimentForm.controls.ledgerAccountId.value === account.id) {
+            this.movimentForm.controls.ledgerAccountId.setValue(0);
+          }
+
+          if (this.getStoredOptionId(this.lastLedgerAccountStorageKey) === account.id) {
+            localStorage.removeItem(this.lastLedgerAccountStorageKey);
+          }
+
+          this.isLoading = false;
+          this.loadMovimentOptions();
+        },
+        error: () => {
+          this.errorMessage = 'Não foi possível excluir a categoria.';
+        },
+      });
+  }
+
+  protected get debitAccountOptions(): MovimentOption[] {
+    return this.movimentAccounts.filter((account) => {
+      return this.movimentAccountTypes.get(account.id) === 0;
+    });
+  }
+
+  protected getQuickIconLabel(icon: string | null | undefined, fallbackIcon: string): string {
+    const normalizedIcon = this.normalizeIcon(icon, fallbackIcon);
+    return this.iconOptions.find((option) => option.name === normalizedIcon)?.label ?? 'Ícone';
+  }
+
+  protected getQuickIcon(icon: string | null | undefined, fallbackIcon: string): string {
+    return this.normalizeIcon(icon, fallbackIcon);
+  }
+
+  protected toggleQuickIconPicker(target: QuickCreateTarget): void {
+    this.activeQuickIconPicker = this.activeQuickIconPicker === target ? null : target;
+  }
+
+  protected selectQuickIcon(target: QuickCreateTarget, icon: string): void {
+    const normalizedIcon = this.normalizeIcon(icon, target === 'account' ? 'wallet-outline' : 'receipt-outline');
+
+    if (target === 'account') {
+      this.quickAccountForm.controls.icon.setValue(normalizedIcon);
+    } else {
+      this.quickLedgerForm.controls.icon.setValue(normalizedIcon);
+    }
+
+    this.activeQuickIconPicker = null;
+  }
+
+  protected closeQuickCreate(): void {
+    this.quickCreateTarget = null;
+    this.activeQuickIconPicker = null;
+    this.quickAccountForm.reset({
+      description: '',
+      icon: 'wallet-outline',
+      startDate: '',
+      startValue: null,
+      closingDay: null,
+      payDay: null,
+      debitAccount: null,
+      accountType: 0,
+    });
+    this.quickLedgerForm.reset({
+      description: '',
+      icon: 'receipt-outline',
+    });
+  }
+
+  protected saveQuickAccount(): void {
+    this.quickAccountForm.markAllAsTouched();
+    this.errorMessage = '';
+
+    if (this.quickAccountForm.invalid) {
+      this.errorMessage = 'Preencha os campos obrigatórios da conta.';
+      return;
+    }
+
+    const formValue = this.quickAccountForm.getRawValue();
+    const description = formValue.description.trim();
+
+    if (!description) {
+      this.errorMessage = 'Preencha o nome da conta.';
+      return;
+    }
+
+    if (this.hasOptionNamed(this.movimentAccounts, description)) {
+      this.errorMessage = 'Já existe uma conta com este nome.';
+      return;
+    }
+
+    if (formValue.accountType === 1 && (!formValue.payDay || !formValue.debitAccount)) {
+      this.errorMessage = 'Preencha o dia de pagamento e a conta de débito do cartão.';
+      return;
+    }
+
+    this.isSaving = true;
+    this.financeData
+      .saveMovimentAccount('add', {
+        description,
+        icon: this.normalizeIcon(formValue.icon, 'wallet-outline'),
+        start_date: formValue.startDate || null,
+        start_value: formValue.startValue,
+        closing_day: formValue.closingDay,
+        pay_day: formValue.accountType === 1 ? formValue.payDay : null,
+        debit_account: formValue.accountType === 1 ? formValue.debitAccount : null,
+        account_type: formValue.accountType,
+      })
+      .pipe(finalize(() => (this.isSaving = false)))
+      .subscribe({
+        next: () => {
+          this.closeQuickCreate();
+          this.reloadOptionsAndSelect('account', description);
+        },
+        error: () => {
+          this.errorMessage = 'Não foi possível criar a conta.';
+        },
+      });
+  }
+
+  protected saveQuickLedger(): void {
+    this.quickLedgerForm.markAllAsTouched();
+    this.errorMessage = '';
+
+    if (this.quickLedgerForm.invalid) {
+      this.errorMessage = 'Preencha os campos obrigatórios da categoria.';
+      return;
+    }
+
+    const description = this.quickLedgerForm.controls.description.value.trim();
+
+    if (!description) {
+      this.errorMessage = 'Preencha o nome da categoria.';
+      return;
+    }
+
+    if (this.hasOptionNamed(this.ledgerAccounts, description)) {
+      this.errorMessage = 'Já existe uma categoria com este nome.';
+      return;
+    }
+
+    this.isSaving = true;
+    this.financeData
+      .saveLedgerAccount('add', {
+        description,
+        icon: this.normalizeIcon(this.quickLedgerForm.controls.icon.value, 'receipt-outline'),
+      })
+      .pipe(finalize(() => (this.isSaving = false)))
+      .subscribe({
+        next: () => {
+          this.closeQuickCreate();
+          this.reloadOptionsAndSelect('ledger', description);
+        },
+        error: () => {
+          this.errorMessage = 'Não foi possível criar a categoria.';
+        },
+      });
   }
 
   protected setValueSign(sign: -1 | 1): void {
     this.valueSign = sign;
+    this.setSettlementStatus(this.isSettledStatusSelected);
+  }
+
+  protected openQuickCreate(target: QuickCreateTarget): void {
+    this.errorMessage = '';
+    this.activeQuickIconPicker = null;
+    this.quickCreateTarget = target;
   }
 
   protected toggleRecurring(): void {
@@ -265,6 +713,13 @@ export class NewPageComponent implements OnInit, OnDestroy {
       return;
     }
 
+    if (!this.movimentForm.controls.description.value.trim()) {
+      this.errorMessage = 'Preencha a descrição do movimento.';
+      return;
+    }
+
+    this.rememberSelectedOptions();
+
     if (this.isRecurringOpen && !this.isEditMode) {
       this.saveRecurringMoviment();
       return;
@@ -277,9 +732,7 @@ export class NewPageComponent implements OnInit, OnDestroy {
       .pipe(finalize(() => (this.isSaving = false)))
       .subscribe({
         next: (response: MovimentSaveResponse) => {
-          this.storeFinanceFocusTarget(response);
-          sessionStorage.removeItem(this.selectedMovimentStorageKey);
-          void this.router.navigate(['/example/finance']);
+          this.finishMovimentSave(response);
         },
         error: () => {
           this.errorMessage = this.isEditMode
@@ -469,6 +922,21 @@ export class NewPageComponent implements OnInit, OnDestroy {
     return { mode: 'add' };
   }
 
+  private getSourceContext(): NewMovementSource {
+    const historyState = window.history.state as MovimentNavigationState & { sourceRoute?: string };
+    const sourceRoute = historyState.sourceRoute ?? sessionStorage.getItem(this.newMovementSourceStorageKey) ?? '';
+
+    if (sourceRoute.includes('/example/finance')) {
+      return 'finance';
+    }
+
+    if (sourceRoute.includes('/example/dashboard')) {
+      return 'dashboard';
+    }
+
+    return 'generic';
+  }
+
   private getStoredMovimentNavigationState(): MovimentNavigationState {
     const storedState = sessionStorage.getItem(this.selectedMovimentStorageKey);
 
@@ -492,32 +960,44 @@ export class NewPageComponent implements OnInit, OnDestroy {
 
     this.isLoading = true;
 
-    this.financeData
-      .getFinanceSettings()
+    forkJoin({
+      settings: this.financeData.getFinanceSettings(),
+      balances: this.financeData.getBalances(),
+    })
       .pipe(finalize(() => {
         this.isLoading = false;
         this.completeRefresh(refreshEvent);
       }))
       .subscribe({
-        next: (data) => {
+        next: ({ settings, balances }) => {
           const selectedStatusName = this.statusOptions.find(
             (status) => status.id === this.movimentForm.controls.statusId.value,
           )?.name;
+          this.usedMovimentAccountIds = new Set(
+            balances.map((row) => Number(row.moviment_account_id)).filter((id) => id > 0),
+          );
+          this.usedLedgerAccountIds = new Set(
+            balances.map((row) => Number(row.ledger_account_id)).filter((id) => id > 0),
+          );
 
           this.ledgerAccounts = this.mergeOptions(
             this.ledgerAccounts,
-            data.ledgerAccounts.map((row) => this.toOption(row.id, row.description)),
+            settings.ledgerAccounts.map((row) => this.toOption(row.id, row.description, row.icon)),
           );
           this.movimentAccounts = this.mergeOptions(
             this.movimentAccounts,
-            data.accounts.map((row) => this.toOption(row.id, row.description)),
+            settings.accounts.map((row) => this.toOption(row.id, row.description, row.icon)),
+          );
+          this.movimentAccountTypes = new Map(
+            settings.accounts.map((row) => [row.id, row.account_type]),
           );
           this.statusOptions = this.mergeOptions(
             this.statusOptions,
-            data.statuses.map((row) => this.toOption(row.id, row.description)),
+            settings.statuses.map((row) => this.toOption(row.id, row.description, row.icon)),
           );
           this.syncSelectedStatus(selectedStatusName);
           this.applyDefaultOptions();
+          this.scheduleSelectedOptionFocus();
         },
         error: () => {
           this.applyDefaultOptions();
@@ -549,6 +1029,7 @@ export class NewPageComponent implements OnInit, OnDestroy {
     });
     this.valueSign = Number(moviment.value) < 0 ? -1 : 1;
     this.isRecurringOpen = false;
+    this.currentStep = 3;
   }
 
   private resetAddMovimentState(): void {
@@ -561,6 +1042,7 @@ export class NewPageComponent implements OnInit, OnDestroy {
     this.receiptImagePreview = '';
     this.isRecurringOpen = false;
     this.valueSign = -1;
+    this.currentStep = 1;
     this.movimentForm.reset({
       datetime: this.toDatetimeLocalValue(now.toISOString()),
       statusId: this.statusOptions[0]?.id ?? 0,
@@ -582,12 +1064,118 @@ export class NewPageComponent implements OnInit, OnDestroy {
     }
 
     if (!this.movimentForm.controls.movimentAccountId.value && this.movimentAccounts.length > 0) {
-      this.movimentForm.controls.movimentAccountId.setValue(this.movimentAccounts[0].id);
+      this.movimentForm.controls.movimentAccountId.setValue(
+        this.getStoredExistingOptionId(this.lastMovimentAccountStorageKey, this.movimentAccounts)
+          ?? this.movimentAccounts[0].id,
+      );
     }
 
     if (!this.movimentForm.controls.ledgerAccountId.value && this.ledgerAccounts.length > 0) {
-      this.movimentForm.controls.ledgerAccountId.setValue(this.ledgerAccounts[0].id);
+      this.movimentForm.controls.ledgerAccountId.setValue(
+        this.getStoredExistingOptionId(this.lastLedgerAccountStorageKey, this.ledgerAccounts)
+          ?? this.ledgerAccounts[0].id,
+      );
     }
+  }
+
+  private rememberSelectedOptions(): void {
+    const movimentAccountId = this.movimentForm.controls.movimentAccountId.value;
+    const ledgerAccountId = this.movimentForm.controls.ledgerAccountId.value;
+
+    if (movimentAccountId > 0) {
+      localStorage.setItem(this.lastMovimentAccountStorageKey, String(movimentAccountId));
+    }
+
+    if (ledgerAccountId > 0) {
+      localStorage.setItem(this.lastLedgerAccountStorageKey, String(ledgerAccountId));
+    }
+  }
+
+  private getStoredExistingOptionId(key: string, options: MovimentOption[]): number | null {
+    const storedId = this.getStoredOptionId(key);
+
+    return options.some((option) => option.id === storedId) ? storedId : null;
+  }
+
+  private getStoredOptionId(key: string): number {
+    return Number(localStorage.getItem(key)) || 0;
+  }
+
+  private hasOptionNamed(options: MovimentOption[], name: string): boolean {
+    const normalizedName = this.normalizeOptionName(name);
+    return options.some((option) => this.normalizeOptionName(option.name) === normalizedName);
+  }
+
+  private normalizeOptionName(name: string): string {
+    return name
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+      .toLocaleLowerCase('pt-BR');
+  }
+
+  private reloadOptionsAndSelect(kind: 'account' | 'ledger', optionName: string): void {
+    forkJoin({
+      settings: this.financeData.getFinanceSettings(),
+      balances: this.financeData.getBalances(true),
+    }).subscribe({
+      next: ({ settings, balances }) => {
+        this.usedMovimentAccountIds = new Set(
+          balances.map((row) => Number(row.moviment_account_id)).filter((id) => id > 0),
+        );
+        this.usedLedgerAccountIds = new Set(
+          balances.map((row) => Number(row.ledger_account_id)).filter((id) => id > 0),
+        );
+        this.movimentAccounts = settings.accounts.map((row) => this.toOption(row.id, row.description, row.icon));
+        this.ledgerAccounts = settings.ledgerAccounts.map((row) => this.toOption(row.id, row.description, row.icon));
+        this.statusOptions = this.mergeOptions(
+          this.statusOptions,
+          settings.statuses.map((row) => this.toOption(row.id, row.description, row.icon)),
+        );
+        this.movimentAccountTypes = new Map(settings.accounts.map((row) => [row.id, row.account_type]));
+
+        const normalizedName = this.normalizeOptionName(optionName);
+
+        if (kind === 'account') {
+          const createdAccount = this.movimentAccounts.find(
+            (account) => this.normalizeOptionName(account.name) === normalizedName,
+          );
+
+          if (createdAccount) {
+            this.selectMovimentAccount(createdAccount);
+          }
+        } else {
+          const createdLedger = this.ledgerAccounts.find(
+            (account) => this.normalizeOptionName(account.name) === normalizedName,
+          );
+
+          if (createdLedger) {
+            this.selectLedgerAccount(createdLedger);
+          }
+        }
+
+        this.applyDefaultOptions();
+        this.scheduleSelectedOptionFocus();
+      },
+      error: () => {
+        this.errorMessage = kind === 'account'
+          ? 'Conta criada, mas não foi possível atualizar a lista.'
+          : 'Categoria criada, mas não foi possível atualizar a lista.';
+      },
+    });
+  }
+
+  private scheduleSelectedOptionFocus(): void {
+    setTimeout(() => {
+      const hostElement = this.host.nativeElement as HTMLElement;
+
+      hostElement
+        .querySelector('.account-section .option-chip.active')
+        ?.scrollIntoView({ block: 'nearest', inline: 'center' });
+      hostElement
+        .querySelector('.category-section .option-chip.active')
+        ?.scrollIntoView({ block: 'nearest', inline: 'center' });
+    }, 60);
   }
 
   private buildPayload(): MovimentPayload {
@@ -601,6 +1189,95 @@ export class NewPageComponent implements OnInit, OnDestroy {
       status: formValue.statusId,
       value: Math.abs(Number(formValue.value)) * this.valueSign,
     };
+  }
+
+  private finishMovimentSave(response: MovimentSaveResponse): void {
+    this.storeFinanceFocusTarget(response);
+
+    if (!this.isSelectedMovimentCredit()) {
+      this.navigateBackToFinance();
+      return;
+    }
+
+    this.financeData.syncCreditBills(false).subscribe({
+      next: (syncResponse) => this.handleCreditBillSyncResponse(syncResponse),
+      error: () => this.navigateBackToFinance(),
+    });
+  }
+
+  private handleCreditBillSyncResponse(response: CreditBillSyncResponse): void {
+    const missingBills = (response.data?.missingBills ?? [])
+      .filter((bill) => !this.wasCreditBillDeclined(bill));
+
+    if (missingBills.length === 0) {
+      this.navigateBackToFinance();
+      return;
+    }
+
+    const total = missingBills.reduce((sum, bill) => sum + Math.abs(Number(bill.value) || 0), 0);
+    const shouldCreate = window.confirm(
+      `Deseja lançar a fatura do cartão para o próximo mês? Valor: ${this.formatEuro(total)}.`,
+    );
+
+    if (!shouldCreate) {
+      missingBills.forEach((bill) => this.markCreditBillDeclined(bill));
+      this.navigateBackToFinance();
+      return;
+    }
+
+    this.financeData.syncCreditBills(true).subscribe({
+      next: () => this.navigateBackToFinance(),
+      error: () => this.navigateBackToFinance(),
+    });
+  }
+
+  private navigateBackToFinance(): void {
+    sessionStorage.removeItem(this.selectedMovimentStorageKey);
+    void this.router.navigate(['/example/finance']);
+  }
+
+  private isSelectedMovimentCredit(): boolean {
+    const accountId = this.movimentForm.controls.movimentAccountId.value;
+
+    return this.originalMoviment?.account_type === 1 || this.movimentAccountTypes.get(accountId) === 1;
+  }
+
+  private wasCreditBillDeclined(bill: CreditBillSyncMissingBill): boolean {
+    return this.getDeclinedCreditBillKeys().has(this.getCreditBillKey(bill));
+  }
+
+  private markCreditBillDeclined(bill: CreditBillSyncMissingBill): void {
+    const declinedKeys = this.getDeclinedCreditBillKeys();
+    declinedKeys.add(this.getCreditBillKey(bill));
+    sessionStorage.setItem(this.declinedCreditBillStorageKey, JSON.stringify(Array.from(declinedKeys)));
+  }
+
+  private getDeclinedCreditBillKeys(): Set<string> {
+    const storedValue = sessionStorage.getItem(this.declinedCreditBillStorageKey);
+
+    if (!storedValue) {
+      return new Set<string>();
+    }
+
+    try {
+      const parsedValue = JSON.parse(storedValue);
+      return Array.isArray(parsedValue) ? new Set(parsedValue.map(String)) : new Set<string>();
+    } catch {
+      return new Set<string>();
+    }
+  }
+
+  private getCreditBillKey(bill: CreditBillSyncMissingBill): string {
+    return `${bill.account_id}:${bill.cycle_key}`;
+  }
+
+  private formatEuro(value: number): string {
+    return new Intl.NumberFormat('pt-PT', {
+      style: 'currency',
+      currency: 'EUR',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value);
   }
 
   private buildRecurringPayload(): PlanningPayload | null {
@@ -719,15 +1396,21 @@ export class NewPageComponent implements OnInit, OnDestroy {
           return this.toOption(index + 1, option);
         }
 
-        return this.toOption(option.id, option.name);
+        return this.toOption(option.id, option.name, option.icon);
       })
       .filter((option) => option.id > 0 && option.name);
   }
 
-  private toOption(id: number, name: string): MovimentOption {
+  private normalizeIcon(icon: string | null | undefined, fallbackIcon: string): string {
+    const normalizedIcon = (icon ?? '').trim();
+    return this.availableIconNames.has(normalizedIcon) ? normalizedIcon : fallbackIcon;
+  }
+
+  private toOption(id: number, name: string, icon?: string | null): MovimentOption {
     return {
       id: Number(id) || 0,
       name: name?.trim() ?? '',
+      icon: icon ?? null,
     };
   }
 

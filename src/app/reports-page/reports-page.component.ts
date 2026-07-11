@@ -45,6 +45,8 @@ interface CategoryReportRow {
   total: number;
   incomeTotal: number;
   expenseTotal: number;
+  consumedTotal: number;
+  provisionedTotal: number;
   movementCount: number;
   isIncomeCategory: boolean;
 }
@@ -311,6 +313,8 @@ export class ReportsPageComponent implements OnInit {
         total: 0,
         incomeTotal: 0,
         expenseTotal: 0,
+        consumedTotal: 0,
+        provisionedTotal: 0,
         movementCount: 0,
         isIncomeCategory: false,
       };
@@ -318,6 +322,8 @@ export class ReportsPageComponent implements OnInit {
       current.total += value;
       current.incomeTotal += value > 0 ? value : 0;
       current.expenseTotal += value < 0 ? Math.abs(value) : 0;
+      current.consumedTotal += this.isStatus(row, 'consumado') ? value : 0;
+      current.provisionedTotal += this.isStatus(row, 'provisionado') ? value : 0;
       current.movementCount += 1;
       reportMap.set(ledgerAccountId, current);
     });

@@ -48,6 +48,7 @@ interface BalanceEntry {
   name: string;
   value: number;
   accountType: 0 | 1 | null;
+  icon: string;
 }
 
 interface MonthSummary {
@@ -259,13 +260,35 @@ export class FinancePageComponent implements OnInit {
 
   protected isFutureTimelineBreak(monthGroup: MovementMonthGroup, dayIndex: number): boolean {
     const dayGroup = monthGroup.dayGroups[dayIndex];
-    const previousDayGroup = monthGroup.dayGroups[dayIndex - 1];
+    const previousDayGroup = this.getPreviousTimelineDayGroup(monthGroup, dayIndex);
 
     return (
       !!dayGroup &&
+      !!previousDayGroup &&
       dayGroup.dateKey > this.todayDayKey &&
-      (!previousDayGroup || previousDayGroup.dateKey <= this.todayDayKey)
+      previousDayGroup.dateKey <= this.todayDayKey
     );
+  }
+
+  private getPreviousTimelineDayGroup(
+    monthGroup: MovementMonthGroup,
+    dayIndex: number,
+  ): MovementDayGroup | undefined {
+    const previousDayGroup = monthGroup.dayGroups[dayIndex - 1];
+
+    if (previousDayGroup) {
+      return previousDayGroup;
+    }
+
+    const monthIndex = this.timelineMonths.findIndex((month) => month.monthKey === monthGroup.monthKey);
+
+    if (monthIndex <= 0) {
+      return undefined;
+    }
+
+    const previousMonthDayGroups = this.timelineMonths[monthIndex - 1]?.dayGroups ?? [];
+
+    return previousMonthDayGroups[previousMonthDayGroups.length - 1];
   }
 
   protected onTimelineScroll(): void {
@@ -316,6 +339,7 @@ export class FinancePageComponent implements OnInit {
           name: account?.description ?? key,
           value: Number(value) || 0,
           accountType: account?.account_type ?? null,
+          icon: this.normalizeIcon(account?.icon, 'wallet-outline'),
         };
       })
       .sort((left, right) => {

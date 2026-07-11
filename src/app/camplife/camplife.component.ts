@@ -19,7 +19,9 @@ import { Subscription } from 'rxjs';
 })
 export class CamplifeComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
+  private readonly newMovementSourceStorageKey = 'newMovementSourceRoute';
   private routerEventsSubscription?: Subscription;
+  private lastContentRoute = '/example/dashboard';
   protected isFinanceRouteLoading = false;
 
   constructor() {
@@ -37,6 +39,10 @@ export class CamplifeComponent implements OnInit, OnDestroy {
         return;
       }
 
+      if (event instanceof NavigationEnd && !event.urlAfterRedirects.includes('/example/new')) {
+        this.lastContentRoute = event.urlAfterRedirects;
+      }
+
       if (
         event instanceof NavigationEnd ||
         event instanceof NavigationCancel ||
@@ -51,6 +57,17 @@ export class CamplifeComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.routerEventsSubscription?.unsubscribe();
+  }
+
+  protected openNewMovement(event: Event): void {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const sourceRoute = this.router.url.includes('/example/new') ? this.lastContentRoute : this.router.url;
+    sessionStorage.setItem(this.newMovementSourceStorageKey, sourceRoute);
+    void this.router.navigate(['/example/new'], {
+      state: { sourceRoute },
+    });
   }
 
 }
