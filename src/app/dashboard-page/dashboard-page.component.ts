@@ -38,11 +38,13 @@ import { CurrencySettingsService } from '../currency-settings.service';
 import {
   BalanceRow,
   BalanceSnapshot,
+  ContractOnboardingSetup,
   FinanceDataService,
   LedgerAccountSettings,
   MovimentAccountSettings,
   StatusSettings,
 } from '../finance-data.service';
+import { AppNotification, evaluateNotifications } from '../notification-settings';
 
 interface DashboardSummary {
   monthStartBalance: number;
@@ -70,15 +72,6 @@ interface UpcomingMovement {
   value: number;
   balances: BalanceSnapshot;
   accountType: 0 | 1 | null;
-}
-
-interface DashboardNotification {
-  id: string;
-  movement: BalanceRow;
-  title: string;
-  message: string;
-  dueLabel: string;
-  isRead: boolean;
 }
 
 interface CreditSummary {
@@ -135,8 +128,8 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   private dashboardRows: BalanceRow[] = [];
   private readonly notificationReadStorageKey = 'dashboardProvisionNotificationReads';
   private readonly notificationSentStorageKey = 'dashboardProvisionNotificationSent';
-  private readonly notificationLeadTimeMs = 6 * 60 * 60 * 1000;
   private notificationTimers: ReturnType<typeof setTimeout>[] = [];
+  private onboardingSetup: ContractOnboardingSetup | null = null;
 
   private loadedToken = '';
   private loadedBalancesRevision = -1;
@@ -177,7 +170,7 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   protected savingsTrend: SavingsTrendPoint[] = [];
   protected availableMonthOptions: DashboardMonthOption[] = [];
   protected expandedUpcomingMovementIds = new Set<number>();
-  protected dashboardNotifications: DashboardNotification[] = [];
+  protected dashboardNotifications: AppNotification[] = [];
 
   constructor() {
     addIcons({
@@ -228,7 +221,7 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   }
 
   protected get username(): string {
-    return this.auth.user?.username || 'Utilizador';
+    return this.auth.user?.name || this.auth.user?.username || 'Usuário';
   }
 
   protected refreshDashboard(event: CustomEvent): void {
@@ -322,9 +315,6 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     this.isAccountMenuOpen = false;
     this.isMonthPickerOpen = false;
 
-    if (this.isNotificationMenuOpen) {
-      this.markNotificationsAsRead();
-    }
   }
 
   protected selectMonth(option: DashboardMonthOption, event: Event): void {
@@ -466,14 +456,22 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     return { id, name, icon };
   }
 
-  protected openNotificationMovement(notification: DashboardNotification, event?: Event): void {
+  protected openNotificationMovement(notification: AppNotification, event?: Event): void {
     event?.stopPropagation();
+    if (!notification.movement) {
+      return;
+    }
     this.markNotificationAsRead(notification.id);
     this.openEditMoviment(notification.movement);
   }
 
-  protected confirmNotificationMovement(notification: DashboardNotification, event: Event): void {
+  protected confirmNotificationMovement(notification: AppNotification, event: Event): void {
     event.stopPropagation();
+    if (!notification.movement) {
+      this.markNotificationAsRead(notification.id);
+      return;
+    }
+
     const settledStatus = this.getSettledStatusOption();
 
     if (!settledStatus) {
@@ -553,13 +551,15 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     forkJoin({
       balances: this.financeData.getBalances(forceRefresh),
       settings: this.financeData.getFinanceSettings(),
+      onboarding: this.financeData.getContractOnboardingSetup(),
     })
       .pipe(finalize(() => {
         this.isLoading = false;
         this.completeRefresh(refreshEvent);
       }))
       .subscribe({
-        next: ({ balances, settings }) => {
+        next: ({ balances, settings, onboarding }) => {
+          this.onboardingSetup = onboarding;
           this.ledgerAccountOptions = settings.ledgerAccounts;
           this.movimentAccountOptions = settings.accounts;
           this.statusOptions = settings.statuses;
@@ -651,7 +651,7 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
         accountType: row.account_type,
       }));
     this.dashboardNotifications = this.buildDashboardNotifications(validRows);
-    this.scheduleProvisionNotifications(validRows);
+    this.scheduleConfiguredNotifications(validRows);
   }
 
   private completeRefresh(event?: CustomEvent): void {
@@ -659,43 +659,36 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     void refresher?.complete?.();
   }
 
-  private buildDashboardNotifications(rows: BalanceRow[]): DashboardNotification[] {
+  private buildDashboardNotifications(rows: BalanceRow[]): AppNotification[] {
     const readIds = this.getStoredIdSet(this.notificationReadStorageKey);
 
-    return rows
-      .filter((row) => this.isProvisionedNotificationCandidate(row, this.now))
-      .sort((left, right) => this.getTime(left) - this.getTime(right))
-      .map((row) => {
-        const id = this.getProvisionNotificationId(row);
-
-        return {
-          id,
-          movement: row,
-          title: 'Conta perto de ser executada',
-          message: `"${row.description}" está prevista para acontecer em breve.`,
-          dueLabel: this.getFriendlyDateTime(row.datetime),
-          isRead: readIds.has(id),
-        };
-      });
+    return evaluateNotifications({
+      rows,
+      accounts: this.movimentAccountOptions,
+      ledgerAccounts: this.ledgerAccountOptions,
+      onboardingSetup: this.onboardingSetup,
+      readIds,
+      now: this.now,
+    });
   }
 
-  private scheduleProvisionNotifications(rows: BalanceRow[]): void {
+  private scheduleConfiguredNotifications(rows: BalanceRow[]): void {
     this.clearNotificationTimers();
 
     if ('Notification' in window && Notification.permission === 'default') {
       void Notification.requestPermission().then((permission) => {
         if (permission === 'granted') {
-          this.scheduleProvisionNotifications(rows);
+          this.scheduleConfiguredNotifications(rows);
         }
       });
     }
 
     const sentIds = this.getStoredIdSet(this.notificationSentStorageKey);
+    const notifications = this.buildDashboardNotifications(rows);
 
-    rows
-      .filter((row) => this.isStatus(row, 'provisionado'))
-      .forEach((row) => {
-        const notificationTime = this.getTime(row) - this.notificationLeadTimeMs;
+    notifications
+      .forEach((notification) => {
+        const notificationTime = notification.triggerTime ?? this.now.getTime();
         const delay = notificationTime - this.now.getTime();
 
         if (delay > 2_147_483_647) {
@@ -703,39 +696,39 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
         }
 
         if (delay <= 0) {
-          if (this.isProvisionedNotificationCandidate(row, this.now)) {
-            this.publishProvisionNotification(row, sentIds);
-          }
+          this.publishConfiguredNotification(notification, sentIds);
           return;
         }
 
         this.notificationTimers.push(setTimeout(() => {
-          this.publishProvisionNotification(row, this.getStoredIdSet(this.notificationSentStorageKey));
+          this.publishConfiguredNotification(notification, this.getStoredIdSet(this.notificationSentStorageKey));
         }, delay));
       });
   }
 
-  private publishProvisionNotification(row: BalanceRow, sentIds: Set<string>): void {
+  private publishConfiguredNotification(notification: AppNotification, sentIds: Set<string>): void {
     this.now = new Date();
     this.dashboardNotifications = this.buildDashboardNotifications(this.dashboardRows);
-    this.showProvisionSystemNotification(row, sentIds);
+    this.showSystemNotification(notification, sentIds);
   }
 
-  private showProvisionSystemNotification(row: BalanceRow, sentIds: Set<string>): void {
-    const id = this.getProvisionNotificationId(row);
+  private showSystemNotification(notificationData: AppNotification, sentIds: Set<string>): void {
+    const id = notificationData.id;
 
     if (!this.canUseSystemNotifications() || sentIds.has(id)) {
       return;
     }
 
-    const notification = new Notification('Conta perto de ser executada', {
-      body: `${row.description}. Deseja marcar como Consumado?`,
+    const notification = new Notification(notificationData.title, {
+      body: notificationData.message,
       tag: id,
     });
 
     notification.onclick = () => {
       window.focus();
-      this.openEditMoviment(row);
+      if (notificationData.movement) {
+        this.openEditMoviment(notificationData.movement);
+      }
     };
 
     sentIds.add(id);
@@ -759,15 +752,6 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     return false;
   }
 
-  private isProvisionedNotificationCandidate(row: BalanceRow, referenceDate: Date): boolean {
-    const movementTime = this.getTime(row);
-    const nowTime = referenceDate.getTime();
-
-    return this.isStatus(row, 'provisionado') &&
-      movementTime >= nowTime &&
-      movementTime - nowTime <= this.notificationLeadTimeMs;
-  }
-
   private markNotificationsAsRead(): void {
     if (this.dashboardNotifications.length === 0) {
       return;
@@ -788,9 +772,7 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
 
     readIds.add(id);
     this.storeIdSet(this.notificationReadStorageKey, readIds);
-    this.dashboardNotifications = this.dashboardNotifications.map((notification) => {
-      return notification.id === id ? { ...notification, isRead: true } : notification;
-    });
+    this.dashboardNotifications = this.dashboardNotifications.filter((notification) => notification.id !== id);
   }
 
   private getStoredIdSet(key: string): Set<string> {
@@ -803,19 +785,6 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
 
   private storeIdSet(key: string, values: Set<string>): void {
     localStorage.setItem(key, JSON.stringify(Array.from(values)));
-  }
-
-  private getProvisionNotificationId(row: BalanceRow): string {
-    return `${row.id}:${row.datetime}`;
-  }
-
-  private getFriendlyDateTime(datetime: string): string {
-    const date = new Date(datetime);
-
-    return `${this.getFriendlyDate(datetime)}, ${new Intl.DateTimeFormat('pt-PT', {
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(date)}`;
   }
 
   private getFriendlyDate(datetime: string): string {

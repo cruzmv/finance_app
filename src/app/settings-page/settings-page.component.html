@@ -35,10 +35,14 @@
                 <p>{{ notification.message }}</p>
                 <small>{{ notification.dueLabel }}</small>
                 <div>
-                  <button type="button" class="notification-confirm" (click)="confirmNotificationMovement(notification, $event)">
-                    {{ getSettledActionLabel(notification.movement) }}
-                  </button>
-                  <button type="button" class="notification-edit" (click)="openNotificationMovement(notification, $event)">Editar</button>
+                  @if (notification.movement) {
+                    <button type="button" class="notification-confirm" (click)="confirmNotificationMovement(notification, $event)">
+                      {{ getSettledActionLabel(notification.movement) }}
+                    </button>
+                    <button type="button" class="notification-edit" (click)="openNotificationMovement(notification, $event)">Editar</button>
+                  } @else {
+                    <button type="button" class="notification-edit" (click)="confirmNotificationMovement(notification, $event)">Ok</button>
+                  }
                 </div>
               </article>
             } @empty {
@@ -48,25 +52,18 @@
         }
       </header>
 
-      <section class="profile-card">
-        <span class="profile-avatar">{{ userInitials }}</span>
+      <button type="button" class="profile-card" (click)="openProfileView()">
+        <span class="profile-avatar">{{ selectedProfileAvatar.value }}</span>
         <div>
           <strong>{{ username }}</strong>
-          <span>Conta gratuita</span>
+          <span>{{ profileEmail }}</span>
         </div>
         <ion-icon name="chevron-forward-outline"></ion-icon>
-      </section>
-
-      @if (contractJoinCode) {
-        <section class="contract-code-panel">
-          <span>Código para adicionar outro usuário</span>
-          <strong>{{ contractJoinCode }}</strong>
-        </section>
-      }
+      </button>
 
       <section class="settings-menu-card">
         <h2>Gerenciar dados</h2>
-        <button type="button" class="settings-menu-row">
+        <button type="button" class="settings-menu-row" (click)="openProfileView()">
           <span class="row-tile green"><ion-icon name="person-outline"></ion-icon></span>
           <span>
             <strong>Conta</strong>
@@ -98,7 +95,7 @@
           </span>
           <ion-icon name="chevron-forward-outline"></ion-icon>
         </button>
-        <button type="button" class="settings-menu-row">
+        <button type="button" class="settings-menu-row" (click)="openSettingsView('notifications')">
           <span class="row-tile purple"><ion-icon name="notifications-outline"></ion-icon></span>
           <span>
             <strong>Notificações</strong>
@@ -184,9 +181,11 @@
         <div>
           <span>Mais</span>
           <h1>
-            @if (activeTab === 'accounts') { Contas }
-            @if (activeTab === 'ledger') { Categorias }
-            @if (activeTab === 'status') { Status }
+            @if (activeView === 'profile') { Conta }
+            @if (activeView === 'accounts') { Contas }
+            @if (activeView === 'ledger') { Categorias }
+            @if (activeView === 'status') { Status }
+            @if (activeView === 'notifications') { Notificações }
           </h1>
         </div>
       </header>
@@ -202,7 +201,97 @@
       @if (isLoading) {
         <div class="state-block">Carregando configurações...</div>
       } @else {
-        @if (activeTab === 'accounts') {
+        @if (activeView === 'profile') {
+          <section class="settings-panel">
+            <header class="section-toolbar">
+              <div>
+                <h2>Conta</h2>
+                <p>Dados pessoais, acesso e preferências do contrato</p>
+              </div>
+            </header>
+
+            <form class="settings-form account-profile-form" [formGroup]="profileForm" (ngSubmit)="saveProfile()">
+              <div class="profile-preview">
+                <span class="profile-avatar large">{{ selectedProfileAvatar.value }}</span>
+                <div>
+                  <strong>{{ profileForm.controls.name.value || profileForm.controls.username.value || 'Usuário' }}</strong>
+                  <span>{{ profileForm.controls.email.value || 'Email da conta' }}</span>
+                </div>
+              </div>
+
+              <div class="form-grid">
+                <label class="form-field">
+                  <span>Nome</span>
+                  <input type="text" formControlName="name" autocomplete="name" />
+                </label>
+                <label class="form-field">
+                  <span>Usuário</span>
+                  <input type="text" formControlName="username" autocomplete="username" />
+                </label>
+                <label class="form-field full-field">
+                  <span>Email</span>
+                  <input type="email" formControlName="email" autocomplete="email" />
+                </label>
+              </div>
+
+              <label class="form-field">
+                <span>Moeda padrão</span>
+                <select formControlName="currencyCode">
+                  @for (currency of currencyOptions; track currency.code) {
+                    <option [value]="currency.code">{{ currency.symbol }} {{ currency.code }} - {{ currency.label }}</option>
+                  }
+                </select>
+              </label>
+
+              <div class="avatar-picker" role="radiogroup" aria-label="Imagem do perfil">
+                @for (avatar of profileAvatarOptions; track avatar.id) {
+                  <button
+                    type="button"
+                    class="avatar-option"
+                    [class.active]="profileForm.controls.profileAvatar.value === avatar.id"
+                    [attr.aria-checked]="profileForm.controls.profileAvatar.value === avatar.id"
+                    role="radio"
+                    (click)="profileForm.controls.profileAvatar.setValue(avatar.id)"
+                  >
+                    <span>{{ avatar.value }}</span>
+                    <small>{{ avatar.label }}</small>
+                  </button>
+                }
+              </div>
+
+              <button type="submit" class="save-button" [disabled]="isSaving">
+                <ion-icon name="save-outline"></ion-icon>
+                {{ isSaving ? 'Salvando...' : 'Salvar conta' }}
+              </button>
+            </form>
+
+            <form class="settings-form account-profile-form" [formGroup]="passwordForm" (ngSubmit)="changePassword()">
+              <div class="form-title-row">
+                <h2>Trocar senha</h2>
+              </div>
+              <label class="form-field">
+                <span>Senha atual</span>
+                <input type="password" formControlName="currentPassword" autocomplete="current-password" />
+              </label>
+              <div class="form-grid">
+                <label class="form-field">
+                  <span>Nova senha</span>
+                  <input type="password" formControlName="newPassword" autocomplete="new-password" />
+                </label>
+                <label class="form-field">
+                  <span>Confirmar nova senha</span>
+                  <input type="password" formControlName="confirmPassword" autocomplete="new-password" />
+                </label>
+              </div>
+              <button type="submit" class="save-button secondary-save-button" [disabled]="isSavingPassword">
+                <ion-icon name="save-outline"></ion-icon>
+                {{ isSavingPassword ? 'Atualizando...' : 'Atualizar senha' }}
+              </button>
+            </form>
+          </section>
+        }
+
+        @if (activeView === 'accounts') {
           <section class="settings-panel" [class.form-open]="showAccountForm">
             <header class="section-toolbar">
               <div>
@@ -343,7 +432,7 @@
           </section>
         }
 
-        @if (activeTab === 'ledger') {
+        @if (activeView === 'ledger') {
           <section class="settings-panel" [class.form-open]="showLedgerForm">
             <header class="section-toolbar">
               <div>
@@ -426,7 +515,7 @@
           </section>
         }
 
-        @if (activeTab === 'status') {
+        @if (activeView === 'status') {
           <section class="settings-panel" [class.form-open]="showStatusForm">
             <header class="section-toolbar">
               <div>
@@ -502,6 +591,159 @@
                 </article>
               } @empty {
                 <div class="empty-state">Nenhum status cadastrado.</div>
+              }
+            </div>
+          </section>
+        }
+
+        @if (activeView === 'notifications') {
+          <section class="settings-panel notification-settings-panel">
+            <header class="section-toolbar">
+              <div>
+                <h2>Notificações</h2>
+                <p>Alertas salvos no contrato</p>
+              </div>
+              <button type="button" class="new-button" (click)="startNewNotificationRule()">
+                <ion-icon name="add-outline"></ion-icon>
+                Novo
+              </button>
+            </header>
+
+            @if (showNotificationForm) {
+              <form class="settings-form notification-rule-form" [formGroup]="notificationForm" (ngSubmit)="saveNotificationRule()">
+                <div class="form-title-row">
+                  <h2>Nova notificação</h2>
+                  <button type="button" class="icon-button" aria-label="Fechar formulário de notificação" (click)="closeNotificationForm()">
+                    <ion-icon name="close-outline"></ion-icon>
+                  </button>
+                </div>
+
+                <label class="form-field">
+                  <span>Tipo</span>
+                  <select formControlName="type">
+                    @for (option of notificationTypeOptions; track option.value) {
+                      <option [value]="option.value">{{ option.label }}</option>
+                    }
+                  </select>
+                </label>
+
+                @if (notificationForm.controls.type.value === 'movement-due') {
+                  <div class="form-grid">
+                    <label class="form-field">
+                      <span>Movimentos</span>
+                      <select formControlName="direction">
+                        <option value="both">A pagar e a receber</option>
+                        <option value="payable">A pagar</option>
+                        <option value="receivable">A receber</option>
+                      </select>
+                    </label>
+                    <label class="form-field">
+                      <span>Notificar antes</span>
+                      <select formControlName="leadMinutes">
+                        @for (option of notificationLeadOptions; track option.value) {
+                          <option [ngValue]="option.value">{{ option.label }}</option>
+                        }
+                      </select>
+                    </label>
+                  </div>
+                }
+
+                @if (notificationForm.controls.type.value === 'credit-confirmation') {
+                  <label class="form-field">
+                    <span>Notificar depois</span>
+                    <select formControlName="delayMinutes">
+                      @for (option of notificationLeadOptions; track option.value) {
+                        <option [ngValue]="option.value">{{ option.label }}</option>
+                      }
+                    </select>
+                  </label>
+                }
+
+                @if (notificationForm.controls.type.value === 'category-limit') {
+                  <div class="form-grid">
+                    <label class="form-field">
+                      <span>Categoria</span>
+                      <select formControlName="ledgerAccountId">
+                        <option [ngValue]="null">Selecione</option>
+                        @for (ledger of ledgerAccounts; track ledger.id) {
+                          <option [ngValue]="ledger.id">{{ ledger.description }}</option>
+                        }
+                      </select>
+                    </label>
+                    <label class="form-field">
+                      <span>Limite</span>
+                      <input type="number" formControlName="limitValue" step="0.01" inputmode="decimal" />
+                    </label>
+                    <label class="form-field full-field">
+                      <span>Alertar em % do limite</span>
+                      <input type="number" formControlName="thresholdPercent" min="1" max="100" inputmode="numeric" />
+                    </label>
+                  </div>
+                }
+
+                @if (notificationForm.controls.type.value === 'account-limit') {
+                  <div class="form-grid">
+                    <label class="form-field">
+                      <span>Conta</span>
+                      <select formControlName="movimentAccountId">
+                        <option [ngValue]="null">Selecione</option>
+                        @for (account of accounts; track account.id) {
+                          <option [ngValue]="account.id">{{ account.description }}</option>
+                        }
+                      </select>
+                    </label>
+                    <label class="form-field">
+                      <span>Valor base</span>
+                      <input type="number" formControlName="limitValue" step="0.01" inputmode="decimal" />
+                    </label>
+                    <label class="form-field full-field">
+                      <span>Alertar em % do valor</span>
+                      <input type="number" formControlName="thresholdPercent" min="1" max="100" inputmode="numeric" />
+                    </label>
+                  </div>
+                }
+
+                @if (notificationForm.controls.type.value === 'entry-reminder') {
+                  <label class="form-field">
+                    <span>Lembrar a cada</span>
+                    <select formControlName="intervalHours">
+                      @for (option of reminderIntervalOptions; track option.value) {
+                        <option [ngValue]="option.value">{{ option.label }}</option>
+                      }
+                    </select>
+                  </label>
+                }
+
+                <button type="submit" class="save-button" [disabled]="isSaving">
+                  <ion-icon name="save-outline"></ion-icon>
+                  Adicionar notificação
+                </button>
+              </form>
+            }
+
+            <div class="settings-list notification-rule-list">
+              @for (rule of notificationRules; track rule.id) {
+                <article class="settings-row notification-rule-row">
+                  <div class="settings-row-main">
+                    <span class="settings-row-icon">
+                      <ion-icon name="notifications-outline"></ion-icon>
+                    </span>
+                    <div>
+                      <strong>{{ getNotificationRuleTypeLabel(rule) }}</strong>
+                      <span>{{ getNotificationRuleSummary(rule) }}</span>
+                    </div>
+                  </div>
+                  <div class="row-actions">
+                    <button type="button" class="rule-toggle" [class.active]="rule.enabled" (click)="toggleNotificationRule(rule)">
+                      {{ rule.enabled ? 'Ativa' : 'Inativa' }}
+                    </button>
+                    <button type="button" class="icon-button danger" aria-label="Excluir notificação" (click)="deleteNotificationRule(rule)">
+                      <ion-icon name="trash-outline"></ion-icon>
+                    </button>
+                  </div>
+                </article>
+              } @empty {
+                <div class="empty-state">Nenhuma notificação configurada.</div>
               }
             </div>
           </section>

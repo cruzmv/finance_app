@@ -22,7 +22,6 @@ export class RegisterPageComponent {
     email: ['', [Validators.required, Validators.email]],
     username: ['', Validators.required],
     password: ['', [Validators.required, Validators.minLength(8)]],
-    joinCode: [''],
   });
   protected isRegistering = false;
   protected isPasswordVisible = false;
@@ -37,14 +36,14 @@ export class RegisterPageComponent {
     this.errorMessage = '';
 
     if (this.registerForm.invalid) {
-      this.errorMessage = 'Preencha email, utilizador e uma palavra-passe com pelo menos 8 caracteres.';
+      this.errorMessage = 'Preencha email, usuário e uma senha com pelo menos 8 caracteres.';
       return;
     }
 
-    const { email, username, password, joinCode } = this.registerForm.getRawValue();
+    const { email, username, password } = this.registerForm.getRawValue();
     this.isRegistering = true;
     this.auth
-      .register(email.trim(), username.trim(), password, joinCode.trim())
+      .register(email.trim(), username.trim(), password)
       .pipe(finalize(() => (this.isRegistering = false)))
       .subscribe({
         next: () => void this.router.navigate(['/example/setup']),

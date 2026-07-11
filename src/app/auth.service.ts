@@ -8,6 +8,8 @@ export interface AuthUser {
   userId: number;
   contractId: number;
   username: string;
+  name?: string | null;
+  email?: string | null;
 }
 
 interface AuthSession {
@@ -22,6 +24,21 @@ interface AuthResponse {
 interface ContractResponse {
   data: {
     joinCode: string;
+  };
+}
+
+export interface UserProfile {
+  id: number;
+  contractId: number;
+  username: string;
+  email: string | null;
+  name: string | null;
+  hasPassword: boolean;
+}
+
+interface UserProfileResponse {
+  data: {
+    user: UserProfile;
   };
 }
 
@@ -50,9 +67,9 @@ export class AuthService {
       .pipe(tap(({ data }) => this.storeSession(data)));
   }
 
-  register(email: string, username: string, password: string, joinCode: string): Observable<AuthResponse> {
+  register(email: string, username: string, password: string): Observable<AuthResponse> {
     return this.http
-      .post<AuthResponse>(`${this.apiBaseUrl}/auth/register`, { email, username, password, joinCode })
+      .post<AuthResponse>(`${this.apiBaseUrl}/auth/register`, { email, username, password, joinCode: '' })
       .pipe(tap(({ data }) => this.storeSession(data)));
   }
 
@@ -66,6 +83,20 @@ export class AuthService {
     return this.http.get<ContractResponse>(`${this.apiBaseUrl}/auth/contract`);
   }
 
+  getProfile(): Observable<UserProfileResponse> {
+    return this.http.get<UserProfileResponse>(`${this.apiBaseUrl}/auth/me`);
+  }
+
+  updateProfile(payload: { name: string; username: string; email: string }): Observable<UserProfileResponse> {
+    return this.http
+      .post<UserProfileResponse>(`${this.apiBaseUrl}/auth/me`, payload)
+      .pipe(tap(({ data }) => this.patchSessionUser(data.user)));
+  }
+
+  changePassword(payload: { currentPassword: string; newPassword: string }): Observable<unknown> {
+    return this.http.post(`${this.apiBaseUrl}/auth/password`, payload);
+  }
+
   logout(): void {
     localStorage.removeItem(this.sessionStorageKey);
     void this.router.navigate(['/login']);
@@ -73,6 +104,24 @@ export class AuthService {
 
   private storeSession(session: AuthSession): void {
     localStorage.setItem(this.sessionStorageKey, JSON.stringify(session));
+  }
+
+  private patchSessionUser(profile: UserProfile): void {
+    const session = this.getSession();
+
+    if (!session) {
+      return;
+    }
+
+    this.storeSession({
+      ...session,
+      user: {
+        ...session.user,
+        username: profile.username,
+        name: profile.name,
+        email: profile.email,
+      },
+    });
   }
 
   private getSession(): AuthSession | null {

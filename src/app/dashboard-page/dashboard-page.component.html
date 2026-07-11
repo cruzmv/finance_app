@@ -65,20 +65,30 @@
                   <p style="margin-top: 4px; color: var(--muted);">{{ notification.message }}</p>
                   <small style="display: block; color: var(--amber);">{{ notification.dueLabel }}</small>
                   <div style="display: flex; gap: 8px;">
-                    <button
-                      type="button"
-                      style="width: auto; min-height: 32px; padding: 0 10px; background: var(--green); color: #fff;"
-                      (click)="confirmNotificationMovement(notification, $event)"
-                    >
-                      Consumado
-                    </button>
-                    <button
-                      type="button"
-                      style="width: auto; min-height: 32px; padding: 0 10px; background: #edf4f1; color: var(--green-dark);"
-                      (click)="openNotificationMovement(notification, $event)"
-                    >
-                      Editar
-                    </button>
+                    @if (notification.movement) {
+                      <button
+                        type="button"
+                        style="width: auto; min-height: 32px; padding: 0 10px; background: var(--green); color: #fff;"
+                        (click)="confirmNotificationMovement(notification, $event)"
+                      >
+                        Consumado
+                      </button>
+                      <button
+                        type="button"
+                        style="width: auto; min-height: 32px; padding: 0 10px; background: #edf4f1; color: var(--green-dark);"
+                        (click)="openNotificationMovement(notification, $event)"
+                      >
+                        Editar
+                      </button>
+                    } @else {
+                      <button
+                        type="button"
+                        style="width: auto; min-height: 32px; padding: 0 10px; background: #edf4f1; color: var(--green-dark);"
+                        (click)="confirmNotificationMovement(notification, $event)"
+                      >
+                        Ok
+                      </button>
+                    }
                   </div>
                 </div>
               </article>

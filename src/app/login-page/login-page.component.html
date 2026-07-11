@@ -8,22 +8,22 @@
 
       <form [formGroup]="signInForm" (ngSubmit)="signIn()">
         <label>
-          <span>Utilizador</span>
-          <input type="text" formControlName="username" autocomplete="username" placeholder="O seu utilizador">
+          <span>Usuário</span>
+          <input type="text" formControlName="username" autocomplete="username" placeholder="Seu usuário">
         </label>
         <label>
-          <span>Palavra-passe</span>
+          <span>Senha</span>
           <div class="password-field">
             <input
               [type]="isPasswordVisible ? 'text' : 'password'"
               formControlName="password"
               autocomplete="current-password"
-              placeholder="A sua palavra-passe"
+              placeholder="Sua senha"
             >
             <button
               type="button"
               class="password-toggle"
-              [attr.aria-label]="isPasswordVisible ? 'Ocultar palavra-passe' : 'Mostrar palavra-passe'"
+              [attr.aria-label]="isPasswordVisible ? 'Ocultar senha' : 'Mostrar senha'"
               (click)="togglePasswordVisibility()"
             >
               <ion-icon [name]="isPasswordVisible ? 'eye-off-outline' : 'eye-outline'"></ion-icon>
@@ -37,7 +37,7 @@
 
         <button type="submit" class="sign-in-button" [disabled]="isSigningIn">
           <ion-icon name="lock-closed-outline"></ion-icon>
-          {{ isSigningIn ? 'A entrar...' : 'Entrar' }}
+          {{ isSigningIn ? 'Entrando...' : 'Entrar' }}
         </button>
       </form>
 

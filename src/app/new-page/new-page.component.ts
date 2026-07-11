@@ -348,7 +348,7 @@ export class NewPageComponent implements OnInit, OnDestroy {
   }
 
   protected get username(): string {
-    return this.auth.user?.username || 'Utilizador';
+    return this.auth.user?.username || 'Usuário';
   }
 
   protected get selectedMonthSummaryLabel(): string {

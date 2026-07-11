@@ -82,6 +82,7 @@ export interface PlanningSeries {
 }
 
 export interface ContractOnboardingSetup {
+  [key: string]: unknown;
   completed?: boolean;
   completedAt?: string;
   skipped?: boolean;

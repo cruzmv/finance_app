@@ -50,16 +50,28 @@ import {
 import { Observable, finalize, forkJoin } from 'rxjs';
 import {
   BalanceRow,
+  ContractOnboardingSetup,
   FinanceDataService,
   LedgerAccountSettings,
   MovimentAccountSettings,
   StatusSettings,
 } from '../finance-data.service';
-import { AuthService } from '../auth.service';
+import { AuthService, UserProfile } from '../auth.service';
 import { AppCurrencyPipe } from '../app-currency.pipe';
+import { AppCurrencyCode, appCurrencyOptions, CurrencySettingsService } from '../currency-settings.service';
+import {
+  AppNotification,
+  NotificationRule,
+  NotificationRuleType,
+  evaluateNotifications,
+  getNotificationRules,
+  getRuleSummary,
+  getRuleTypeLabel,
+  setNotificationRules,
+} from '../notification-settings';
 
-type SettingsTab = 'accounts' | 'ledger' | 'status';
-type SettingsView = 'menu' | SettingsTab;
+type SettingsTab = 'accounts' | 'ledger' | 'status' | 'notifications';
+type SettingsView = 'menu' | 'profile' | SettingsTab;
 type IconPickerTarget = 'account' | 'ledger' | 'status';
 
 interface IconOption {
@@ -67,13 +79,10 @@ interface IconOption {
   label: string;
 }
 
-interface SettingsNotification {
+interface ProfileAvatarOption {
   id: string;
-  movement: BalanceRow;
-  title: string;
-  message: string;
-  dueLabel: string;
-  isRead: boolean;
+  label: string;
+  value: string;
 }
 
 @Component({
@@ -87,6 +96,7 @@ export class SettingsPageComponent implements OnInit {
   private readonly financeData = inject(FinanceDataService);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly currencySettings = inject(CurrencySettingsService);
   private loadedToken = '';
 
   protected activeView: SettingsView = 'menu';
@@ -94,13 +104,17 @@ export class SettingsPageComponent implements OnInit {
   protected accounts: MovimentAccountSettings[] = [];
   protected ledgerAccounts: LedgerAccountSettings[] = [];
   protected statuses: StatusSettings[] = [];
+  protected profile: UserProfile | null = null;
+  protected onboardingSetup: ContractOnboardingSetup | null = null;
   protected isLoading = false;
   protected isSaving = false;
+  protected isSavingPassword = false;
   protected errorMessage = '';
   protected successMessage = '';
-  protected contractJoinCode = '';
   protected isNotificationMenuOpen = false;
-  protected settingsNotifications: SettingsNotification[] = [];
+  protected settingsNotifications: AppNotification[] = [];
+  protected notificationRules: NotificationRule[] = [];
+  protected showNotificationForm = false;
   protected showAccountForm = false;
   protected showLedgerForm = false;
   protected showStatusForm = false;
@@ -110,7 +124,6 @@ export class SettingsPageComponent implements OnInit {
   protected activeIconPicker: IconPickerTarget | null = null;
   private readonly selectedMovimentStorageKey = 'selectedMoviment';
   private readonly notificationReadStorageKey = 'dashboardProvisionNotificationReads';
-  private readonly notificationLeadTimeMs = 6 * 60 * 60 * 1000;
   private balanceRows: BalanceRow[] = [];
   protected readonly iconOptions: IconOption[] = [
     { name: 'wallet-outline', label: 'Carteira' },
@@ -132,6 +145,35 @@ export class SettingsPageComponent implements OnInit {
     { name: 'time-outline', label: 'Pendente' },
     { name: 'alert-circle-outline', label: 'Atenção' },
   ];
+  protected readonly profileAvatarOptions: ProfileAvatarOption[] = [
+    { id: 'sorriso', label: 'Sorriso', value: '😀' },
+    { id: 'piscadinha', label: 'Piscadinha', value: '😉' },
+    { id: 'oculos', label: 'Óculos', value: '😎' },
+    { id: 'foguinho', label: 'Foguinho', value: '🔥' },
+    { id: 'raio', label: 'Raio', value: '⚡' },
+    { id: 'estrela', label: 'Estrela', value: '⭐' },
+  ];
+  protected readonly currencyOptions = appCurrencyOptions;
+  protected readonly notificationTypeOptions: Array<{ value: NotificationRuleType; label: string }> = [
+    { value: 'movement-due', label: 'A pagar / A receber' },
+    { value: 'credit-confirmation', label: 'Confirmação no crédito' },
+    { value: 'category-limit', label: 'Limite por categoria' },
+    { value: 'account-limit', label: 'Limite por conta' },
+    { value: 'entry-reminder', label: 'Lembrete de lançamentos' },
+  ];
+  protected readonly notificationLeadOptions = [
+    { value: 30, label: '30 min' },
+    { value: 60, label: '1h' },
+    { value: 360, label: '6h' },
+    { value: 720, label: '12h' },
+    { value: 1440, label: '24h' },
+    { value: 2880, label: '48h' },
+  ];
+  protected readonly reminderIntervalOptions = [
+    { value: 6, label: '6h' },
+    { value: 12, label: '12h' },
+    { value: 24, label: '24h' },
+  ];
 
   protected readonly accountForm = this.fb.nonNullable.group({
     description: ['', Validators.required],
@@ -152,6 +194,32 @@ export class SettingsPageComponent implements OnInit {
   protected readonly statusForm = this.fb.nonNullable.group({
     description: ['', Validators.required],
     icon: ['time-outline', Validators.required],
+  });
+
+  protected readonly profileForm = this.fb.nonNullable.group({
+    name: ['', Validators.required],
+    username: ['', Validators.required],
+    email: ['', [Validators.required, Validators.email]],
+    profileAvatar: ['sorriso', Validators.required],
+    currencyCode: ['EUR', Validators.required],
+  });
+
+  protected readonly passwordForm = this.fb.nonNullable.group({
+    currentPassword: [''],
+    newPassword: ['', [Validators.required, Validators.minLength(8)]],
+    confirmPassword: ['', [Validators.required, Validators.minLength(8)]],
+  });
+
+  protected readonly notificationForm = this.fb.nonNullable.group({
+    type: this.fb.nonNullable.control<NotificationRuleType>('movement-due', Validators.required),
+    direction: this.fb.nonNullable.control<'payable' | 'receivable' | 'both'>('both', Validators.required),
+    leadMinutes: this.fb.nonNullable.control(360, Validators.required),
+    delayMinutes: this.fb.nonNullable.control(1440, Validators.required),
+    ledgerAccountId: this.fb.control<number | null>(null),
+    movimentAccountId: this.fb.control<number | null>(null),
+    limitValue: this.fb.control<number | null>(null),
+    thresholdPercent: this.fb.nonNullable.control(80, [Validators.required, Validators.min(1), Validators.max(100)]),
+    intervalHours: this.fb.nonNullable.control(12, Validators.required),
   });
 
   constructor() {
@@ -197,13 +265,11 @@ export class SettingsPageComponent implements OnInit {
 
   ngOnInit() {
     this.loadSettings();
-    this.loadContractJoinCode();
   }
 
   ionViewWillEnter(): void {
     if (this.loadedToken !== this.auth.token) {
       this.loadSettings();
-      this.loadContractJoinCode();
     }
   }
 
@@ -219,6 +285,14 @@ export class SettingsPageComponent implements OnInit {
     this.setActiveTab(view);
   }
 
+  protected openProfileView(): void {
+    this.activeView = 'profile';
+    this.activeIconPicker = null;
+    this.errorMessage = '';
+    this.successMessage = '';
+    this.loadProfile();
+  }
+
   protected backToMenu(): void {
     this.activeView = 'menu';
     this.activeIconPicker = null;
@@ -227,7 +301,11 @@ export class SettingsPageComponent implements OnInit {
   }
 
   protected get username(): string {
-    return this.auth.user?.username || 'Utilizador';
+    return this.auth.user?.name || this.auth.user?.username || 'Usuário';
+  }
+
+  protected get profileEmail(): string {
+    return this.profile?.email || this.auth.user?.email || 'Email da conta';
   }
 
   protected get userInitials(): string {
@@ -243,23 +321,33 @@ export class SettingsPageComponent implements OnInit {
     return this.settingsNotifications.some((notification) => !notification.isRead);
   }
 
+  protected get selectedProfileAvatar(): ProfileAvatarOption {
+    return this.profileAvatarOptions.find((option) => option.id === this.profileForm.controls.profileAvatar.value)
+      ?? this.profileAvatarOptions[0];
+  }
+
   protected toggleNotificationMenu(event: Event): void {
     event.stopPropagation();
     this.isNotificationMenuOpen = !this.isNotificationMenuOpen;
 
-    if (this.isNotificationMenuOpen) {
-      this.markNotificationsAsRead();
-    }
   }
 
-  protected openNotificationMovement(notification: SettingsNotification, event?: Event): void {
+  protected openNotificationMovement(notification: AppNotification, event?: Event): void {
     event?.stopPropagation();
+    if (!notification.movement) {
+      return;
+    }
     this.markNotificationAsRead(notification.id);
     this.openEditMoviment(notification.movement);
   }
 
-  protected confirmNotificationMovement(notification: SettingsNotification, event: Event): void {
+  protected confirmNotificationMovement(notification: AppNotification, event: Event): void {
     event.stopPropagation();
+    if (!notification.movement) {
+      this.markNotificationAsRead(notification.id);
+      return;
+    }
+
     const settledStatus = this.getSettledStatusOption();
 
     if (!settledStatus) {
@@ -579,12 +667,186 @@ export class SettingsPageComponent implements OnInit {
     this.loadSettings(event);
   }
 
+  protected saveProfile(): void {
+    this.profileForm.markAllAsTouched();
+    this.errorMessage = '';
+    this.successMessage = '';
+
+    if (this.profileForm.invalid) {
+      this.errorMessage = 'Preencha nome, usuário e email.';
+      return;
+    }
+
+    const formValue = this.profileForm.getRawValue();
+    const onboardingSetup = {
+      ...(this.onboardingSetup ?? {}),
+      answers: {
+        ...this.getOnboardingAnswers(this.onboardingSetup),
+        currencyCode: formValue.currencyCode,
+      },
+      profileAvatar: formValue.profileAvatar,
+    };
+
+    this.isSaving = true;
+    forkJoin({
+      profile: this.auth.updateProfile({
+        name: formValue.name.trim(),
+        username: formValue.username.trim(),
+        email: formValue.email.trim(),
+      }),
+      onboarding: this.financeData.saveContractOnboardingSetup(onboardingSetup),
+    })
+      .pipe(finalize(() => (this.isSaving = false)))
+      .subscribe({
+        next: ({ profile, onboarding }) => {
+          this.profile = profile.data.user;
+          this.onboardingSetup = onboarding;
+          this.currencySettings.setCurrency(formValue.currencyCode);
+          this.successMessage = 'Conta salva.';
+        },
+        error: (error) => {
+          this.errorMessage = error.error?.message ?? 'Não foi possível salvar a conta.';
+        },
+      });
+  }
+
+  protected changePassword(): void {
+    this.passwordForm.markAllAsTouched();
+    this.errorMessage = '';
+    this.successMessage = '';
+
+    const { currentPassword, newPassword, confirmPassword } = this.passwordForm.getRawValue();
+
+    if (this.passwordForm.invalid || newPassword.length < 8) {
+      this.errorMessage = 'A nova senha precisa ter pelo menos 8 caracteres.';
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      this.errorMessage = 'A confirmação da senha não confere.';
+      return;
+    }
+
+    this.isSavingPassword = true;
+    this.auth.changePassword({ currentPassword, newPassword })
+      .pipe(finalize(() => (this.isSavingPassword = false)))
+      .subscribe({
+        next: () => {
+          this.passwordForm.reset({ currentPassword: '', newPassword: '', confirmPassword: '' });
+          this.successMessage = 'Senha atualizada.';
+          this.loadProfile();
+        },
+        error: (error) => {
+          this.errorMessage = error.error?.message ?? 'Não foi possível alterar a senha.';
+        },
+      });
+  }
+
   protected logout(): void {
     this.auth.logout();
   }
 
   protected openRecurringMovements(): void {
     void this.router.navigate(['/example/planning']);
+  }
+
+  protected startNewNotificationRule(): void {
+    this.resetNotificationForm();
+    this.showNotificationForm = true;
+  }
+
+  protected closeNotificationForm(): void {
+    this.resetNotificationForm();
+    this.showNotificationForm = false;
+  }
+
+  protected saveNotificationRule(): void {
+    this.notificationForm.markAllAsTouched();
+    this.errorMessage = '';
+    this.successMessage = '';
+
+    if (this.notificationForm.invalid) {
+      this.errorMessage = 'Preencha os campos da notificação.';
+      return;
+    }
+
+    const formValue = this.notificationForm.getRawValue();
+    const rule: NotificationRule = {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      type: formValue.type,
+      enabled: true,
+    };
+
+    if (formValue.type === 'movement-due') {
+      rule.direction = formValue.direction;
+      rule.leadMinutes = formValue.leadMinutes;
+    } else if (formValue.type === 'credit-confirmation') {
+      rule.delayMinutes = formValue.delayMinutes;
+    } else if (formValue.type === 'category-limit') {
+      if (!formValue.ledgerAccountId || !formValue.limitValue) {
+        this.errorMessage = 'Escolha a categoria e o limite.';
+        return;
+      }
+      rule.ledgerAccountId = formValue.ledgerAccountId;
+      rule.limitValue = formValue.limitValue;
+      rule.thresholdPercent = formValue.thresholdPercent;
+    } else if (formValue.type === 'account-limit') {
+      if (!formValue.movimentAccountId || !formValue.limitValue) {
+        this.errorMessage = 'Escolha a conta e o limite.';
+        return;
+      }
+      rule.movimentAccountId = formValue.movimentAccountId;
+      rule.limitValue = formValue.limitValue;
+      rule.thresholdPercent = formValue.thresholdPercent;
+    } else {
+      rule.intervalHours = formValue.intervalHours;
+    }
+
+    this.saveNotificationRules([...this.notificationRules, rule], 'Notificação adicionada.', () => {
+      this.closeNotificationForm();
+    });
+  }
+
+  protected toggleNotificationRule(rule: NotificationRule): void {
+    const rules = this.notificationRules.map((item) => {
+      return item.id === rule.id ? { ...item, enabled: !item.enabled } : item;
+    });
+
+    this.saveNotificationRules(rules, 'Notificação atualizada.', () => undefined);
+  }
+
+  protected deleteNotificationRule(rule: NotificationRule): void {
+    if (!window.confirm(`Excluir a notificação "${this.getNotificationRuleTypeLabel(rule)}"?`)) {
+      return;
+    }
+
+    this.saveNotificationRules(
+      this.notificationRules.filter((item) => item.id !== rule.id),
+      'Notificação excluída.',
+      () => undefined,
+    );
+  }
+
+  protected getNotificationRuleTypeLabel(rule: NotificationRule): string {
+    return getRuleTypeLabel(rule.type);
+  }
+
+  protected getNotificationRuleSummary(rule: NotificationRule): string {
+    return getRuleSummary(rule, this.accounts, this.ledgerAccounts);
+  }
+
+  protected resetNotificationForm(): void {
+    this.notificationForm.reset({
+      type: 'movement-due',
+      direction: 'both',
+      leadMinutes: 360,
+      delayMinutes: 1440,
+      ledgerAccountId: null,
+      movimentAccountId: null,
+      limitValue: null,
+      thresholdPercent: 80,
+      intervalHours: 12,
+    });
   }
 
   protected closeAccountForm(): void {
@@ -613,6 +875,8 @@ export class SettingsPageComponent implements OnInit {
     this.errorMessage = '';
 
     forkJoin({
+      profile: this.auth.getProfile(),
+      onboarding: this.financeData.getContractOnboardingSetup(),
       settings: this.financeData.getFinanceSettings(),
       balances: this.financeData.getBalances(true),
     })
@@ -621,12 +885,16 @@ export class SettingsPageComponent implements OnInit {
         this.completeRefresh(refreshEvent);
       }))
       .subscribe({
-        next: ({ settings, balances }) => {
+        next: ({ profile, onboarding, settings, balances }) => {
+          this.profile = profile.data.user;
+          this.onboardingSetup = onboarding;
+          this.patchProfileForms(profile.data.user, onboarding);
           this.accounts = settings.accounts;
           this.ledgerAccounts = settings.ledgerAccounts;
           this.statuses = settings.statuses;
           this.balanceRows = balances;
-          this.settingsNotifications = this.buildSettingsNotifications(balances);
+          this.notificationRules = getNotificationRules(onboarding);
+          this.settingsNotifications = this.buildSettingsNotifications(balances, onboarding);
         },
         error: () => {
           this.errorMessage = 'Não foi possível carregar as configurações.';
@@ -634,12 +902,57 @@ export class SettingsPageComponent implements OnInit {
       });
   }
 
-  private loadContractJoinCode(): void {
-    this.auth.getContractJoinCode().subscribe({
-      next: ({ data }) => {
-        this.contractJoinCode = data.joinCode;
-      },
+  private loadProfile(): void {
+    this.isLoading = true;
+    this.errorMessage = '';
+
+    forkJoin({
+      profile: this.auth.getProfile(),
+      onboarding: this.financeData.getContractOnboardingSetup(),
+    })
+      .pipe(finalize(() => (this.isLoading = false)))
+      .subscribe({
+        next: ({ profile, onboarding }) => {
+          this.profile = profile.data.user;
+          this.onboardingSetup = onboarding;
+          this.patchProfileForms(profile.data.user, onboarding);
+        },
+        error: () => {
+          this.errorMessage = 'Não foi possível carregar os dados da conta.';
+        },
+      });
+  }
+
+  private patchProfileForms(profile: UserProfile, onboarding: ContractOnboardingSetup | null): void {
+    const avatar = this.getProfileAvatarId(onboarding);
+
+    this.profileForm.patchValue({
+      name: profile.name || profile.username || '',
+      username: profile.username || '',
+      email: profile.email || '',
+      profileAvatar: avatar,
+      currencyCode: this.getOnboardingCurrencyCode(onboarding),
     });
+  }
+
+  private getProfileAvatarId(onboarding: ContractOnboardingSetup | null): string {
+    const value = onboarding && typeof onboarding === 'object' && 'profileAvatar' in onboarding
+      ? String((onboarding as ContractOnboardingSetup & { profileAvatar?: unknown }).profileAvatar ?? '')
+      : '';
+
+    return this.profileAvatarOptions.some((option) => option.id === value) ? value : this.profileAvatarOptions[0].id;
+  }
+
+  private getOnboardingCurrencyCode(onboarding: ContractOnboardingSetup | null): AppCurrencyCode {
+    const value = String(this.getOnboardingAnswers(onboarding)['currencyCode'] ?? '');
+    return this.currencyOptions.some((option) => option.code === value) ? value : this.currencySettings.currencyCode;
+  }
+
+  private getOnboardingAnswers(onboarding: ContractOnboardingSetup | null): Record<string, unknown> {
+    const answers = onboarding?.answers;
+    return answers && typeof answers === 'object' && !Array.isArray(answers)
+      ? answers as Record<string, unknown>
+      : {};
   }
 
   private completeRefresh(event?: CustomEvent): void {
@@ -665,25 +978,37 @@ export class SettingsPageComponent implements OnInit {
       });
   }
 
-  private buildSettingsNotifications(rows: BalanceRow[]): SettingsNotification[] {
-    const readIds = this.getStoredIdSet(this.notificationReadStorageKey);
-    const now = new Date();
+  private saveNotificationRules(rules: NotificationRule[], message: string, afterSave: () => void): void {
+    const onboardingSetup = setNotificationRules(this.onboardingSetup, rules);
 
-    return rows
-      .filter((row) => this.isProvisionedNotificationCandidate(row, now))
-      .sort((left, right) => this.getTime(left) - this.getTime(right))
-      .map((row) => {
-        const id = this.getProvisionNotificationId(row);
-
-        return {
-          id,
-          movement: row,
-          title: 'Conta perto de ser executada',
-          message: `"${row.description}" está prevista para acontecer em breve.`,
-          dueLabel: this.getFriendlyDateTime(row.datetime),
-          isRead: readIds.has(id),
-        };
+    this.isSaving = true;
+    this.financeData.saveContractOnboardingSetup(onboardingSetup)
+      .pipe(finalize(() => (this.isSaving = false)))
+      .subscribe({
+        next: (savedSetup) => {
+          this.onboardingSetup = savedSetup;
+          this.notificationRules = getNotificationRules(savedSetup);
+          this.settingsNotifications = this.buildSettingsNotifications(this.balanceRows, savedSetup);
+          this.successMessage = message;
+          afterSave();
+        },
+        error: () => {
+          this.errorMessage = 'Não foi possível salvar as notificações.';
+        },
       });
+  }
+
+  private buildSettingsNotifications(rows: BalanceRow[], onboardingSetup: ContractOnboardingSetup | null): AppNotification[] {
+    const readIds = this.getStoredIdSet(this.notificationReadStorageKey);
+
+    return evaluateNotifications({
+      rows,
+      accounts: this.accounts,
+      ledgerAccounts: this.ledgerAccounts,
+      onboardingSetup,
+      readIds,
+      now: new Date(),
+    });
   }
 
   private openEditMoviment(row: BalanceRow): void {
@@ -704,15 +1029,6 @@ export class SettingsPageComponent implements OnInit {
 
   private toOption(id: number, name: string, icon?: string | null) {
     return { id, name, icon };
-  }
-
-  private isProvisionedNotificationCandidate(row: BalanceRow, referenceDate: Date): boolean {
-    const movementTime = this.getTime(row);
-    const nowTime = referenceDate.getTime();
-
-    return this.isStatus(row, 'provisionado') &&
-      movementTime >= nowTime &&
-      movementTime - nowTime <= this.notificationLeadTimeMs;
   }
 
   private getSettledStatusOption(): StatusSettings | undefined {
@@ -745,24 +1061,6 @@ export class SettingsPageComponent implements OnInit {
     return new Date(row.datetime).getTime();
   }
 
-  private getProvisionNotificationId(row: BalanceRow): string {
-    return `${row.id}:${row.datetime}`;
-  }
-
-  private getFriendlyDateTime(datetime: string): string {
-    const date = new Date(datetime);
-    const dateLabel = new Intl.DateTimeFormat('pt-PT', {
-      day: '2-digit',
-      month: 'short',
-    }).format(date);
-    const timeLabel = new Intl.DateTimeFormat('pt-PT', {
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(date);
-
-    return `${dateLabel}, ${timeLabel}`;
-  }
-
   private markNotificationsAsRead(): void {
     if (this.settingsNotifications.length === 0) {
       return;
@@ -783,9 +1081,7 @@ export class SettingsPageComponent implements OnInit {
 
     readIds.add(id);
     this.storeIdSet(this.notificationReadStorageKey, readIds);
-    this.settingsNotifications = this.settingsNotifications.map((notification) => {
-      return notification.id === id ? { ...notification, isRead: true } : notification;
-    });
+    this.settingsNotifications = this.settingsNotifications.filter((notification) => notification.id !== id);
   }
 
   private getStoredIdSet(key: string): Set<string> {

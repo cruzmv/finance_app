@@ -4,7 +4,7 @@
       <img class="brand-icon" src="assets/icon/salarium-icon-source.png" alt="Ícone SalariuM">
       <p class="eyebrow">SalariuM</p>
       <h1>Criar conta</h1>
-      <p class="subtitle">Comece um novo espaço financeiro ou junte-se a alguém da sua família.</p>
+      <p class="subtitle">Comece seu espaço financeiro.</p>
 
       <form [formGroup]="registerForm" (ngSubmit)="register()">
         <label>
@@ -12,11 +12,11 @@
           <input type="email" formControlName="email" autocomplete="email" placeholder="nome@exemplo.com">
         </label>
         <label>
-          <span>Utilizador</span>
-          <input type="text" formControlName="username" autocomplete="username" placeholder="Escolha um utilizador">
+          <span>Usuário</span>
+          <input type="text" formControlName="username" autocomplete="username" placeholder="Escolha um usuário">
         </label>
         <label>
-          <span>Palavra-passe</span>
+          <span>Senha</span>
           <div class="password-field">
             <input
               [type]="isPasswordVisible ? 'text' : 'password'"
@@ -27,26 +27,20 @@
             <button
               type="button"
               class="password-toggle"
-              [attr.aria-label]="isPasswordVisible ? 'Ocultar palavra-passe' : 'Mostrar palavra-passe'"
+              [attr.aria-label]="isPasswordVisible ? 'Ocultar senha' : 'Mostrar senha'"
               (click)="togglePasswordVisibility()"
             >
               <ion-icon [name]="isPasswordVisible ? 'eye-off-outline' : 'eye-outline'"></ion-icon>
             </button>
           </div>
         </label>
-        <label>
-          <span>Código de contrato <small>opcional</small></span>
-          <input type="text" formControlName="joinCode" autocomplete="off" placeholder="Para juntar-se a um contrato existente">
-        </label>
-        <p class="contract-hint">Deixe o código vazio para criar um novo contrato automaticamente.</p>
-
         @if (errorMessage) {
           <p class="error-message">{{ errorMessage }}</p>
         }
 
         <button type="submit" class="register-button" [disabled]="isRegistering">
           <ion-icon name="person-add-outline"></ion-icon>
-          {{ isRegistering ? 'A criar...' : 'Criar conta' }}
+          {{ isRegistering ? 'Criando...' : 'Criar conta' }}
         </button>
       </form>
 

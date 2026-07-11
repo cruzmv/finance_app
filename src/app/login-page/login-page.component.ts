@@ -71,7 +71,7 @@ export class LoginPageComponent implements OnInit {
     this.errorMessage = '';
 
     if (this.signInForm.invalid) {
-      this.errorMessage = 'Preencha o utilizador e a palavra-passe.';
+      this.errorMessage = 'Preencha o usuário e a senha.';
       return;
     }
 
@@ -83,7 +83,7 @@ export class LoginPageComponent implements OnInit {
       .subscribe({
         next: () => this.navigateAfterSignIn(),
         error: () => {
-          this.errorMessage = 'Utilizador ou palavra-passe inválidos.';
+          this.errorMessage = 'Usuário ou senha inválidos.';
         },
       });
   }
