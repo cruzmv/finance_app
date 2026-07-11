@@ -59,6 +59,7 @@ import {
   FinanceDataService,
   PlanningPayload,
 } from '../finance-data.service';
+import { CurrencySettingsService } from '../currency-settings.service';
 
 interface MovimentOption {
   id: number;
@@ -129,6 +130,7 @@ export class NewPageComponent implements OnInit, OnDestroy {
   private readonly auth = inject(AuthService);
   private readonly http = inject(HttpClient);
   private readonly financeData = inject(FinanceDataService);
+  private readonly currencySettings = inject(CurrencySettingsService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly platform = inject(Platform);
@@ -395,6 +397,10 @@ export class NewPageComponent implements OnInit, OnDestroy {
     return this.isSettledStatusSelected ? this.settledStatusLabel : this.pendingStatusLabel;
   }
 
+  protected get currencySymbol(): string {
+    return this.currencySettings.option.symbol;
+  }
+
   protected setSettlementStatus(isSettled: boolean): void {
     const status = isSettled ? this.getSettledStatusOption() : this.getPendingStatusOption();
 
@@ -484,6 +490,9 @@ export class NewPageComponent implements OnInit, OnDestroy {
             this.movimentForm.controls.movimentAccountId.setValue(0);
           }
 
+          this.movimentAccounts = this.movimentAccounts.filter((item) => item.id !== account.id);
+          this.movimentAccountTypes.delete(account.id);
+
           if (this.getStoredOptionId(this.lastMovimentAccountStorageKey) === account.id) {
             localStorage.removeItem(this.lastMovimentAccountStorageKey);
           }
@@ -518,6 +527,8 @@ export class NewPageComponent implements OnInit, OnDestroy {
           if (this.movimentForm.controls.ledgerAccountId.value === account.id) {
             this.movimentForm.controls.ledgerAccountId.setValue(0);
           }
+
+          this.ledgerAccounts = this.ledgerAccounts.filter((item) => item.id !== account.id);
 
           if (this.getStoredOptionId(this.lastLedgerAccountStorageKey) === account.id) {
             localStorage.removeItem(this.lastLedgerAccountStorageKey);
@@ -1272,12 +1283,7 @@ export class NewPageComponent implements OnInit, OnDestroy {
   }
 
   private formatEuro(value: number): string {
-    return new Intl.NumberFormat('pt-PT', {
-      style: 'currency',
-      currency: 'EUR',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(value);
+    return this.currencySettings.format(value);
   }
 
   private buildRecurringPayload(): PlanningPayload | null {

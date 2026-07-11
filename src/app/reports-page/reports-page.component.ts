@@ -1,4 +1,4 @@
-import { CommonModule, CurrencyPipe } from '@angular/common';
+import { CommonModule } from '@angular/common';
 import { Component, HostListener, OnInit, inject } from '@angular/core';
 import { IonContent, IonIcon, IonRefresher, IonRefresherContent } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
@@ -37,6 +37,7 @@ import {
   LedgerAccountSettings,
   MovimentAccountSettings,
 } from '../finance-data.service';
+import { AppCurrencyPipe } from '../app-currency.pipe';
 
 interface CategoryReportRow {
   ledgerAccountId: number;
@@ -61,11 +62,14 @@ interface ReportMonthOption {
   selector: 'app-reports-page',
   templateUrl: './reports-page.component.html',
   styleUrls: ['./reports-page.component.scss'],
-  imports: [CommonModule, CurrencyPipe, IonContent, IonIcon, IonRefresher, IonRefresherContent],
+  imports: [CommonModule, AppCurrencyPipe, IonContent, IonIcon, IonRefresher, IonRefresherContent],
 })
 export class ReportsPageComponent implements OnInit {
   private readonly financeData = inject(FinanceDataService);
   private readonly now = new Date();
+  private readonly monthSwipeThreshold = 48;
+  private monthSwipeStartX = 0;
+  private monthSwipeStartY = 0;
   private rows: BalanceRow[] = [];
   private ledgerAccounts = new Map<number, LedgerAccountSettings>();
   private accountById = new Map<string, MovimentAccountSettings>();
@@ -216,6 +220,14 @@ export class ReportsPageComponent implements OnInit {
     );
   }
 
+  protected getConsumedStatusLabel(value: number): string {
+    return value >= 0 ? 'Recebido' : 'Pago';
+  }
+
+  protected getProvisionedStatusLabel(value: number): string {
+    return value >= 0 ? 'A receber' : 'A pagar';
+  }
+
   protected get cashExpenseTotal(): number {
     return this.getSelectedMonthRows()
       .filter((row) => Number(row.value) < 0 && row.account_type !== 1)
@@ -244,6 +256,34 @@ export class ReportsPageComponent implements OnInit {
     );
     this.isMonthPickerOpen = false;
     this.buildCategoryRows();
+  }
+
+  protected startMonthSwipe(event: TouchEvent): void {
+    const touch = event.changedTouches.item(0);
+    if (!touch) {
+      return;
+    }
+
+    this.monthSwipeStartX = touch.clientX;
+    this.monthSwipeStartY = touch.clientY;
+  }
+
+  protected finishMonthSwipe(event: TouchEvent): void {
+    const touch = event.changedTouches.item(0);
+    if (!touch) {
+      return;
+    }
+
+    const deltaX = touch.clientX - this.monthSwipeStartX;
+    const deltaY = touch.clientY - this.monthSwipeStartY;
+    const isHorizontalSwipe =
+      Math.abs(deltaX) >= this.monthSwipeThreshold && Math.abs(deltaY) <= Math.abs(deltaX) * 0.75;
+
+    if (!isHorizontalSwipe) {
+      return;
+    }
+
+    this.changeSelectedMonth(deltaX < 0 ? 1 : -1);
   }
 
   protected toggleMonthPicker(event: Event): void {

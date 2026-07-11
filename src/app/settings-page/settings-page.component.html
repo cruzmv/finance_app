@@ -4,405 +4,508 @@
   </ion-refresher>
 
   <div class="settings-page">
-    <header class="settings-header">
-      <div>
-        <h1>Mais</h1>
-        <p>Configurações financeiras</p>
-      </div>
-      <button type="button" class="logout-button" (click)="logout()">
-        <ion-icon name="log-out-outline"></ion-icon>
-        Sair
-      </button>
-    </header>
+    @if (activeView === 'menu') {
+      <header class="settings-hero">
+        <div>
+          <h1>Mais</h1>
+          <p>Gerencie sua conta e preferências</p>
+        </div>
+        <button
+          type="button"
+          class="hero-notification-button"
+          aria-label="Notificações"
+          aria-haspopup="menu"
+          [attr.aria-expanded]="isNotificationMenuOpen"
+          (click)="toggleNotificationMenu($event)"
+        >
+          <ion-icon name="notifications-outline"></ion-icon>
+          @if (hasUnreadNotifications) {
+            <span aria-hidden="true"></span>
+          }
+        </button>
 
-    @if (contractJoinCode) {
-      <section class="contract-code-panel">
-        <span>Código para adicionar outro usuário</span>
-        <strong>{{ contractJoinCode }}</strong>
+        @if (isNotificationMenuOpen) {
+          <div class="settings-notification-menu" role="menu" (click)="$event.stopPropagation()">
+            <header>
+              <strong>Notificações</strong>
+            </header>
+            @for (notification of settingsNotifications; track notification.id) {
+              <article class="settings-notification-item" role="menuitem" tabindex="0" (click)="openNotificationMovement(notification, $event)" (keydown.enter)="openNotificationMovement(notification, $event)">
+                <strong>{{ notification.title }}</strong>
+                <p>{{ notification.message }}</p>
+                <small>{{ notification.dueLabel }}</small>
+                <div>
+                  <button type="button" class="notification-confirm" (click)="confirmNotificationMovement(notification, $event)">
+                    {{ getSettledActionLabel(notification.movement) }}
+                  </button>
+                  <button type="button" class="notification-edit" (click)="openNotificationMovement(notification, $event)">Editar</button>
+                </div>
+              </article>
+            } @empty {
+              <p class="empty-notifications">Sem notificações pendentes.</p>
+            }
+          </div>
+        }
+      </header>
+
+      <section class="profile-card">
+        <span class="profile-avatar">{{ userInitials }}</span>
+        <div>
+          <strong>{{ username }}</strong>
+          <span>Conta gratuita</span>
+        </div>
+        <ion-icon name="chevron-forward-outline"></ion-icon>
       </section>
-    }
 
-    <nav class="settings-options" aria-label="Seções de configurações">
-      <button
-        type="button"
-        class="settings-option"
-        [class.active]="activeTab === 'accounts'"
-        (click)="setActiveTab('accounts')"
-      >
-        <span class="settings-option-icon">
-          <ion-icon name="wallet-outline"></ion-icon>
-        </span>
-        <span>
-          <strong>Contas</strong>
-          <small>Carteiras, bancos e cartões</small>
-        </span>
-      </button>
+      @if (contractJoinCode) {
+        <section class="contract-code-panel">
+          <span>Código para adicionar outro usuário</span>
+          <strong>{{ contractJoinCode }}</strong>
+        </section>
+      }
 
-      <button
-        type="button"
-        class="settings-option"
-        [class.active]="activeTab === 'ledger'"
-        (click)="setActiveTab('ledger')"
-      >
-        <span class="settings-option-icon">
-          <ion-icon name="receipt-outline"></ion-icon>
-        </span>
-        <span>
-          <strong>Categorias</strong>
-          <small>Entradas, saídas e grupos</small>
-        </span>
-      </button>
+      <section class="settings-menu-card">
+        <h2>Gerenciar dados</h2>
+        <button type="button" class="settings-menu-row">
+          <span class="row-tile green"><ion-icon name="person-outline"></ion-icon></span>
+          <span>
+            <strong>Conta</strong>
+            <small>Seus dados pessoais e de acesso</small>
+          </span>
+          <ion-icon name="chevron-forward-outline"></ion-icon>
+        </button>
+        <button type="button" class="settings-menu-row" (click)="openSettingsView('accounts')">
+          <span class="row-tile green"><ion-icon name="business-outline"></ion-icon></span>
+          <span>
+            <strong>Contas</strong>
+            <small>Carteiras, bancos e cartões</small>
+          </span>
+          <ion-icon name="chevron-forward-outline"></ion-icon>
+        </button>
+        <button type="button" class="settings-menu-row" (click)="openSettingsView('ledger')">
+          <span class="row-tile amber"><ion-icon name="pricetag-outline"></ion-icon></span>
+          <span>
+            <strong>Categorias</strong>
+            <small>Entradas, saídas e grupos</small>
+          </span>
+          <ion-icon name="chevron-forward-outline"></ion-icon>
+        </button>
+        <button type="button" class="settings-menu-row" (click)="openRecurringMovements()">
+          <span class="row-tile blue"><ion-icon name="repeat-outline"></ion-icon></span>
+          <span>
+            <strong>Recorrências</strong>
+            <small>Séries e lançamentos recorrentes</small>
+          </span>
+          <ion-icon name="chevron-forward-outline"></ion-icon>
+        </button>
+        <button type="button" class="settings-menu-row">
+          <span class="row-tile purple"><ion-icon name="notifications-outline"></ion-icon></span>
+          <span>
+            <strong>Notificações</strong>
+            <small>Alertas e lembretes importantes</small>
+          </span>
+          <ion-icon name="chevron-forward-outline"></ion-icon>
+        </button>
+      </section>
 
-      <button
-        type="button"
-        class="settings-option"
-        [class.active]="activeTab === 'status'"
-        (click)="setActiveTab('status')"
-      >
-        <span class="settings-option-icon">
-          <ion-icon name="time-outline"></ion-icon>
-        </span>
-        <span>
-          <strong>Status</strong>
-          <small>Consumado e provisionado</small>
-        </span>
-      </button>
+      <section class="settings-menu-card">
+        <h2>Segurança e dados</h2>
+        <button type="button" class="settings-menu-row">
+          <span class="row-tile blue"><ion-icon name="cloud-upload-outline"></ion-icon></span>
+          <span>
+            <strong>Backup e sincronização</strong>
+            <small>Seus dados salvos com segurança</small>
+          </span>
+          <ion-icon name="chevron-forward-outline"></ion-icon>
+        </button>
+        <button type="button" class="settings-menu-row">
+          <span class="row-tile green"><ion-icon name="download-outline"></ion-icon></span>
+          <span>
+            <strong>Exportar dados</strong>
+            <small>Baixe seus dados em CSV ou JSON</small>
+          </span>
+          <ion-icon name="chevron-forward-outline"></ion-icon>
+        </button>
+        <button type="button" class="settings-menu-row">
+          <span class="row-tile red"><ion-icon name="shield-checkmark-outline"></ion-icon></span>
+          <span>
+            <strong>Privacidade</strong>
+            <small>Política de privacidade e termos de uso</small>
+          </span>
+          <ion-icon name="chevron-forward-outline"></ion-icon>
+        </button>
+      </section>
 
-      <button type="button" class="settings-option shortcut-option" (click)="openRecurringMovements()">
-        <span class="settings-option-icon">
-          <ion-icon name="repeat-outline"></ion-icon>
-        </span>
-        <span>
-          <strong>Movimentos recorrentes</strong>
-          <small>Séries e lançamentos planejados</small>
-        </span>
-        <ion-icon class="settings-option-arrow" name="chevron-forward-outline"></ion-icon>
-      </button>
-    </nav>
+      <section class="settings-menu-card">
+        <h2>Aplicativo</h2>
+        <button type="button" class="settings-menu-row">
+          <span class="row-tile amber"><ion-icon name="star-outline"></ion-icon></span>
+          <span>
+            <strong>Premium</strong>
+            <small>Mais recursos para você</small>
+          </span>
+          <em>Upgrade</em>
+          <ion-icon name="chevron-forward-outline"></ion-icon>
+        </button>
+        <button type="button" class="settings-menu-row">
+          <span class="row-tile red"><ion-icon name="heart-outline"></ion-icon></span>
+          <span>
+            <strong>Avaliar o aplicativo</strong>
+            <small>Sua opinião nos ajuda a melhorar</small>
+          </span>
+          <ion-icon name="chevron-forward-outline"></ion-icon>
+        </button>
+        <button type="button" class="settings-menu-row">
+          <span class="row-tile purple"><ion-icon name="information-circle-outline"></ion-icon></span>
+          <span>
+            <strong>Sobre o SalariuM</strong>
+            <small>Versão 1.0.0</small>
+          </span>
+          <ion-icon name="chevron-forward-outline"></ion-icon>
+        </button>
+      </section>
 
-    @if (errorMessage) {
-      <p class="settings-message error">{{ errorMessage }}</p>
-    }
-
-    @if (successMessage) {
-      <p class="settings-message success">{{ successMessage }}</p>
-    }
-
-    @if (isLoading) {
-      <div class="state-block">Carregando configurações...</div>
+      <section class="settings-menu-card">
+        <h2>Conta</h2>
+        <button type="button" class="settings-menu-row danger-row" (click)="logout()">
+          <span class="row-tile red"><ion-icon name="log-out-outline"></ion-icon></span>
+          <span>
+            <strong>Sair da conta</strong>
+            <small>Encerrar a sessão neste dispositivo</small>
+          </span>
+          <ion-icon name="chevron-forward-outline"></ion-icon>
+        </button>
+      </section>
     } @else {
-      @if (activeTab === 'accounts') {
-        <section class="settings-panel">
-          <form class="settings-form" [formGroup]="accountForm" (ngSubmit)="saveAccount()">
-            <div class="form-title-row">
-              <h2>{{ accountEditId ? 'Editar conta' : 'Adicionar conta' }}</h2>
-              @if (accountEditId) {
-                <button type="button" class="icon-button" aria-label="Cancelar edição da conta" (click)="resetAccountForm()">
+      <header class="settings-detail-header">
+        <button type="button" class="icon-button" aria-label="Voltar" (click)="backToMenu()">
+          <ion-icon name="chevron-forward-outline"></ion-icon>
+        </button>
+        <div>
+          <span>Mais</span>
+          <h1>
+            @if (activeTab === 'accounts') { Contas }
+            @if (activeTab === 'ledger') { Categorias }
+            @if (activeTab === 'status') { Status }
+          </h1>
+        </div>
+      </header>
+
+      @if (errorMessage) {
+        <p class="settings-message error">{{ errorMessage }}</p>
+      }
+
+      @if (successMessage) {
+        <p class="settings-message success">{{ successMessage }}</p>
+      }
+
+      @if (isLoading) {
+        <div class="state-block">Carregando configurações...</div>
+      } @else {
+        @if (activeTab === 'accounts') {
+          <section class="settings-panel" [class.form-open]="showAccountForm">
+            <header class="section-toolbar">
+              <div>
+                <h2>Contas</h2>
+                <p>Carteiras, bancos e cartões</p>
+              </div>
+              <button type="button" class="new-button" (click)="startNewAccount()">
+                <ion-icon name="add-outline"></ion-icon>
+                Novo
+              </button>
+            </header>
+
+            @if (showAccountForm) {
+            <div class="settings-form-backdrop" (click)="closeAccountForm()">
+            <form class="settings-form modal-form" role="dialog" aria-modal="true" [formGroup]="accountForm" (ngSubmit)="saveAccount()" (click)="$event.stopPropagation()">
+              <div class="form-title-row">
+                <h2>{{ accountEditId ? 'Editar conta' : 'Adicionar conta' }}</h2>
+                <button type="button" class="icon-button" aria-label="Fechar formulário de conta" (click)="closeAccountForm()">
                   <ion-icon name="close-outline"></ion-icon>
                 </button>
-              }
-            </div>
-
-            <label class="form-field">
-              <span>Descrição</span>
-              <input type="text" formControlName="description" />
-            </label>
-
-            <label class="form-field">
-              <span>Ícone</span>
-              <div class="icon-picker">
-                <button
-                  type="button"
-                  class="icon-picker-trigger"
-                  [attr.aria-expanded]="activeIconPicker === 'account'"
-                  (click)="toggleIconPicker('account')"
-                >
-                  <span class="icon-picker-value">
-                    <ion-icon [name]="getSettingsIcon(accountForm.controls.icon.value, 'wallet-outline')"></ion-icon>
-                    {{ getIconLabel(accountForm.controls.icon.value, 'wallet-outline') }}
-                  </span>
-                  <ion-icon name="chevron-down-outline"></ion-icon>
-                </button>
-                @if (activeIconPicker === 'account') {
-                  <div class="icon-picker-menu" role="listbox" aria-label="Selecionar ícone da conta">
-                    @for (option of iconOptions; track option.name) {
-                      <button
-                        type="button"
-                        class="icon-picker-option"
-                        [class.active]="accountForm.controls.icon.value === option.name"
-                        (click)="selectIcon('account', option.name)"
-                      >
-                        <ion-icon [name]="option.name"></ion-icon>
-                        {{ option.label }}
-                      </button>
-                    }
-                  </div>
-                }
-                <select class="visually-hidden-select" formControlName="icon" tabindex="-1" aria-hidden="true">
-                  @for (option of iconOptions; track option.name) {
-                    <option [value]="option.name">{{ option.label }}</option>
-                  }
-                </select>
               </div>
-            </label>
 
-            <div class="form-grid">
               <label class="form-field">
-                <span>Data inicial</span>
-                <input type="date" formControlName="startDate" />
+                <span>Descrição</span>
+                <input type="text" formControlName="description" />
               </label>
 
               <label class="form-field">
-                <span>Valor inicial</span>
-                <input type="number" formControlName="startValue" step="0.01" inputmode="decimal" />
+                <span>Ícone</span>
+                <div class="icon-picker">
+                  <button type="button" class="icon-picker-trigger" [attr.aria-expanded]="activeIconPicker === 'account'" (click)="toggleIconPicker('account')">
+                    <span class="icon-picker-value">
+                      <ion-icon [name]="getSettingsIcon(accountForm.controls.icon.value, 'wallet-outline')"></ion-icon>
+                      {{ getIconLabel(accountForm.controls.icon.value, 'wallet-outline') }}
+                    </span>
+                    <ion-icon name="chevron-down-outline"></ion-icon>
+                  </button>
+                  @if (activeIconPicker === 'account') {
+                    <div class="icon-picker-menu icon-grid-menu" role="listbox" aria-label="Selecionar ícone da conta">
+                      @for (option of iconOptions; track option.name) {
+                        <button type="button" class="icon-picker-option" [class.active]="accountForm.controls.icon.value === option.name" (click)="selectIcon('account', option.name)">
+                          <ion-icon [name]="option.name"></ion-icon>
+                          {{ option.label }}
+                        </button>
+                      }
+                    </div>
+                  }
+                </div>
               </label>
 
-              <label class="form-field">
-                <span>Dia de fechamento</span>
-                <input type="number" formControlName="closingDay" min="1" max="31" inputmode="numeric" />
-              </label>
-
-              @if (accountForm.controls.accountType.value === 1) {
+              <div class="form-grid">
                 <label class="form-field">
-                  <span>Dia de pagamento</span>
-                  <input type="number" formControlName="payDay" min="1" max="31" inputmode="numeric" />
+                  <span>Data inicial</span>
+                  <input type="date" formControlName="startDate" />
                 </label>
-
                 <label class="form-field">
-                  <span>Conta de débito</span>
-                  <select formControlName="debitAccount">
-                    <option [ngValue]="null">Selecione</option>
-                    @for (account of debitAccountOptions; track account.id) {
-                      <option [ngValue]="account.id">{{ account.description }}</option>
-                    }
+                  <span>{{ accountForm.controls.accountType.value === 1 ? 'Saldo disponível' : 'Valor inicial' }}</span>
+                  <input type="number" formControlName="startValue" step="0.01" inputmode="decimal" />
+                </label>
+                <label class="form-field">
+                  <span>Dia de fechamento</span>
+                  <input type="number" formControlName="closingDay" min="1" max="31" inputmode="numeric" />
+                </label>
+                @if (accountForm.controls.accountType.value === 1) {
+                  <label class="form-field">
+                    <span>Dia de pagamento</span>
+                    <input type="number" formControlName="payDay" min="1" max="31" inputmode="numeric" />
+                  </label>
+                  <label class="form-field">
+                    <span>Conta de débito</span>
+                    <select formControlName="debitAccount">
+                      <option [ngValue]="null">Selecione</option>
+                      @for (account of debitAccountOptions; track account.id) {
+                        <option [ngValue]="account.id">{{ account.description }}</option>
+                      }
+                    </select>
+                  </label>
+                }
+                <label class="form-field">
+                  <span>Tipo de conta</span>
+                  <select formControlName="accountType">
+                    <option [ngValue]="0">Débito</option>
+                    <option [ngValue]="1">Crédito</option>
                   </select>
                 </label>
-              }
+              </div>
 
-              <label class="form-field">
-                <span>Tipo de conta</span>
-                <select formControlName="accountType">
-                  <option [ngValue]="0">Débito</option>
-                  <option [ngValue]="1">Crédito</option>
-                </select>
-              </label>
+              <button type="submit" class="save-button" [disabled]="isSaving">
+                <ion-icon name="save-outline"></ion-icon>
+                {{ accountEditId ? 'Salvar conta' : 'Adicionar conta' }}
+              </button>
+            </form>
             </div>
+            }
 
-            <button type="submit" class="save-button" [disabled]="isSaving">
-              <ion-icon name="save-outline"></ion-icon>
-              {{ accountEditId ? 'Salvar conta' : 'Adicionar conta' }}
-            </button>
-          </form>
-
-          <div class="settings-list">
-            @for (account of accounts; track account.id) {
-              <article class="settings-row">
-                <div class="settings-row-main">
-                  <span class="settings-row-icon">
-                    <ion-icon [name]="getSettingsIcon(account.icon, 'wallet-outline')"></ion-icon>
-                  </span>
-                  <div>
-                    <strong>{{ account.description }}</strong>
-                    <span>
-                      {{ getAccountTypeLabel(account.account_type) }}
-                      @if (account.closing_day) {
-                        - fecha dia {{ account.closing_day }}
-                      }
-                      @if (account.pay_day) {
-                        - paga dia {{ account.pay_day }}
-                      }
-                      @if (account.debit_account) {
-                        - débito em {{ getDebitAccountLabel(account.debit_account) }}
-                      }
+            <div class="settings-list">
+              @for (account of accounts; track account.id) {
+                <article class="settings-row account-settings-row">
+                  <div class="settings-row-main">
+                    <span class="settings-row-icon">
+                      <ion-icon [name]="getSettingsIcon(account.icon, 'wallet-outline')"></ion-icon>
                     </span>
+                    <div>
+                      <strong>{{ account.description }}</strong>
+                      <span>{{ getAccountTypeLabel(account.account_type) }}</span>
+                      <div class="account-detail-grid">
+                        <small>
+                          {{ account.account_type === 1 ? 'Saldo disponível' : 'Valor inicial' }}
+                          <b>{{ account.start_value | appCurrency }}</b>
+                        </small>
+                        @if (account.closing_day) {
+                          <small>Closing day <b>{{ account.closing_day }}</b></small>
+                        }
+                        @if (account.pay_day) {
+                          <small>Pay day <b>{{ account.pay_day }}</b></small>
+                        }
+                        @if (account.debit_account) {
+                          <small>Conta de débito <b>{{ getDebitAccountLabel(account.debit_account) }}</b></small>
+                        }
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div class="row-actions">
-                  <button type="button" class="icon-button" aria-label="Editar conta" (click)="editAccount(account)">
-                    <ion-icon name="create-outline"></ion-icon>
-                  </button>
-                  <button type="button" class="icon-button danger" aria-label="Excluir conta" (click)="deleteAccount(account)">
-                    <ion-icon name="trash-outline"></ion-icon>
-                  </button>
-                </div>
-              </article>
-            } @empty {
-              <div class="empty-state">Nenhuma conta cadastrada.</div>
-            }
-          </div>
-        </section>
-      }
-
-      @if (activeTab === 'ledger') {
-        <section class="settings-panel">
-          <form class="settings-form compact-form" [formGroup]="ledgerForm" (ngSubmit)="saveLedgerAccount()">
-            <div class="form-title-row">
-              <h2>{{ ledgerEditId ? 'Editar categoria' : 'Adicionar categoria' }}</h2>
-              @if (ledgerEditId) {
-                <button type="button" class="icon-button" aria-label="Cancelar edição da categoria" (click)="resetLedgerForm()">
-                  <ion-icon name="close-outline"></ion-icon>
-                </button>
-              }
-            </div>
-
-            <label class="form-field">
-              <span>Descrição</span>
-              <input type="text" formControlName="description" />
-            </label>
-
-            <label class="form-field">
-              <span>Ícone</span>
-              <div class="icon-picker">
-                <button
-                  type="button"
-                  class="icon-picker-trigger"
-                  [attr.aria-expanded]="activeIconPicker === 'ledger'"
-                  (click)="toggleIconPicker('ledger')"
-                >
-                  <span class="icon-picker-value">
-                    <ion-icon [name]="getSettingsIcon(ledgerForm.controls.icon.value, 'receipt-outline')"></ion-icon>
-                    {{ getIconLabel(ledgerForm.controls.icon.value, 'receipt-outline') }}
-                  </span>
-                  <ion-icon name="chevron-down-outline"></ion-icon>
-                </button>
-                @if (activeIconPicker === 'ledger') {
-                  <div class="icon-picker-menu" role="listbox" aria-label="Selecionar ícone da categoria">
-                    @for (option of iconOptions; track option.name) {
-                      <button
-                        type="button"
-                        class="icon-picker-option"
-                        [class.active]="ledgerForm.controls.icon.value === option.name"
-                        (click)="selectIcon('ledger', option.name)"
-                      >
-                        <ion-icon [name]="option.name"></ion-icon>
-                        {{ option.label }}
+                  <div class="row-actions">
+                    <button type="button" class="icon-button" aria-label="Editar conta" (click)="editAccount(account)">
+                      <ion-icon name="create-outline"></ion-icon>
+                    </button>
+                    @if (!hasAccountMovements(account)) {
+                      <button type="button" class="icon-button danger" aria-label="Excluir conta" (click)="deleteAccount(account)">
+                        <ion-icon name="trash-outline"></ion-icon>
                       </button>
                     }
                   </div>
-                }
-                <select class="visually-hidden-select" formControlName="icon" tabindex="-1" aria-hidden="true">
-                  @for (option of iconOptions; track option.name) {
-                    <option [value]="option.name">{{ option.label }}</option>
-                  }
-                </select>
-              </div>
-            </label>
-
-            <button type="submit" class="save-button" [disabled]="isSaving">
-              <ion-icon name="save-outline"></ion-icon>
-              {{ ledgerEditId ? 'Salvar categoria' : 'Adicionar categoria' }}
-            </button>
-          </form>
-
-          <div class="settings-list">
-            @for (ledger of ledgerAccounts; track ledger.id) {
-              <article class="settings-row">
-                <div class="settings-row-main">
-                  <span class="settings-row-icon">
-                    <ion-icon [name]="getSettingsIcon(ledger.icon, 'receipt-outline')"></ion-icon>
-                  </span>
-                  <strong>{{ ledger.description }}</strong>
-                </div>
-                <div class="row-actions">
-                  <button type="button" class="icon-button" aria-label="Editar categoria" (click)="editLedgerAccount(ledger)">
-                    <ion-icon name="create-outline"></ion-icon>
-                  </button>
-                  <button type="button" class="icon-button danger" aria-label="Excluir categoria" (click)="deleteLedgerAccount(ledger)">
-                    <ion-icon name="trash-outline"></ion-icon>
-                  </button>
-                </div>
-              </article>
-            } @empty {
-              <div class="empty-state">Nenhuma categoria cadastrada.</div>
-            }
-          </div>
-        </section>
-      }
-
-      @if (activeTab === 'status') {
-        <section class="settings-panel">
-          <form class="settings-form compact-form" [formGroup]="statusForm" (ngSubmit)="saveStatus()">
-            <div class="form-title-row">
-              <h2>{{ statusEditId ? 'Editar status' : 'Adicionar status' }}</h2>
-              @if (statusEditId) {
-                <button type="button" class="icon-button" aria-label="Cancelar edição do status" (click)="resetStatusForm()">
-                  <ion-icon name="close-outline"></ion-icon>
-                </button>
+                </article>
+              } @empty {
+                <div class="empty-state">Nenhuma conta cadastrada.</div>
               }
             </div>
+          </section>
+        }
 
-            <label class="form-field">
-              <span>Descrição</span>
-              <input type="text" formControlName="description" />
-            </label>
+        @if (activeTab === 'ledger') {
+          <section class="settings-panel" [class.form-open]="showLedgerForm">
+            <header class="section-toolbar">
+              <div>
+                <h2>Categorias</h2>
+                <p>Entradas, saídas e grupos</p>
+              </div>
+              <button type="button" class="new-button" (click)="startNewLedgerAccount()">
+                <ion-icon name="add-outline"></ion-icon>
+                Novo
+              </button>
+            </header>
 
-            <label class="form-field">
-              <span>Ícone</span>
-              <div class="icon-picker">
-                <button
-                  type="button"
-                  class="icon-picker-trigger"
-                  [attr.aria-expanded]="activeIconPicker === 'status'"
-                  (click)="toggleIconPicker('status')"
-                >
-                  <span class="icon-picker-value">
-                    <ion-icon [name]="getSettingsIcon(statusForm.controls.icon.value, 'time-outline')"></ion-icon>
-                    {{ getIconLabel(statusForm.controls.icon.value, 'time-outline') }}
-                  </span>
-                  <ion-icon name="chevron-down-outline"></ion-icon>
+            @if (showLedgerForm) {
+            <div class="settings-form-backdrop" (click)="closeLedgerForm()">
+            <form class="settings-form modal-form compact-form" role="dialog" aria-modal="true" [formGroup]="ledgerForm" (ngSubmit)="saveLedgerAccount()" (click)="$event.stopPropagation()">
+              <div class="form-title-row">
+                <h2>{{ ledgerEditId ? 'Editar categoria' : 'Adicionar categoria' }}</h2>
+                <button type="button" class="icon-button" aria-label="Fechar formulário de categoria" (click)="closeLedgerForm()">
+                  <ion-icon name="close-outline"></ion-icon>
                 </button>
-                @if (activeIconPicker === 'status') {
-                  <div class="icon-picker-menu" role="listbox" aria-label="Selecionar ícone do status">
-                    @for (option of iconOptions; track option.name) {
-                      <button
-                        type="button"
-                        class="icon-picker-option"
-                        [class.active]="statusForm.controls.icon.value === option.name"
-                        (click)="selectIcon('status', option.name)"
-                      >
-                        <ion-icon [name]="option.name"></ion-icon>
-                        {{ option.label }}
+              </div>
+              <label class="form-field">
+                <span>Descrição</span>
+                <input type="text" formControlName="description" />
+              </label>
+              <label class="form-field">
+                <span>Ícone</span>
+                <div class="icon-picker">
+                  <button type="button" class="icon-picker-trigger" [attr.aria-expanded]="activeIconPicker === 'ledger'" (click)="toggleIconPicker('ledger')">
+                    <span class="icon-picker-value">
+                      <ion-icon [name]="getSettingsIcon(ledgerForm.controls.icon.value, 'receipt-outline')"></ion-icon>
+                      {{ getIconLabel(ledgerForm.controls.icon.value, 'receipt-outline') }}
+                    </span>
+                    <ion-icon name="chevron-down-outline"></ion-icon>
+                  </button>
+                  @if (activeIconPicker === 'ledger') {
+                    <div class="icon-picker-menu icon-grid-menu" role="listbox" aria-label="Selecionar ícone da categoria">
+                      @for (option of iconOptions; track option.name) {
+                        <button type="button" class="icon-picker-option" [class.active]="ledgerForm.controls.icon.value === option.name" (click)="selectIcon('ledger', option.name)">
+                          <ion-icon [name]="option.name"></ion-icon>
+                          {{ option.label }}
+                        </button>
+                      }
+                    </div>
+                  }
+                </div>
+              </label>
+              <button type="submit" class="save-button" [disabled]="isSaving">
+                <ion-icon name="save-outline"></ion-icon>
+                {{ ledgerEditId ? 'Salvar categoria' : 'Adicionar categoria' }}
+              </button>
+            </form>
+            </div>
+            }
+
+            <div class="settings-list">
+              @for (ledger of ledgerAccounts; track ledger.id) {
+                <article class="settings-row">
+                  <div class="settings-row-main">
+                    <span class="settings-row-icon">
+                      <ion-icon [name]="getSettingsIcon(ledger.icon, 'receipt-outline')"></ion-icon>
+                    </span>
+                    <strong>{{ ledger.description }}</strong>
+                  </div>
+                  <div class="row-actions">
+                    <button type="button" class="icon-button" aria-label="Editar categoria" (click)="editLedgerAccount(ledger)">
+                      <ion-icon name="create-outline"></ion-icon>
+                    </button>
+                    @if (!hasLedgerAccountMovements(ledger)) {
+                      <button type="button" class="icon-button danger" aria-label="Excluir categoria" (click)="deleteLedgerAccount(ledger)">
+                        <ion-icon name="trash-outline"></ion-icon>
                       </button>
                     }
                   </div>
-                }
-                <select class="visually-hidden-select" formControlName="icon" tabindex="-1" aria-hidden="true">
-                  @for (option of iconOptions; track option.name) {
-                    <option [value]="option.name">{{ option.label }}</option>
-                  }
-                </select>
+                </article>
+              } @empty {
+                <div class="empty-state">Nenhuma categoria cadastrada.</div>
+              }
+            </div>
+          </section>
+        }
+
+        @if (activeTab === 'status') {
+          <section class="settings-panel" [class.form-open]="showStatusForm">
+            <header class="section-toolbar">
+              <div>
+                <h2>Status</h2>
+                <p>Consumado, provisionado e alertas</p>
               </div>
-            </label>
+              <button type="button" class="new-button" (click)="startNewStatus()">
+                <ion-icon name="add-outline"></ion-icon>
+                Novo
+              </button>
+            </header>
 
-            <button type="submit" class="save-button" [disabled]="isSaving">
-              <ion-icon name="save-outline"></ion-icon>
-              {{ statusEditId ? 'Salvar status' : 'Adicionar status' }}
-            </button>
-          </form>
-
-          <div class="settings-list">
-            @for (status of statuses; track status.id) {
-              <article class="settings-row">
-                <div class="settings-row-main">
-                  <span class="settings-row-icon">
-                    <ion-icon [name]="getSettingsIcon(status.icon, 'time-outline')"></ion-icon>
-                  </span>
-                  <strong>{{ status.description }}</strong>
-                </div>
-                <div class="row-actions">
-                  <button type="button" class="icon-button" aria-label="Editar status" (click)="editStatus(status)">
-                    <ion-icon name="create-outline"></ion-icon>
+            @if (showStatusForm) {
+            <div class="settings-form-backdrop" (click)="closeStatusForm()">
+            <form class="settings-form modal-form compact-form" role="dialog" aria-modal="true" [formGroup]="statusForm" (ngSubmit)="saveStatus()" (click)="$event.stopPropagation()">
+              <div class="form-title-row">
+                <h2>{{ statusEditId ? 'Editar status' : 'Adicionar status' }}</h2>
+                <button type="button" class="icon-button" aria-label="Fechar formulário de status" (click)="closeStatusForm()">
+                  <ion-icon name="close-outline"></ion-icon>
+                </button>
+              </div>
+              <label class="form-field">
+                <span>Descrição</span>
+                <input type="text" formControlName="description" />
+              </label>
+              <label class="form-field">
+                <span>Ícone</span>
+                <div class="icon-picker">
+                  <button type="button" class="icon-picker-trigger" [attr.aria-expanded]="activeIconPicker === 'status'" (click)="toggleIconPicker('status')">
+                    <span class="icon-picker-value">
+                      <ion-icon [name]="getSettingsIcon(statusForm.controls.icon.value, 'time-outline')"></ion-icon>
+                      {{ getIconLabel(statusForm.controls.icon.value, 'time-outline') }}
+                    </span>
+                    <ion-icon name="chevron-down-outline"></ion-icon>
                   </button>
-                  <button type="button" class="icon-button danger" aria-label="Excluir status" (click)="deleteStatus(status)">
-                    <ion-icon name="trash-outline"></ion-icon>
-                  </button>
+                  @if (activeIconPicker === 'status') {
+                    <div class="icon-picker-menu icon-grid-menu" role="listbox" aria-label="Selecionar ícone do status">
+                      @for (option of iconOptions; track option.name) {
+                        <button type="button" class="icon-picker-option" [class.active]="statusForm.controls.icon.value === option.name" (click)="selectIcon('status', option.name)">
+                          <ion-icon [name]="option.name"></ion-icon>
+                          {{ option.label }}
+                        </button>
+                      }
+                    </div>
+                  }
                 </div>
-              </article>
-            } @empty {
-              <div class="empty-state">Nenhum status cadastrado.</div>
+              </label>
+              <button type="submit" class="save-button" [disabled]="isSaving">
+                <ion-icon name="save-outline"></ion-icon>
+                {{ statusEditId ? 'Salvar status' : 'Adicionar status' }}
+              </button>
+            </form>
+            </div>
             }
-          </div>
-        </section>
+
+            <div class="settings-list">
+              @for (status of statuses; track status.id) {
+                <article class="settings-row">
+                  <div class="settings-row-main">
+                    <span class="settings-row-icon">
+                      <ion-icon [name]="getSettingsIcon(status.icon, 'time-outline')"></ion-icon>
+                    </span>
+                    <strong>{{ status.description }}</strong>
+                  </div>
+                  <div class="row-actions">
+                    <button type="button" class="icon-button" aria-label="Editar status" (click)="editStatus(status)">
+                      <ion-icon name="create-outline"></ion-icon>
+                    </button>
+                    <button type="button" class="icon-button danger" aria-label="Excluir status" (click)="deleteStatus(status)">
+                      <ion-icon name="trash-outline"></ion-icon>
+                    </button>
+                  </div>
+                </article>
+              } @empty {
+                <div class="empty-state">Nenhum status cadastrado.</div>
+              }
+            </div>
+          </section>
+        }
       }
     }
   </div>

@@ -23,6 +23,7 @@ export class CamplifeComponent implements OnInit, OnDestroy {
   private routerEventsSubscription?: Subscription;
   private lastContentRoute = '/example/dashboard';
   protected isFinanceRouteLoading = false;
+  protected isSetupRoute = false;
 
   constructor() {
     addIcons({
@@ -33,14 +34,20 @@ export class CamplifeComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit() {
+    this.isSetupRoute = this.router.url.includes('/example/setup');
+
     this.routerEventsSubscription = this.router.events.subscribe((event) => {
       if (event instanceof NavigationStart && event.url.includes('/example/finance')) {
         this.isFinanceRouteLoading = true;
         return;
       }
 
-      if (event instanceof NavigationEnd && !event.urlAfterRedirects.includes('/example/new')) {
-        this.lastContentRoute = event.urlAfterRedirects;
+      if (event instanceof NavigationEnd) {
+        this.isSetupRoute = event.urlAfterRedirects.includes('/example/setup');
+
+        if (!event.urlAfterRedirects.includes('/example/new') && !this.isSetupRoute) {
+          this.lastContentRoute = event.urlAfterRedirects;
+        }
       }
 
       if (

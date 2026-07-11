@@ -1,4 +1,4 @@
-import { CommonModule, CurrencyPipe } from '@angular/common';
+import { CommonModule } from '@angular/common';
 import { Component, HostListener, OnDestroy, OnInit, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { IonContent, IonIcon, IonRefresher, IonRefresherContent } from '@ionic/angular/standalone';
@@ -33,6 +33,8 @@ import {
 } from 'ionicons/icons';
 import { finalize, forkJoin } from 'rxjs';
 import { AuthService } from '../auth.service';
+import { AppCurrencyPipe } from '../app-currency.pipe';
+import { CurrencySettingsService } from '../currency-settings.service';
 import {
   BalanceRow,
   BalanceSnapshot,
@@ -92,6 +94,7 @@ interface BalanceEntry {
   name: string;
   value: number;
   accountType: 0 | 1 | null;
+  icon: string;
 }
 
 interface SavingsTrendPoint {
@@ -111,13 +114,17 @@ interface DashboardMonthOption {
   selector: 'app-dashboard-page',
   templateUrl: './dashboard-page.component.html',
   styleUrls: ['./dashboard-page.component.scss'],
-  imports: [CommonModule, IonContent, IonIcon, IonRefresher, IonRefresherContent, CurrencyPipe],
+  imports: [CommonModule, IonContent, IonIcon, IonRefresher, IonRefresherContent, AppCurrencyPipe],
 })
 export class DashboardPageComponent implements OnInit, OnDestroy {
   private readonly auth = inject(AuthService);
   private readonly financeData = inject(FinanceDataService);
+  private readonly currencySettings = inject(CurrencySettingsService);
   private readonly router = inject(Router);
   private now = new Date();
+  private readonly monthSwipeThreshold = 48;
+  private monthSwipeStartX = 0;
+  private monthSwipeStartY = 0;
   private readonly financeFocusStorageKey = 'financeFocusTarget';
   private ledgerAccounts = new Map<number, LedgerAccountSettings>();
   private ledgerAccountOptions: LedgerAccountSettings[] = [];
@@ -262,6 +269,34 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     this.buildDashboard(this.dashboardRows);
   }
 
+  protected startMonthSwipe(event: TouchEvent): void {
+    const touch = event.changedTouches.item(0);
+    if (!touch) {
+      return;
+    }
+
+    this.monthSwipeStartX = touch.clientX;
+    this.monthSwipeStartY = touch.clientY;
+  }
+
+  protected finishMonthSwipe(event: TouchEvent): void {
+    const touch = event.changedTouches.item(0);
+    if (!touch) {
+      return;
+    }
+
+    const deltaX = touch.clientX - this.monthSwipeStartX;
+    const deltaY = touch.clientY - this.monthSwipeStartY;
+    const isHorizontalSwipe =
+      Math.abs(deltaX) >= this.monthSwipeThreshold && Math.abs(deltaY) <= Math.abs(deltaX) * 0.75;
+
+    if (!isHorizontalSwipe) {
+      return;
+    }
+
+    this.changeSelectedMonth(deltaX < 0 ? 1 : -1);
+  }
+
   protected toggleAccountMenu(event: Event): void {
     event.stopPropagation();
     this.isAccountMenuOpen = !this.isAccountMenuOpen;
@@ -402,6 +437,7 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
       dayKey,
       monthKey: dayKey.slice(0, 7),
       expandDetails: true,
+      expandDayBalances: false,
     }));
     void this.router.navigate(['/example/finance']);
   }
@@ -477,6 +513,7 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
           name: account?.description ?? key,
           value: Number(value) || 0,
           accountType: account?.account_type ?? null,
+          icon: this.normalizeIcon(account?.icon, 'wallet-outline'),
         };
       })
       .sort((left, right) => {
@@ -1229,11 +1266,6 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   }
 
   private formatEuro(value: number): string {
-    const formattedValue = new Intl.NumberFormat('de-DE', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(value);
-
-    return `€ ${formattedValue}`;
+    return this.currencySettings.format(value);
   }
 }

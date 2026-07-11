@@ -8,6 +8,8 @@ import { eyeOffOutline, eyeOutline, lockClosedOutline } from 'ionicons/icons';
 import { finalize } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { AuthService } from '../auth.service';
+import { FinanceDataService } from '../finance-data.service';
+import { AppCurrencyCode, CurrencySettingsService } from '../currency-settings.service';
 
 interface GoogleCredentialResponse {
   credential: string;
@@ -33,6 +35,8 @@ interface GoogleIdentity {
 })
 export class LoginPageComponent implements OnInit {
   private readonly auth = inject(AuthService);
+  private readonly financeData = inject(FinanceDataService);
+  private readonly currencySettings = inject(CurrencySettingsService);
   private readonly fb = inject(FormBuilder);
   private readonly router = inject(Router);
   private readonly googleClientId = environment.googleClientId;
@@ -77,7 +81,7 @@ export class LoginPageComponent implements OnInit {
       .signIn(username.trim(), password)
       .pipe(finalize(() => (this.isSigningIn = false)))
       .subscribe({
-        next: () => void this.router.navigate(['/example/dashboard']),
+        next: () => this.navigateAfterSignIn(),
         error: () => {
           this.errorMessage = 'Utilizador ou palavra-passe inválidos.';
         },
@@ -135,10 +139,25 @@ export class LoginPageComponent implements OnInit {
       .signInWithGoogle(credential)
       .pipe(finalize(() => (this.isSigningIn = false)))
       .subscribe({
-        next: () => void this.router.navigate(['/example/dashboard']),
+        next: () => this.navigateAfterSignIn(),
         error: () => {
           this.errorMessage = 'Não foi possível entrar com esta conta Google.';
         },
       });
+  }
+
+  private navigateAfterSignIn(): void {
+    this.financeData.getContractOnboardingSetup().subscribe({
+      next: (setup) => {
+        const currencyCode = (setup?.answers as { currencyCode?: AppCurrencyCode } | null)?.currencyCode;
+        if (currencyCode) {
+          this.currencySettings.setCurrency(currencyCode);
+        }
+
+        const hasFinishedSetup = !!setup?.completed || !!setup?.skipped;
+        void this.router.navigate([hasFinishedSetup ? '/example/dashboard' : '/example/setup']);
+      },
+      error: () => void this.router.navigate(['/example/dashboard']),
+    });
   }
 }

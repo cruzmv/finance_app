@@ -95,7 +95,7 @@
     } @else if (errorMessage) {
       <section class="state-panel error"><p>{{ errorMessage }}</p></section>
     } @else {
-      <section class="summary-card">
+      <section class="summary-card" (touchstart)="startMonthSwipe($event)" (touchend)="finishMonthSwipe($event)">
         <header class="card-heading month-heading">
           <button
             type="button"
@@ -175,12 +175,12 @@
           }
           <div class="summary-metric current-metric">
             <span>Saldo atual</span>
-            <strong class="summary-value">{{ summary.currentBalance | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
+            <strong class="summary-value">{{ summary.currentBalance | appCurrency }}</strong>
           </div>
           <div class="summary-metric savings-metric">
             <span>Economia</span>
             <strong class="summary-value" [class.negative]="summary.savings < 0">
-              {{ summary.savings | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
+              {{ summary.savings | appCurrency }}
             </strong>
             <small [class.negative]="savingsStartPercent < 0">
               <ion-icon name="trending-up-outline"></ion-icon>
@@ -189,7 +189,7 @@
           </div>
           <div class="summary-metric end-metric">
             <span>Fim do mês</span>
-            <strong class="summary-value">{{ summary.monthEndBalance | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
+            <strong class="summary-value">{{ summary.monthEndBalance | appCurrency }}</strong>
           </div>
         </section>
 
@@ -204,12 +204,12 @@
             <div class="credit-highlight-grid">
               <div>
                 <span>{{ creditSummary.payableLabel }}</span>
-                <strong class="negative">{{ creditSummary.payable | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
+                <strong class="negative">{{ creditSummary.payable | appCurrency }}</strong>
                 <small>{{ getMovementCountLabel(creditSummary.payableCount) }}</small>
               </div>
               <div>
                 <span>Em aberto</span>
-                <strong>{{ creditSummary.open | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
+                <strong>{{ creditSummary.open | appCurrency }}</strong>
                 <small>{{ getMovementCountLabel(creditSummary.openCount) }}</small>
               </div>
             </div>
@@ -251,20 +251,20 @@
                 ></span>
               </div>
               <div class="overview-column-heading">
-                <strong>{{ summary.income | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}</strong>
+                <strong>{{ summary.income | appCurrency }}</strong>
               </div>
               <div class="overview-lines">
                 <div [style.--progress]="getPercent(summary.receivedIncome, summary.income) + '%'">
                   <span>Recebidos</span>
                   <strong>
-                    {{ summary.receivedIncome | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
+                    {{ summary.receivedIncome | appCurrency }}
                     <small>({{ getPercent(summary.receivedIncome, summary.income) | number:'1.0-0':'pt-PT' }}%)</small>
                   </strong>
                 </div>
                 <div [style.--progress]="getPercent(summary.receivableIncome, summary.income) + '%'">
                   <span>A receber</span>
                   <strong>
-                    {{ summary.receivableIncome | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
+                    {{ summary.receivableIncome | appCurrency }}
                     <small>({{ getPercent(summary.receivableIncome, summary.income) | number:'1.0-0':'pt-PT' }}%)</small>
                   </strong>
                 </div>
@@ -291,7 +291,7 @@
                   <div class="overview-column-heading">
                     <span>Saídas pagas</span>
                     <strong>
-                      {{ summary.consumedExpenses | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
+                      {{ summary.consumedExpenses | appCurrency }}
                       <small>({{ getPercent(summary.consumedExpenses, totalMonthExpenses) | number:'1.0-0':'pt-PT' }}%)</small>
                     </strong>
                   </div>
@@ -303,7 +303,7 @@
                         <em>({{ getPercent(summary.consumedDebitExpenses, summary.consumedExpenses) | number:'1.0-0':'pt-PT' }}%)</em>
                       </span>
                       <strong>
-                        {{ summary.consumedDebitExpenses | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
+                        {{ summary.consumedDebitExpenses | appCurrency }}
                       </strong>
                     </div>
                     <div [style.--progress]="getPercent(summary.consumedCreditExpenses, summary.consumedExpenses) + '%'">
@@ -313,7 +313,7 @@
                         <em>({{ getPercent(summary.consumedCreditExpenses, summary.consumedExpenses) | number:'1.0-0':'pt-PT' }}%)</em>
                       </span>
                       <strong>
-                        {{ summary.consumedCreditExpenses | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
+                        {{ summary.consumedCreditExpenses | appCurrency }}
                       </strong>
                     </div>
                   </div>
@@ -323,7 +323,7 @@
                   <div class="overview-column-heading">
                     <span>Saídas a pagar</span>
                     <strong>
-                      {{ summary.provisionedExpenses | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
+                      {{ summary.provisionedExpenses | appCurrency }}
                       <small>({{ getPercent(summary.provisionedExpenses, totalMonthExpenses) | number:'1.0-0':'pt-PT' }}%)</small>
                     </strong>
                   </div>
@@ -335,7 +335,7 @@
                         <em>({{ getPercent(summary.provisionedDebitExpenses, summary.provisionedExpenses) | number:'1.0-0':'pt-PT' }}%)</em>
                       </span>
                       <strong>
-                        {{ summary.provisionedDebitExpenses | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
+                        {{ summary.provisionedDebitExpenses | appCurrency }}
                       </strong>
                     </div>
                     <div [style.--progress]="getPercent(summary.provisionedCreditExpenses, summary.provisionedExpenses) + '%'">
@@ -345,7 +345,7 @@
                         <em>({{ getPercent(summary.provisionedCreditExpenses, summary.provisionedExpenses) | number:'1.0-0':'pt-PT' }}%)</em>
                       </span>
                       <strong>
-                        {{ summary.provisionedCreditExpenses | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
+                        {{ summary.provisionedCreditExpenses | appCurrency }}
                       </strong>
                     </div>
                   </div>
@@ -380,24 +380,30 @@
               </span>
               <span class="movement-date">{{ movement.dateLabel }}</span>
               <b [class.negative]="movement.value < 0">
-                {{ movement.value | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
+                {{ movement.value | appCurrency }}
               </b>
               <ion-icon class="movement-chevron" name="chevron-forward-outline"></ion-icon>
             </button>
 
             @if (isUpcomingMovementExpanded(movement.id)) {
-              <div class="movement-details">
+              <div class="movement-details timeline-account-balances">
                 <div class="balance-row balance-savings-row">
-                  <span class="balance-label">Saldo atual</span>
+                  <span class="balance-label">
+                    <ion-icon name="wallet-outline" aria-hidden="true"></ion-icon>
+                    Saldo atual
+                  </span>
                   <span class="balance-amount savings-amount">
-                    {{ getPositiveBalanceTotal(getBalanceEntries(movement.balances)) | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
+                    {{ getPositiveBalanceTotal(getBalanceEntries(movement.balances)) | appCurrency }}
                   </span>
                 </div>
                 @for (balance of getBalanceEntries(movement.balances); track balance.name) {
                   <div class="balance-row">
-                    <span class="balance-label">{{ balance.name }}</span>
+                    <span class="balance-label">
+                      <ion-icon [name]="balance.icon" aria-hidden="true"></ion-icon>
+                      {{ balance.name }}
+                    </span>
                     <span class="balance-amount" [ngClass]="getBalanceToneClass(balance)">
-                      {{ balance.value | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
+                      {{ balance.value | appCurrency }}
                     </span>
                   </div>
                 }

@@ -127,7 +127,7 @@
           }
 
           <label class="amount-field">
-            <span aria-hidden="true">€</span>
+            <span aria-hidden="true">{{ currencySymbol }}</span>
             <input
               #valueInput
               type="number"
@@ -371,7 +371,7 @@
                 </label>
 
                 <label class="quick-field">
-                  <span>Valor inicial</span>
+                  <span>{{ quickAccountForm.controls.accountType.value === 1 ? 'Saldo disponível' : 'Valor inicial' }}</span>
                   <input type="number" formControlName="startValue" step="0.01" inputmode="decimal" />
                 </label>
 

@@ -1,0 +1,430 @@
+<ion-content [fullscreen]="true" [scrollY]="false">
+  <main class="setup-page">
+    <div class="setup-backdrop" aria-hidden="true"></div>
+
+    <section class="setup-shell">
+      <header class="setup-header">
+        <button type="button" class="icon-button" [disabled]="step === 1 || isSaving" aria-label="Voltar" (click)="previousStep()">
+          <ion-icon name="arrow-back-outline"></ion-icon>
+        </button>
+        <div>
+          <span>Passo {{ step }} de {{ totalSteps }}</span>
+          <h1>Primeiro setup financeiro</h1>
+        </div>
+      </header>
+
+      <div class="setup-scroll" #setupScroll>
+        <div class="progress-track" aria-hidden="true">
+          <span [style.width.%]="(step / totalSteps) * 100"></span>
+        </div>
+
+        @if (errorMessage) {
+          <p class="setup-message error">{{ errorMessage }}</p>
+        }
+        @if (successMessage) {
+          <p class="setup-message success">{{ successMessage }}</p>
+        }
+
+        @if (isLoading) {
+          <div class="setup-card loading-card">
+            <ion-icon name="wallet-outline"></ion-icon>
+            <strong>Carregando seu espaço financeiro...</strong>
+          </div>
+        } @else {
+        @if (step === 1) {
+          <section class="setup-card hero-card">
+            <span class="hero-icon"><ion-icon name="library-outline"></ion-icon></span>
+            <h2>Vamos deixar sua casa financeira pronta.</h2>
+            <p>Em poucos passos criamos contas, categorias e lançamentos provisionados para você começar com o mês organizado.</p>
+            <div class="mini-grid">
+              <span><ion-icon name="wallet-outline"></ion-icon> Contas</span>
+              <span><ion-icon name="receipt-outline"></ion-icon> Categorias</span>
+              <span><ion-icon name="calendar-outline"></ion-icon> Recorrências</span>
+            </div>
+          </section>
+        }
+
+        @if (step === 2) {
+          <section class="setup-card currency-card" [formGroup]="currencyForm">
+            <h2>Qual moeda você usa?</h2>
+            <p>A app vai usar esta moeda nos painéis, movimentos, relatórios e campos de valor.</p>
+
+            <label class="field">
+              <span>Buscar moeda</span>
+              <input
+                type="search"
+                [value]="currencySearch"
+                placeholder="Ex.: euro, real, dólar, yen..."
+                (input)="updateCurrencySearch($any($event.target).value)"
+              />
+            </label>
+
+            <div class="currency-grid">
+              @for (currency of filteredCurrencyOptions; track currency.code) {
+                <button
+                  type="button"
+                  [class.active]="currencyForm.controls.currencyCode.value === currency.code"
+                  (click)="selectCurrency(currency.code)"
+                >
+                  <strong>{{ currency.symbol }}</strong>
+                  <span>{{ currency.label }}</span>
+                </button>
+              }
+            </div>
+          </section>
+        }
+
+        @if (step === 3) {
+          <section class="setup-card" [formGroup]="accountForm">
+            <h2>Quais contas você usa?</h2>
+            <p>Adicione contas de débito e cartões de crédito. Cartões pedem fechamento, pagamento e conta de débito.</p>
+
+            <div class="segmented">
+              <button type="button" [class.active]="accountForm.controls.kind.value === 'debit'" (click)="setAccountKind('debit')">
+                <ion-icon name="wallet-outline"></ion-icon>
+                Débito
+              </button>
+              <button type="button" [class.active]="accountForm.controls.kind.value === 'credit'" (click)="setAccountKind('credit')">
+                <ion-icon name="card-outline"></ion-icon>
+                Crédito
+              </button>
+            </div>
+
+            <label class="field">
+              <span>Nome da conta</span>
+              <input type="text" formControlName="description" placeholder="Ex.: Santander, Revolut, Visa" />
+            </label>
+
+            <label class="field">
+              <span>Ícone</span>
+              <div class="icon-picker">
+                <button type="button" class="icon-trigger" [attr.aria-expanded]="activeAccountIconPicker" (click)="activeAccountIconPicker = !activeAccountIconPicker">
+                  <span>
+                    <ion-icon [name]="accountForm.controls.icon.value"></ion-icon>
+                    {{ getIconLabel(accountForm.controls.icon.value) }}
+                  </span>
+                  <ion-icon name="arrow-forward-outline"></ion-icon>
+                </button>
+
+                @if (activeAccountIconPicker) {
+                  <div class="icon-menu" role="listbox" aria-label="Selecionar ícone da conta">
+                    @for (option of iconOptions; track option.name) {
+                      <button type="button" [class.active]="accountForm.controls.icon.value === option.name" (click)="selectAccountIcon(option.name)">
+                        <ion-icon [name]="option.name"></ion-icon>
+                        {{ option.label }}
+                      </button>
+                    }
+                  </div>
+                }
+              </div>
+            </label>
+
+            <div class="field-grid">
+              <label class="field">
+                <span>Data inicial</span>
+                <input type="date" formControlName="startDate" />
+              </label>
+              <label class="field">
+                <span>{{ accountForm.controls.kind.value === 'credit' ? 'Saldo disponível' : 'Valor inicial' }}</span>
+                <div class="money-field">
+                  <span>{{ currencySymbol }}</span>
+                  <input
+                    type="text"
+                    [value]="startValueDisplay"
+                    inputmode="decimal"
+                    placeholder="0,00"
+                    (input)="updateMoneyControl('startValue', $any($event.target).value, 'account')"
+                    (focus)="clearMoneyDisplay('account')"
+                    (blur)="formatMoneyDisplay('account')"
+                  />
+                </div>
+              </label>
+              @if (accountForm.controls.kind.value === 'credit') {
+                <label class="field">
+                  <span>Dia de Fechamento</span>
+                  <input type="number" formControlName="closingDay" min="1" max="31" inputmode="numeric" />
+                </label>
+                <label class="field">
+                  <span>Dia de Pagamento</span>
+                  <input type="number" formControlName="payDay" min="1" max="31" inputmode="numeric" />
+                </label>
+                <label class="field wide">
+                  <span>Conta de débito para pagar</span>
+                  <select formControlName="debitAccountRef">
+                    <option value="">Selecione</option>
+                    @for (account of debitAccountOptions; track account.ref) {
+                      <option [value]="account.ref">{{ account.name }}</option>
+                    }
+                  </select>
+                </label>
+              }
+            </div>
+
+            <button type="button" class="inline-add" (click)="addDraftAccount()">
+              <ion-icon name="add-circle-outline"></ion-icon>
+              Adicionar conta
+            </button>
+
+            <div class="pill-list">
+              @for (account of accountOptions; track account.ref) {
+                <span class="info-pill">
+                  <ion-icon [name]="account.icon"></ion-icon>
+                  {{ account.name }}
+                </span>
+              }
+            </div>
+
+            @for (account of draftAccounts; track account.tempId) {
+              <article class="draft-row">
+                <span><ion-icon [name]="account.icon"></ion-icon> {{ account.description }}</span>
+                <button type="button" aria-label="Remover conta" (click)="removeDraftAccount(account)">
+                  <ion-icon name="trash-outline"></ion-icon>
+                </button>
+              </article>
+            }
+          </section>
+        }
+
+        @if (step === 4) {
+          <section class="setup-card" [formGroup]="customCategoryForm">
+            <h2>Quais categorias fazem sentido?</h2>
+            <p>Selecionamos algumas sugestões. Você pode desligar o que não usa e incluir suas próprias categorias.</p>
+
+            <div class="category-grid">
+              @for (category of categories; track category.name) {
+                <button type="button" [class.active]="category.selected" (click)="toggleCategory(category.name)">
+                  <span class="category-icon-action" role="button" tabindex="0" [attr.aria-label]="'Alterar ícone de ' + category.name" (click)="toggleCategoryIconPicker(category, $event)">
+                    <ion-icon [name]="category.icon"></ion-icon>
+                  </span>
+                  {{ category.name }}
+                  @if (activeCategoryIconPicker === category.name) {
+                    <span class="floating-icon-menu" (click)="$event.stopPropagation()">
+                      @for (option of iconOptions; track option.name) {
+                        <span role="button" tabindex="0" [class.active]="category.icon === option.name" (click)="selectCategoryIcon(category, option.name, $event)">
+                          <ion-icon [name]="option.name"></ion-icon>
+                        </span>
+                      }
+                    </span>
+                  }
+                </button>
+              }
+            </div>
+
+            <div class="add-line">
+              <input type="text" formControlName="description" placeholder="Nova categoria" />
+              <button type="button" aria-label="Adicionar categoria" (click)="addCustomCategory()">
+                <ion-icon name="add-circle-outline"></ion-icon>
+              </button>
+            </div>
+          </section>
+        }
+
+        @if (step === 5) {
+          <section class="setup-card" [formGroup]="salaryForm">
+            <h2>Quer provisionar seu salário?</h2>
+            <p>Criamos os lançamentos status Provisionado. Você pode ajustar a data final.</p>
+
+            <label class="toggle-line">
+              <input type="checkbox" formControlName="enabled" />
+              <span>Lançar salário recorrente</span>
+            </label>
+
+            @if (salaryForm.controls.enabled.value) {
+              <label class="field">
+                <span>Descrição</span>
+                <input type="text" formControlName="description" />
+              </label>
+              <div class="field-grid">
+                <label class="field">
+                  <span>Dia em que cai</span>
+                  <input type="number" formControlName="dayOfMonth" min="1" max="31" inputmode="numeric" />
+                </label>
+                <label class="field">
+                  <span>Valor</span>
+                  <div class="money-field">
+                    <span>{{ currencySymbol }}</span>
+                    <input
+                      type="text"
+                      [value]="salaryValueDisplay"
+                      inputmode="decimal"
+                      placeholder="0,00"
+                      (input)="updateMoneyControl('value', $any($event.target).value, 'salary')"
+                      (focus)="clearMoneyDisplay('salary')"
+                      (blur)="formatMoneyDisplay('salary')"
+                    />
+                  </div>
+                </label>
+                <label class="field">
+                  <span>Até</span>
+                  <input type="date" formControlName="endDate" />
+                </label>
+                <label class="field">
+                  <span>Conta</span>
+                  <div class="setup-chip-scroll">
+                    @for (account of accountOptions; track account.ref) {
+                      <button
+                        type="button"
+                        class="setup-option-chip"
+                        [class.active]="salaryForm.controls.accountRef.value === account.ref"
+                        (click)="selectSalaryAccount(account.ref)"
+                      >
+                        <span
+                          class="setup-chip-delete"
+                          role="button"
+                          tabindex="0"
+                          [attr.aria-label]="'Excluir conta ' + account.name"
+                          (click)="removeAccountOption(account, $event)"
+                        >
+                          <ion-icon name="trash-outline"></ion-icon>
+                        </span>
+                        <ion-icon [name]="account.icon"></ion-icon>
+                        <span>{{ account.name }}</span>
+                      </button>
+                    }
+                    <button type="button" class="setup-option-chip add-option-chip" (click)="goToAccountStep()">
+                      <ion-icon name="add-circle-outline"></ion-icon>
+                      <span>Nova conta</span>
+                    </button>
+                  </div>
+                </label>
+              </div>
+            }
+          </section>
+        }
+
+        @if (step === 6) {
+          <section class="setup-card" [formGroup]="billForm">
+            <h2>Outras contas repetitivas?</h2>
+            <p>Aluguel, internet, luz e outros compromissos ficam provisionados para não serem esquecidos.</p>
+
+            <label class="field">
+              <span>Descrição</span>
+              <input type="text" formControlName="description" placeholder="Ex.: Internet" />
+            </label>
+            <div class="field-grid">
+              <label class="field">
+                <span>Dia</span>
+                <input type="number" formControlName="dayOfMonth" min="1" max="31" inputmode="numeric" />
+              </label>
+              <label class="field">
+                <span>Valor</span>
+                <div class="money-field">
+                  <span>{{ currencySymbol }}</span>
+                  <input
+                    type="text"
+                    [value]="billValueDisplay"
+                    inputmode="decimal"
+                    placeholder="0,00"
+                    (input)="updateMoneyControl('value', $any($event.target).value, 'bill')"
+                    (focus)="clearMoneyDisplay('bill')"
+                    (blur)="formatMoneyDisplay('bill')"
+                  />
+                </div>
+              </label>
+              <label class="field">
+                <span>Categoria</span>
+                <div class="setup-chip-scroll">
+                  @for (category of selectedCategoryOptions; track category.name) {
+                    <button
+                      type="button"
+                      class="setup-option-chip"
+                      [class.active]="billForm.controls.category.value === category.name"
+                      (click)="selectBillCategory(category.name)"
+                    >
+                      <span
+                        class="setup-chip-delete"
+                        role="button"
+                        tabindex="0"
+                        [attr.aria-label]="'Excluir categoria ' + category.name"
+                        (click)="removeCategoryOption(category, $event)"
+                      >
+                        <ion-icon name="trash-outline"></ion-icon>
+                      </span>
+                      <ion-icon [name]="category.icon"></ion-icon>
+                      <span>{{ category.name }}</span>
+                    </button>
+                  }
+                  <button type="button" class="setup-option-chip add-option-chip" (click)="goToCategoryStep()">
+                    <ion-icon name="add-circle-outline"></ion-icon>
+                    <span>Nova categoria</span>
+                  </button>
+                </div>
+              </label>
+              <label class="field">
+                <span>Conta</span>
+                <div class="setup-chip-scroll">
+                  @for (account of accountOptions; track account.ref) {
+                    <button
+                      type="button"
+                      class="setup-option-chip"
+                      [class.active]="billForm.controls.accountRef.value === account.ref"
+                      (click)="selectBillAccount(account.ref)"
+                    >
+                      <span
+                        class="setup-chip-delete"
+                        role="button"
+                        tabindex="0"
+                        [attr.aria-label]="'Excluir conta ' + account.name"
+                        (click)="removeAccountOption(account, $event)"
+                      >
+                        <ion-icon name="trash-outline"></ion-icon>
+                      </span>
+                      <ion-icon [name]="account.icon"></ion-icon>
+                      <span>{{ account.name }}</span>
+                    </button>
+                  }
+                  <button type="button" class="setup-option-chip add-option-chip" (click)="goToAccountStep()">
+                    <ion-icon name="add-circle-outline"></ion-icon>
+                    <span>Nova conta</span>
+                  </button>
+                </div>
+              </label>
+            </div>
+
+            <button type="button" class="inline-add" (click)="addDraftBill()">
+              <ion-icon name="add-circle-outline"></ion-icon>
+              Adicionar recorrência
+            </button>
+
+            @for (bill of draftBills; track bill.tempId) {
+              <article class="draft-row">
+                <span>{{ bill.description }} · dia {{ bill.dayOfMonth }}</span>
+                <button type="button" aria-label="Remover recorrência" (click)="removeDraftBill(bill)">
+                  <ion-icon name="trash-outline"></ion-icon>
+                </button>
+              </article>
+            }
+          </section>
+        }
+
+        @if (step === 7) {
+          <section class="setup-card review-card">
+            <span class="hero-icon"><ion-icon name="checkmark-circle-outline"></ion-icon></span>
+            <h2>Pronto para criar tudo?</h2>
+            <div class="review-grid">
+              <span><strong>{{ draftAccounts.length }}</strong> contas novas</span>
+              <span><strong>{{ selectedCategoryNames.length }}</strong> categorias ativas</span>
+              <span><strong>{{ salaryForm.controls.enabled.value ? 1 : 0 }}</strong> salário recorrente</span>
+              <span><strong>{{ draftBills.length }}</strong> contas repetitivas</span>
+            </div>
+          </section>
+        }
+        }
+      </div>
+
+      <footer class="setup-actions">
+        @if (step < totalSteps) {
+          <button type="button" class="primary-action" [disabled]="isLoading || isSaving" (click)="nextStep()">
+            Continuar
+            <ion-icon name="arrow-forward-outline"></ion-icon>
+          </button>
+        } @else {
+          <button type="button" class="primary-action" [disabled]="isSaving" (click)="finishSetup()">
+            <ion-icon name="save-outline"></ion-icon>
+            {{ isSaving ? 'Guardando...' : 'Criar meu planejamento' }}
+          </button>
+        }
+      </footer>
+    </section>
+  </main>
+</ion-content>

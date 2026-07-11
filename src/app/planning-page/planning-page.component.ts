@@ -25,6 +25,8 @@ import {
   PlanningPayload,
   PlanningSeries,
 } from '../finance-data.service';
+import { AppCurrencyPipe } from '../app-currency.pipe';
+import { CurrencySettingsService } from '../currency-settings.service';
 
 interface PlanningOption {
   id: number;
@@ -35,11 +37,12 @@ interface PlanningOption {
   selector: 'app-planning-page',
   templateUrl: './planning-page.component.html',
   styleUrls: ['./planning-page.component.scss'],
-  imports: [CommonModule, IonContent, IonIcon, IonRefresher, IonRefresherContent, ReactiveFormsModule],
+  imports: [CommonModule, AppCurrencyPipe, IonContent, IonIcon, IonRefresher, IonRefresherContent, ReactiveFormsModule],
 })
 export class PlanningPageComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly financeData = inject(FinanceDataService);
+  private readonly currencySettings = inject(CurrencySettingsService);
   private readonly router = inject(Router);
 
   protected plannings: PlanningSeries[] = [];
@@ -200,6 +203,10 @@ export class PlanningPageComponent implements OnInit {
 
   protected toNumber(value: string | number): number {
     return Number(value) || 0;
+  }
+
+  protected get currencySymbol(): string {
+    return this.currencySettings.option.symbol;
   }
 
   private loadPage(refreshEvent?: CustomEvent, clearMessages = true): void {

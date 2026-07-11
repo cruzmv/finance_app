@@ -8,6 +8,7 @@
     </div>
   }
 
+  @if (!isSetupRoute) {
   <ion-tab-bar slot="bottom">
     <ion-tab-button tab="dashboard">
       <ion-icon src="assets/icons/roman-temple.svg"></ion-icon>
@@ -31,4 +32,5 @@
       Mais
     </ion-tab-button>
   </ion-tab-bar>
+  }
 </ion-tabs>

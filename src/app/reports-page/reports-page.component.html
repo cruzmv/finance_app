@@ -3,7 +3,7 @@
     <ion-refresher-content></ion-refresher-content>
   </ion-refresher>
 
-  <main class="reports-page">
+  <main class="reports-page" (touchstart)="startMonthSwipe($event)" (touchend)="finishMonthSwipe($event)">
     <section class="month-card">
       <button
         type="button"
@@ -79,17 +79,17 @@
                 >
                   @if (category.consumedTotal !== 0) {
                     <span>
-                      <small>Consumado</small>
+                      <small>{{ getConsumedStatusLabel(category.consumedTotal) }}</small>
                       <strong [class.negative]="category.consumedTotal < 0">
-                        {{ category.consumedTotal | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
+                        {{ category.consumedTotal | appCurrency }}
                       </strong>
                     </span>
                   }
                   @if (category.provisionedTotal !== 0) {
                     <span>
-                      <small>Provisionado</small>
+                      <small>{{ getProvisionedStatusLabel(category.provisionedTotal) }}</small>
                       <strong [class.negative]="category.provisionedTotal < 0">
-                        {{ category.provisionedTotal | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
+                        {{ category.provisionedTotal | appCurrency }}
                       </strong>
                     </span>
                   }
@@ -97,7 +97,7 @@
                     <span class="category-total">
                       <small>Total</small>
                       <strong [class.negative]="category.total < 0">
-                        {{ category.total | currency:'EUR':'symbol':'1.2-2':'pt-PT' }}
+                        {{ category.total | appCurrency }}
                       </strong>
                     </span>
                   }

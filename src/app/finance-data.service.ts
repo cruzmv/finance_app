@@ -81,6 +81,28 @@ export interface PlanningSeries {
   occurrence_count: number;
 }
 
+export interface ContractOnboardingSetup {
+  completed?: boolean;
+  completedAt?: string;
+  skipped?: boolean;
+  skippedAt?: string;
+  answers?: unknown;
+  planningIds?: number[];
+  version?: number;
+}
+
+interface ContractOnboardingResponse {
+  data: {
+    onboardingSetup: ContractOnboardingSetup | null;
+  };
+}
+
+interface ContractOnboardingSaveResponse {
+  data: {
+    onboardingSetup: ContractOnboardingSetup;
+  };
+}
+
 interface MovimentSaveResponse {
   data?: {
     moviment?: Partial<BalanceRow>;
@@ -267,6 +289,20 @@ export class FinanceDataService {
     return this.http
       .get<{ data: FinanceSettingsData }>(`${this.apiBaseUrl}/get_finance_settings`)
       .pipe(map(({ data }) => data));
+  }
+
+  getContractOnboardingSetup(): Observable<ContractOnboardingSetup | null> {
+    return this.http
+      .get<ContractOnboardingResponse>(`${this.apiBaseUrl}/auth/contract/onboarding`)
+      .pipe(map(({ data }) => data?.onboardingSetup ?? null));
+  }
+
+  saveContractOnboardingSetup(setup: ContractOnboardingSetup): Observable<ContractOnboardingSetup> {
+    return this.http
+      .post<ContractOnboardingSaveResponse>(`${this.apiBaseUrl}/auth/contract/onboarding`, {
+        onboardingSetup: setup,
+      })
+      .pipe(map(({ data }) => data.onboardingSetup));
   }
 
   saveMovimentAccount(

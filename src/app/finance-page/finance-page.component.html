@@ -103,21 +103,21 @@
                       [class.negative-savings]="monthGroup.summary.previousSavings < 0"
                     >
                       <span class="figure-label">Mês anterior</span>
-                      <strong>{{ monthGroup.summary.previousSavings | currency:'EUR':'symbol':'1.2-2' }}</strong>
+                      <strong>{{ monthGroup.summary.previousSavings | appCurrency }}</strong>
                     </span>
                     <span
                       class="month-figure savings-tone-2"
                       [class.negative-savings]="monthGroup.summary.currentSavings < 0"
                     >
                       <span class="figure-label">Fim do mês</span>
-                      <strong>{{ monthGroup.summary.currentSavings | currency:'EUR':'symbol':'1.2-2' }}</strong>
+                      <strong>{{ monthGroup.summary.currentSavings | appCurrency }}</strong>
                     </span>
                     <span
                       class="month-figure savings-tone-3"
                       [class.negative-savings]="monthGroup.summary.totalSaved < 0"
                     >
                       <span class="figure-label">Economia</span>
-                      <strong>{{ monthGroup.summary.totalSaved | currency:'EUR':'symbol':'1.2-2' }}</strong>
+                      <strong>{{ monthGroup.summary.totalSaved | appCurrency }}</strong>
                     </span>
                   </div>
                 </div>
@@ -150,7 +150,7 @@
                       <span class="timeline-date">{{ formatDayLabel(dayGroup.date) }}</span>
                       <span class="timeline-savings">
                         <span>Saldo</span>
-                        {{ getPositiveBalanceTotal(dayGroup.accountBalances) | currency:'EUR':'symbol':'1.2-2' }}
+                        {{ getPositiveBalanceTotal(dayGroup.accountBalances) | appCurrency }}
                       </span>
 
                       @if (isDayExpanded(dayGroup.dateKey)) {
@@ -164,7 +164,7 @@
                               {{ balance.name }}
                             </span>
                             <span class="balance-amount" [ngClass]="getBalanceToneClass(balance)">
-                              {{ balance.value | currency:'EUR':'symbol':'1.2-2' }}
+                              {{ balance.value | appCurrency }}
                             </span>
                           </span>
                         </span>
@@ -230,14 +230,14 @@
                             <div class="transaction-primary">
                               <span class="transaction-description">{{ row.description }}</span>
                               <span class="transaction-value" [ngClass]="getValueToneClass(row.value)">
-                                {{ +row.value | currency:'EUR':'symbol':'1.2-2' }}
+                                {{ +row.value | appCurrency }}
                               </span>
                             </div>
 
                             <div class="transaction-meta">
                               <span>{{ row.ledger_account }}</span>
                               <span>{{ row.moviment_account }}</span>
-                              <span>{{ row.status }}</span>
+                              <span>{{ getMovementStatusLabel(row) }}</span>
                             </div>
                           </div>
 
@@ -249,7 +249,7 @@
                                   Saldo atual
                                 </span>
                                 <span class="balance-amount savings-amount">
-                                  {{ getPositiveBalanceTotal(getBalanceEntries(row.balances)) | currency:'EUR':'symbol':'1.2-2' }}
+                                  {{ getPositiveBalanceTotal(getBalanceEntries(row.balances)) | appCurrency }}
                                 </span>
                               </div>
                               <div
@@ -261,7 +261,7 @@
                                   {{ balance.name }}
                                 </span>
                                 <span class="balance-amount" [ngClass]="getBalanceToneClass(balance)">
-                                  {{ balance.value | currency:'EUR':'symbol':'1.2-2' }}
+                                  {{ balance.value | appCurrency }}
                                 </span>
                               </div>
                             </div>

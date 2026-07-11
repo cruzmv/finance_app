@@ -1,4 +1,4 @@
-import { CommonModule, CurrencyPipe, DatePipe } from '@angular/common';
+import { CommonModule, DatePipe } from '@angular/common';
 import { Component, ElementRef, OnInit, ViewChild, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
@@ -43,6 +43,7 @@ import {
   LedgerAccountSettings,
   MovimentAccountSettings,
 } from '../finance-data.service';
+import { AppCurrencyPipe } from '../app-currency.pipe';
 
 interface BalanceEntry {
   name: string;
@@ -102,10 +103,12 @@ interface FinanceFocusTarget {
   dayKey?: string;
   monthKey?: string;
   expandDetails?: boolean;
+  expandDayBalances?: boolean;
 }
 
 interface ScrollFocusOptions {
   expandDetails?: boolean;
+  expandDayBalances?: boolean;
 }
 
 @Component({
@@ -120,7 +123,7 @@ interface ScrollFocusOptions {
     IonRefresherContent,
     MatCardModule,
     MatProgressSpinnerModule,
-    CurrencyPipe,
+    AppCurrencyPipe,
     DatePipe,
   ],
 })
@@ -409,6 +412,21 @@ export class FinancePageComponent implements OnInit {
 
   protected getStatusToneClass(status: string | null | undefined): string {
     return this.pickToneClass(status, this.statusToneClasses);
+  }
+
+  protected getMovementStatusLabel(row: BalanceRow): string {
+    const normalizedStatus = this.normalizeStatusName(row.status);
+    const isIncome = Number(row.value) >= 0;
+
+    if (normalizedStatus === 'consumado') {
+      return isIncome ? 'Recebido' : 'Pago';
+    }
+
+    if (normalizedStatus === 'provisionado') {
+      return isIncome ? 'A receber' : 'A pagar';
+    }
+
+    return row.status;
   }
 
   protected getLedgerToneClass(ledgerAccount: string | null | undefined): string {
@@ -822,6 +840,7 @@ export class FinancePageComponent implements OnInit {
       row.ledger_account,
       row.moviment_account,
       row.status,
+      this.getMovementStatusLabel(row),
       row.value,
       new Date(row.datetime).toLocaleDateString('pt-BR', { timeZone: 'UTC' }),
     ].join(' '));
@@ -835,19 +854,29 @@ export class FinancePageComponent implements OnInit {
       .toLocaleLowerCase('pt-BR');
   }
 
+  private normalizeStatusName(status: string | null | undefined): string {
+    return (status ?? '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+      .toLocaleLowerCase('pt-BR');
+  }
+
   private initializeExpandedMonths(focusTarget: FinanceFocusTarget, options: ScrollFocusOptions): void {
     const resolvedTarget = this.getTimelineFocusTarget(focusTarget);
     const monthKey = resolvedTarget.monthKey ?? resolvedTarget.dayKey?.slice(0, 7);
     const expandDetails = options.expandDetails ?? true;
+    const expandDayBalances = options.expandDayBalances ?? expandDetails;
 
     this.expandedMonthKeys = monthKey ? new Set([monthKey]) : new Set<string>();
-    this.expandedDayKeys = expandDetails && resolvedTarget.dayKey ? new Set([resolvedTarget.dayKey]) : new Set<string>();
+    this.expandedDayKeys = expandDayBalances && resolvedTarget.dayKey ? new Set([resolvedTarget.dayKey]) : new Set<string>();
     this.expandedMovementIds = expandDetails && resolvedTarget.movementId ? new Set([resolvedTarget.movementId]) : new Set<number>();
   }
 
   private expandFocusTarget(focusTarget: FinanceFocusTarget, options: ScrollFocusOptions = {}): void {
     const monthKey = focusTarget.monthKey ?? focusTarget.dayKey?.slice(0, 7);
     const expandDetails = options.expandDetails ?? true;
+    const expandDayBalances = options.expandDayBalances ?? expandDetails;
 
     if (monthKey) {
       this.expandedMonthKeys.add(monthKey);
@@ -865,8 +894,10 @@ export class FinancePageComponent implements OnInit {
       return;
     }
 
-    if (expandDetails && focusTarget.dayKey) {
+    if (expandDayBalances && focusTarget.dayKey) {
       this.expandedDayKeys.add(focusTarget.dayKey);
+    } else if (focusTarget.dayKey) {
+      this.expandedDayKeys.delete(focusTarget.dayKey);
     }
 
     if (expandDetails && focusTarget.movementId) {
@@ -895,7 +926,10 @@ export class FinancePageComponent implements OnInit {
   }
 
   private getScrollFocusOptions(focusTarget: FinanceFocusTarget): ScrollFocusOptions {
-    return { expandDetails: focusTarget.expandDetails ?? true };
+    return {
+      expandDetails: focusTarget.expandDetails ?? true,
+      expandDayBalances: focusTarget.expandDayBalances,
+    };
   }
 
   private async scrollElementIntoView(element: HTMLElement, center = false): Promise<void> {

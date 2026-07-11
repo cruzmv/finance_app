@@ -912,10 +912,12 @@ input[type="number"]::-webkit-outer-spin-button {
 .quick-field input, .quick-field select, .quick-icon-trigger { width: 100%; min-height: 54px; padding: 0 14px; border: 1px solid var(--border); border-radius: 8px; background: #fff; color: var(--ink); font: 850 0.96rem var(--details-font, Roboto, Arial, sans-serif); outline: 0; }
 .quick-icon-trigger, .quick-icon-trigger > span, .quick-icon-option, .quick-save-button { display: flex; align-items: center; gap: 10px; }
 .quick-icon-trigger { justify-content: space-between; text-align: left; }
-.quick-icon-menu { max-height: 220px; margin-top: 8px; padding: 8px; border: 1px solid var(--border); border-radius: 8px; overflow-y: auto; }
-.quick-icon-option { min-height: 42px; padding: 0 10px; border-radius: 8px; color: #33413e; font-size: 0.82rem; font-weight: 850; }
-.quick-icon-trigger ion-icon, .quick-icon-option ion-icon { flex: 0 0 auto; color: var(--green); }
-.quick-save-button { justify-content: center; border-radius: 8px; background: #087142; color: #fff; font-weight: 950; }
+.quick-icon-menu { max-height: 220px; margin-top: 8px; padding: 8px; border: 1px solid var(--border); border-radius: 8px; background: #fff; overflow-y: auto; }
+.quick-icon-option { min-height: 48px; justify-content: flex-start; padding: 0 12px; border: 1px solid rgba(31, 67, 54, 0.08); border-radius: 8px; appearance: none; -webkit-appearance: none; background: #fff; color: #33413e; font-size: 0.82rem; font-weight: 850; text-align: left; }
+.quick-icon-trigger ion-icon, .quick-icon-option ion-icon { flex: 0 0 auto; color: var(--green); font-size: 1.18rem; }
+.quick-icon-option.active, .quick-icon-option:active, .quick-icon-option:focus-visible { background: #edf7f1; color: #075132; box-shadow: inset 0 0 0 1px rgba(8, 113, 66, 0.18); }
+.quick-save-button { width: 100%; min-height: 48px; justify-content: center; padding: 0 16px; border-radius: 8px; background: #087142; color: #fff; font-size: 1rem; font-weight: 950; line-height: 1.1; white-space: normal; }
+.quick-save-button ion-icon { flex: 0 0 auto; font-size: 1.25rem; }
 
 @media (min-width: 700px) {
   .moviment-form-page {

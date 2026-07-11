@@ -47,7 +47,7 @@ export class RegisterPageComponent {
       .register(email.trim(), username.trim(), password, joinCode.trim())
       .pipe(finalize(() => (this.isRegistering = false)))
       .subscribe({
-        next: () => void this.router.navigate(['/example/dashboard']),
+        next: () => void this.router.navigate(['/example/setup']),
         error: (error) => {
           this.errorMessage = error.error?.message ?? 'Não foi possível criar a conta.';
         },
