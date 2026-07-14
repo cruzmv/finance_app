@@ -4,6 +4,16 @@
   </ion-refresher>
 
   <div class="finance-dashboard" #financeDashboard>
+    @if (creditBillUpdateHint) {
+      <div class="credit-bill-toast" role="status" aria-live="polite">
+        <ion-icon name="card-outline"></ion-icon>
+        <span>{{ creditBillUpdateHint }}</span>
+        <button type="button" aria-label="Fechar aviso" (click)="dismissCreditBillUpdateHint()">
+          <ion-icon name="close-outline"></ion-icon>
+        </button>
+      </div>
+    }
+
     @if (isLoading) {
       <div class="state-block">
         <mat-spinner diameter="40"></mat-spinner>

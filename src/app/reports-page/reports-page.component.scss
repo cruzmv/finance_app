@@ -437,6 +437,8 @@ p {
 }
 
 .category-row {
+  --category-progress: 0%;
+  position: relative;
   display: grid;
   grid-template-columns: 42px minmax(0, 1fr);
   gap: 12px;
@@ -447,10 +449,29 @@ p {
   border-radius: 16px;
   background: #fff;
   box-shadow: 0 10px 24px rgba(26, 62, 48, 0.045);
+  overflow: hidden;
+}
+
+.category-row::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--category-progress);
+  background: rgba(231, 51, 63, 0.08);
+  content: "";
+  pointer-events: none;
+}
+
+.category-row > * {
+  position: relative;
+  z-index: 1;
 }
 
 .category-row.income {
   border-left-color: var(--green);
+}
+
+.category-row.income::before {
+  display: none;
 }
 
 .category-icon {
@@ -491,6 +512,28 @@ p {
   color: #184836;
   font-family: var(--salarium-display-font);
   font-size: 1rem;
+}
+
+.category-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 3px;
+}
+
+.category-meta span {
+  min-height: 19px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #fff3f4;
+  color: var(--red);
+  font-size: 0.62rem;
+  font-weight: 850;
+}
+
+.income .category-meta span {
+  background: #edf8f2;
+  color: var(--green);
 }
 
 .category-breakdown {

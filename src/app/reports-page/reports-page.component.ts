@@ -49,6 +49,7 @@ interface CategoryReportRow {
   consumedTotal: number;
   provisionedTotal: number;
   movementCount: number;
+  expenseSharePercent: number;
   isIncomeCategory: boolean;
 }
 
@@ -213,6 +214,10 @@ export class ReportsPageComponent implements OnInit {
     return total ? (part / total) * 100 : 0;
   }
 
+  protected getCategoryProgress(category: CategoryReportRow): string {
+    return `${Math.min(Math.max(category.expenseSharePercent, 0), 100)}%`;
+  }
+
   protected getCategoryIcon(category: CategoryReportRow): string {
     return this.normalizeIcon(
       category.icon,
@@ -356,6 +361,7 @@ export class ReportsPageComponent implements OnInit {
         consumedTotal: 0,
         provisionedTotal: 0,
         movementCount: 0,
+        expenseSharePercent: 0,
         isIncomeCategory: false,
       };
 
@@ -370,6 +376,14 @@ export class ReportsPageComponent implements OnInit {
 
     reportMap.forEach((row) => {
       row.isIncomeCategory = row.incomeTotal > 0 && row.total > 0;
+    });
+
+    const expenseTotal = Array.from(reportMap.values())
+      .filter((row) => !row.isIncomeCategory)
+      .reduce((total, row) => total + row.expenseTotal, 0);
+
+    reportMap.forEach((row) => {
+      row.expenseSharePercent = row.isIncomeCategory ? 0 : this.getPercent(row.expenseTotal, expenseTotal);
     });
 
     this.monthSavings = this.getMonthSavings(validRows);

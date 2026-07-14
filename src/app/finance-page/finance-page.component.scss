@@ -17,6 +17,43 @@ p {
   margin: 0;
 }
 
+.credit-bill-toast {
+  position: fixed;
+  right: 14px;
+  bottom: calc(78px + env(safe-area-inset-bottom, 0px));
+  left: 14px;
+  z-index: 40;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 32px;
+  align-items: center;
+  gap: 10px;
+  min-height: 54px;
+  padding: 8px 10px;
+  border: 1px solid rgba(22, 132, 84, 0.18);
+  border-radius: 8px;
+  background: #f1faf5;
+  color: #0b6b41;
+  box-shadow: 0 14px 34px rgba(18, 48, 37, 0.18);
+  font-size: 0.84rem;
+  font-weight: 850;
+}
+
+.credit-bill-toast > ion-icon {
+  font-size: 1.35rem;
+}
+
+.credit-bill-toast button {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(22, 132, 84, 0.1);
+  color: #0b6b41;
+  font-size: 1.05rem;
+}
+
 .movements-header {
   position: sticky;
   top: 0;

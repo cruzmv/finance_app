@@ -51,6 +51,7 @@ interface DashboardSummary {
   monthEndBalance: number;
   currentBalance: number;
   savings: number;
+  yearToDateSavings: number;
   income: number;
   receivedIncome: number;
   receivableIncome: number;
@@ -145,6 +146,7 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     monthEndBalance: 0,
     currentBalance: 0,
     savings: 0,
+    yearToDateSavings: 0,
     income: 0,
     receivedIncome: 0,
     receivableIncome: 0,
@@ -348,6 +350,18 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
 
   protected get savingsLabel(): string {
     return this.summary.savings < 0 ? 'Em dívida' : 'Economia de';
+  }
+
+  protected get primaryBalanceLabel(): string {
+    return this.isCurrentSelectedMonth() ? 'Saldo atual' : 'Saldo início mês';
+  }
+
+  protected get primaryBalanceValue(): number {
+    return this.isCurrentSelectedMonth() ? this.summary.currentBalance : this.summary.monthStartBalance;
+  }
+
+  protected get yearToDateSavingsLabel(): string {
+    return `Saldo do ano até ${this.selectedMonthLabel}`;
   }
 
   protected get savingsStartPercent(): number {
@@ -612,12 +626,14 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     const precedingMonthBalance = this.getDebitSnapshotTotal(
       this.getLatestRowAtOrBefore(validRows, precedingMonthEnd)?.balances,
     );
+    const yearToDateSavings = this.getYearToDateSavings(validRows);
 
     this.summary = {
       monthStartBalance,
       monthEndBalance,
       currentBalance,
       savings: monthEndBalance - monthStartBalance,
+      yearToDateSavings,
       income: this.sumValues(positiveThisMonth),
       receivedIncome: this.sumValues(positiveThisMonth.filter((row) => this.isStatus(row, 'consumado'))),
       receivableIncome: this.sumValues(positiveThisMonth.filter((row) => this.isStatus(row, 'provisionado'))),
@@ -835,6 +851,20 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     }));
   }
 
+  private getYearToDateSavings(rows: BalanceRow[]): number {
+    const selectedYear = this.selectedMonthDate.getFullYear();
+
+    return Array.from({ length: this.selectedMonthDate.getMonth() + 1 }, (_, month) => {
+      const monthDate = new Date(selectedYear, month, 1);
+      const monthStart = new Date(selectedYear, month, 1, 0, 0, 0, 0);
+      const monthEnd = this.getEndOfMonth(monthDate);
+      const startBalance = this.getDebitSnapshotTotal(this.getLatestRowAtOrBefore(rows, monthStart)?.balances);
+      const endBalance = this.getDebitSnapshotTotal(this.getLatestRowAtOrBefore(rows, monthEnd)?.balances);
+
+      return endBalance - startBalance;
+    }).reduce((total, savings) => total + savings, 0);
+  }
+
   private buildAvailableMonthOptions(rows: BalanceRow[]): DashboardMonthOption[] {
     const optionsByKey = new Map<string, DashboardMonthOption>();
 
@@ -1015,19 +1045,25 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   }
 
   private getCreditReferenceDate(): Date {
-    const selectedMonthEnd = this.getEndOfMonth(this.selectedMonthDate);
-    const isCurrentMonth = this.selectedMonthDate.getFullYear() === this.now.getFullYear()
-      && this.selectedMonthDate.getMonth() === this.now.getMonth();
+    const lastSelectedMonthDay = new Date(
+      this.selectedMonthDate.getFullYear(),
+      this.selectedMonthDate.getMonth() + 1,
+      0,
+    ).getDate();
 
-    return isCurrentMonth && this.now.getTime() < selectedMonthEnd.getTime()
-      ? this.now
-      : selectedMonthEnd;
+    return new Date(
+      this.selectedMonthDate.getFullYear(),
+      this.selectedMonthDate.getMonth(),
+      Math.min(this.now.getDate(), lastSelectedMonthDay),
+      this.now.getHours(),
+      this.now.getMinutes(),
+      this.now.getSeconds(),
+      this.now.getMilliseconds(),
+    );
   }
 
   private getCreditClosingDate(account: MovimentAccountSettings): Date {
-    const referenceDate = this.isCurrentSelectedMonth()
-      ? this.getCreditReferenceDate()
-      : this.getEndOfMonth(this.selectedMonthDate);
+    const referenceDate = this.getCreditReferenceDate();
     const closingDay = this.getSafeClosingDay(account, referenceDate);
     const closingDate = new Date(
       referenceDate.getFullYear(),

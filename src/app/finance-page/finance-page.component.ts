@@ -1,5 +1,5 @@
 import { CommonModule, DatePipe } from '@angular/common';
-import { Component, ElementRef, OnInit, ViewChild, inject } from '@angular/core';
+import { Component, ElementRef, OnDestroy, OnInit, ViewChild, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -44,6 +44,7 @@ import {
   MovimentAccountSettings,
 } from '../finance-data.service';
 import { AppCurrencyPipe } from '../app-currency.pipe';
+import { CurrencySettingsService } from '../currency-settings.service';
 
 interface BalanceEntry {
   name: string;
@@ -127,10 +128,12 @@ interface ScrollFocusOptions {
     DatePipe,
   ],
 })
-export class FinancePageComponent implements OnInit {
+export class FinancePageComponent implements OnInit, OnDestroy {
   private readonly financeData = inject(FinanceDataService);
+  private readonly currencySettings = inject(CurrencySettingsService);
   private readonly router = inject(Router);
   private readonly financeFocusStorageKey = 'financeFocusTarget';
+  private readonly creditBillUpdateHintStorageKey = 'financeCreditBillHint';
   private readonly expenseChartColors = ['#d94841', '#f07c4a', '#e0b43b'];
   private readonly statusToneClasses = ['status-tone-red', 'status-tone-amber', 'status-tone-orange'];
   private readonly ledgerToneClasses = ['ledger-tone-rose', 'ledger-tone-gold', 'ledger-tone-sky', 'ledger-tone-violet', 'ledger-tone-teal'];
@@ -169,6 +172,7 @@ export class FinancePageComponent implements OnInit {
   protected activeDayKey = '';
   protected isSearchOpen = false;
   protected searchQuery = '';
+  protected creditBillUpdateHint = '';
   protected todayDayKey = this.getDateKey(new Date().toISOString());
   protected expandedDayKeys = new Set<string>();
   protected expandedMonthKeys = new Set<string>();
@@ -180,6 +184,7 @@ export class FinancePageComponent implements OnInit {
   private ledgerAccounts = new Map<number, LedgerAccountSettings>();
   private accountById = new Map<string, MovimentAccountSettings>();
   private accountByDescription = new Map<string, MovimentAccountSettings>();
+  private creditBillUpdateHintTimer?: ReturnType<typeof setTimeout>;
 
   constructor() {
     addIcons({
@@ -210,11 +215,13 @@ export class FinancePageComponent implements OnInit {
   }
 
   ngOnInit() {
+    this.consumeCreditBillUpdateHint();
     this.pendingFocusTarget = this.consumeStoredFocusTarget();
     this.loadBalances(this.pendingFocusTarget ?? this.buildInitialFocusTarget());
   }
 
   ionViewWillEnter() {
+    this.consumeCreditBillUpdateHint();
     const storedFocusTarget = this.consumeStoredFocusTarget();
 
     if (this.loadedToken !== this.authToken) {
@@ -227,6 +234,10 @@ export class FinancePageComponent implements OnInit {
     }
 
     this.loadBalances(storedFocusTarget, true);
+  }
+
+  ngOnDestroy(): void {
+    this.clearCreditBillUpdateHintTimer();
   }
 
   protected trackById(_: number, row: BalanceRow): number {
@@ -327,6 +338,11 @@ export class FinancePageComponent implements OnInit {
     this.searchQuery = '';
     this.applySearchFilter();
     this.scheduleStickyDayOffsetUpdate();
+  }
+
+  protected dismissCreditBillUpdateHint(): void {
+    this.creditBillUpdateHint = '';
+    this.clearCreditBillUpdateHintTimer();
   }
 
   protected getBalanceEntries(balances: BalanceSnapshot | null | undefined): BalanceEntry[] {
@@ -502,15 +518,224 @@ export class FinancePageComponent implements OnInit {
     }
 
     const focusTarget = this.buildFocusTargetFromRow(row);
+    const shouldSyncCreditBill = this.isCreditMovement(row) && !row.credit_bill;
 
     this.financeData.deleteMoviment(row.id).subscribe({
       next: () => {
-        this.loadBalances(focusTarget, true);
+        if (!shouldSyncCreditBill) {
+          this.loadBalances(focusTarget, true);
+          return;
+        }
+
+        this.syncCreditBillAfterDelete(row, focusTarget);
       },
       error: () => {
         this.errorMessage = 'Não foi possível excluir o movimento.';
       },
     });
+  }
+
+  private syncCreditBillAfterDelete(deletedRow: BalanceRow, focusTarget: FinanceFocusTarget): void {
+    forkJoin({
+      settings: this.financeData.getFinanceSettings(),
+      balances: this.financeData.getBalances(true),
+    }).subscribe({
+      next: ({ settings, balances }) => {
+        const account = settings.accounts.find((item) => {
+          return item.id === Number(deletedRow.moviment_account_id) && item.account_type === 1;
+        });
+
+        if (!account?.debit_account) {
+          this.loadBalances(focusTarget, true);
+          return;
+        }
+
+        const deletedDate = new Date(deletedRow.datetime);
+
+        if (Number.isNaN(deletedDate.getTime())) {
+          this.loadBalances(focusTarget, true);
+          return;
+        }
+
+        const cycle = this.getCreditBillCycle(account, deletedDate);
+        const billRow = this.findCreditBillRow(balances, account, cycle.dueDate);
+
+        if (!billRow) {
+          this.loadBalances(focusTarget, true);
+          return;
+        }
+
+        const expectedValue = this.getCreditBillExpectedValue(balances, account, cycle.closingDate);
+
+        if (expectedValue === 0) {
+          this.financeData.deleteMoviment(billRow.id).subscribe({
+            next: () => this.loadBalances(focusTarget, true),
+            error: () => this.loadBalances(focusTarget, true),
+          });
+          return;
+        }
+
+        if (Math.abs((Number(billRow.value) || 0) - expectedValue) < 0.01) {
+          this.loadBalances(focusTarget, true);
+          return;
+        }
+
+        this.financeData.saveMoviment('edit', {
+          datetime: billRow.datetime,
+          description: billRow.description,
+          ledger_account: billRow.ledger_account_id,
+          moviment_account: billRow.moviment_account_id,
+          status: billRow.status_id,
+          value: expectedValue,
+        }, billRow).subscribe({
+          next: () => {
+            this.storeCreditBillUpdateHint(Math.abs(expectedValue));
+            this.loadBalances(focusTarget, true);
+          },
+          error: () => this.loadBalances(focusTarget, true),
+        });
+      },
+      error: () => this.loadBalances(focusTarget, true),
+    });
+  }
+
+  private getCreditBillExpectedValue(
+    rows: BalanceRow[],
+    account: MovimentAccountSettings,
+    closingDate: Date,
+  ): number {
+    const previousClosingDate = this.getPreviousCreditClosingDate(closingDate, account);
+    const total = rows
+      .filter((row) => {
+        if (row.account_type !== 1 || Number(row.moviment_account_id) !== account.id || row.credit_bill) {
+          return false;
+        }
+
+        const rowDate = new Date(row.datetime);
+
+        return Number(row.value) < 0 &&
+          this.isSettledStatusName(row.status) &&
+          rowDate.getTime() > previousClosingDate.getTime() &&
+          rowDate.getTime() <= closingDate.getTime();
+      })
+      .reduce((sum, row) => sum + (Number(row.value) || 0), 0);
+
+    return total === 0 ? 0 : -Math.abs(total);
+  }
+
+  private getCreditBillCycle(account: MovimentAccountSettings, movementDate: Date): { closingDate: Date; dueDate: Date } {
+    const closingDate = this.getCurrentOrNextCreditClosingDate(account, movementDate);
+    const dueMonthDate = new Date(closingDate.getFullYear(), closingDate.getMonth() + 1, 1);
+    const dueDay = Math.min(
+      Math.max(account.pay_day ?? 1, 1),
+      new Date(dueMonthDate.getFullYear(), dueMonthDate.getMonth() + 1, 0).getDate(),
+    );
+
+    return {
+      closingDate,
+      dueDate: new Date(dueMonthDate.getFullYear(), dueMonthDate.getMonth(), dueDay, 12, 0, 0, 0),
+    };
+  }
+
+  private getCurrentOrNextCreditClosingDate(account: MovimentAccountSettings, referenceDate: Date): Date {
+    const currentClosingDate = new Date(
+      referenceDate.getFullYear(),
+      referenceDate.getMonth(),
+      this.getSafeClosingDay(account, referenceDate),
+      23,
+      59,
+      59,
+      999,
+    );
+
+    if (referenceDate.getTime() <= currentClosingDate.getTime()) {
+      return currentClosingDate;
+    }
+
+    const nextMonthReference = new Date(referenceDate.getFullYear(), referenceDate.getMonth() + 1, 1);
+
+    return new Date(
+      nextMonthReference.getFullYear(),
+      nextMonthReference.getMonth(),
+      this.getSafeClosingDay(account, nextMonthReference),
+      23,
+      59,
+      59,
+      999,
+    );
+  }
+
+  private getPreviousCreditClosingDate(closingDate: Date, account: MovimentAccountSettings): Date {
+    const previousMonthReference = new Date(closingDate.getFullYear(), closingDate.getMonth() - 1, 1);
+
+    return new Date(
+      previousMonthReference.getFullYear(),
+      previousMonthReference.getMonth(),
+      this.getSafeClosingDay(account, previousMonthReference),
+      23,
+      59,
+      59,
+      999,
+    );
+  }
+
+  private findCreditBillRow(
+    rows: BalanceRow[],
+    account: MovimentAccountSettings,
+    dueDate: Date,
+  ): BalanceRow | undefined {
+    const expectedDescription = this.normalizeCreditBillDescription(
+      `Fatura ${account.description} mes ${new Intl.DateTimeFormat('pt-PT', { month: 'long' }).format(dueDate)} ${dueDate.getFullYear()}`,
+    );
+
+    return rows.find((row) => {
+      if (Number(row.moviment_account_id) !== account.debit_account) {
+        return false;
+      }
+
+      const rowDate = new Date(row.datetime);
+      const hasSameDueDate = rowDate.getFullYear() === dueDate.getFullYear()
+        && rowDate.getMonth() === dueDate.getMonth()
+        && rowDate.getDate() === dueDate.getDate();
+
+      return hasSameDueDate && (
+        !!row.credit_bill ||
+        this.normalizeCreditBillDescription(row.description) === expectedDescription
+      );
+    });
+  }
+
+  private getSafeClosingDay(account: MovimentAccountSettings, referenceDate: Date): number {
+    const lastDayOfMonth = new Date(referenceDate.getFullYear(), referenceDate.getMonth() + 1, 0).getDate();
+    const closingDay = account.closing_day ?? lastDayOfMonth;
+
+    return Math.min(Math.max(closingDay, 1), lastDayOfMonth);
+  }
+
+  private isSettledStatusName(status: string | null | undefined): boolean {
+    const normalizedStatus = this.normalizeStatusName(status);
+
+    return !normalizedStatus.includes('provision') &&
+      !normalizedStatus.includes('pagar') &&
+      !normalizedStatus.includes('receber') &&
+      !normalizedStatus.includes('pending');
+  }
+
+  private normalizeCreditBillDescription(description: string): string {
+    return description
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLocaleLowerCase('pt-BR');
+  }
+
+  private storeCreditBillUpdateHint(value: number): void {
+    sessionStorage.setItem(this.creditBillUpdateHintStorageKey, JSON.stringify({
+      message: `Fatura atualizada para ${this.currencySettings.format(value)}.`,
+      createdAt: Date.now(),
+    }));
+    this.consumeCreditBillUpdateHint();
   }
 
   private pickToneClass(value: string | null | undefined, toneClasses: string[]): string {
@@ -1031,6 +1256,42 @@ export class FinancePageComponent implements OnInit {
     } catch {
       return null;
     }
+  }
+
+  private consumeCreditBillUpdateHint(): void {
+    const storedHint = sessionStorage.getItem(this.creditBillUpdateHintStorageKey);
+
+    if (!storedHint) {
+      return;
+    }
+
+    sessionStorage.removeItem(this.creditBillUpdateHintStorageKey);
+
+    try {
+      const parsedHint = JSON.parse(storedHint) as { message?: string; createdAt?: number };
+
+      if (!parsedHint.message) {
+        return;
+      }
+
+      this.creditBillUpdateHint = parsedHint.message;
+      this.clearCreditBillUpdateHintTimer();
+      this.creditBillUpdateHintTimer = setTimeout(() => {
+        this.creditBillUpdateHint = '';
+        this.creditBillUpdateHintTimer = undefined;
+      }, 15_000);
+    } catch {
+      this.creditBillUpdateHint = '';
+    }
+  }
+
+  private clearCreditBillUpdateHintTimer(): void {
+    if (!this.creditBillUpdateHintTimer) {
+      return;
+    }
+
+    clearTimeout(this.creditBillUpdateHintTimer);
+    this.creditBillUpdateHintTimer = undefined;
   }
 
   private buildInitialFocusTarget(): FinanceFocusTarget {

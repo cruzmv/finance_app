@@ -87,6 +87,14 @@
           </span>
           <ion-icon name="chevron-forward-outline"></ion-icon>
         </button>
+        <button type="button" class="settings-menu-row" (click)="openSettingsView('creditCards')">
+          <span class="row-tile green"><ion-icon name="card-outline"></ion-icon></span>
+          <span>
+            <strong>Cartões de Crédito</strong>
+            <small>Faturas atuais e provisionadas</small>
+          </span>
+          <ion-icon name="chevron-forward-outline"></ion-icon>
+        </button>
         <button type="button" class="settings-menu-row" (click)="openSettingsView('notifications')">
           <span class="row-tile purple"><ion-icon name="notifications-outline"></ion-icon></span>
           <span>
@@ -177,6 +185,7 @@
             @if (activeView === 'accounts') { Contas }
             @if (activeView === 'ledger') { Categorias }
             @if (activeView === 'status') { Status }
+            @if (activeView === 'creditCards') { Cartões de Crédito }
             @if (activeView === 'notifications') { Notificações }
           </h1>
         </div>
@@ -280,6 +289,58 @@
                 {{ isSavingPassword ? 'Atualizando...' : 'Atualizar senha' }}
               </button>
             </form>
+          </section>
+        }
+
+        @if (activeView === 'creditCards') {
+          <section class="settings-panel">
+            <header class="section-toolbar">
+              <div>
+                <h2>Cartões de Crédito</h2>
+                <p>Defina como a app gera e projeta faturas dos seus cartões.</p>
+              </div>
+            </header>
+
+            <form class="settings-form account-profile-form" [formGroup]="creditBillForm" (ngSubmit)="saveCreditBillSettings()">
+              <label class="form-toggle-row">
+                <span>
+                  <strong>Gerar fatura para pagamento do cartão</strong>
+                  <small>Criar e atualizar movimentos de fatura automaticamente.</small>
+                </span>
+                <input type="checkbox" formControlName="enabled" />
+              </label>
+
+              <label class="form-toggle-row">
+                <span>
+                  <strong>Gerar apenas dos valores já pagos</strong>
+                  <small>Compras consumadas sempre entram quando a geração está ativa.</small>
+                </span>
+                <input type="checkbox" checked disabled />
+              </label>
+
+              <label class="form-toggle-row">
+                <span>
+                  <strong>Gerar fatura sobre os valores a pagar</strong>
+                  <small>Inclui lançamentos provisionados do cartão para projetar faturas futuras.</small>
+                </span>
+                <input type="checkbox" formControlName="includeProvisioned" [disabled]="!creditBillForm.controls.enabled.value" />
+              </label>
+
+              <button type="submit" class="save-button" [disabled]="isSaving">
+                {{ isSaving ? 'Salvando...' : 'Salvar configuração' }}
+              </button>
+            </form>
+
+            <div class="settings-form">
+              <h2>Gerar agora</h2>
+              <p class="settings-hint">
+                Executa para meses que têm movimentos em cartão, cria faturas ausentes e atualiza somente faturas provisionadas.
+                Faturas consumadas não serão alteradas.
+              </p>
+              <button type="button" class="save-button" [disabled]="isSaving || !creditBillForm.controls.enabled.value" (click)="generateCreditBillsNow()">
+                {{ isSaving ? 'Executando...' : 'Gerar e atualizar faturas agora' }}
+              </button>
+            </div>
           </section>
         }
 

@@ -278,10 +278,16 @@ export class FinanceDataService {
       );
   }
 
-  syncCreditBills(createMissing: boolean): Observable<CreditBillSyncResponse> {
+  syncCreditBills(
+    createMissing: boolean,
+    accountId?: number,
+    missingBills?: CreditBillSyncMissingBill[],
+  ): Observable<CreditBillSyncResponse> {
     return this.http
       .post<CreditBillSyncResponse>(`${this.apiBaseUrl}/sync_credit_bills`, {
         create_missing: createMissing,
+        account_id: accountId,
+        missing_bills: missingBills,
       })
       .pipe(tap(() => this.markBalancesChanged()));
   }

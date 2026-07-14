@@ -302,6 +302,65 @@
       }
     </section>
 
+    @if (pendingCreditBillPrompt) {
+      <div class="quick-create-backdrop">
+        <section class="quick-create-panel credit-bill-dialog" role="dialog" aria-modal="true" aria-labelledby="creditBillPromptTitle">
+          <span class="credit-bill-icon">
+            <ion-icon name="card-outline"></ion-icon>
+          </span>
+
+          <div class="credit-bill-content">
+            <h2 id="creditBillPromptTitle">Criar fatura do cartão?</h2>
+
+            @if (pendingCreditBillPrompt.compact) {
+              <p>
+                Deseja criar o lançamento da fatura de {{ pendingCreditBillPrompt.accountName }}
+                para {{ pendingCreditBillPrompt.dueDateLabel }} no valor de
+                <strong>{{ formatEuro(pendingCreditBillPrompt.total) }}</strong>?
+              </p>
+            } @else {
+              <p>
+                Identificamos que este é o primeiro movimento no cartão
+                <strong>{{ pendingCreditBillPrompt.accountName }}</strong> depois do fechamento.
+              </p>
+              <p>
+                Esse costuma ser o melhor momento para comprar: a fatura fecha agora e o pagamento fica para
+                <strong>{{ pendingCreditBillPrompt.dueDateLabel }}</strong>.
+              </p>
+              <p>
+                Se você criar o lançamento da fatura, a app vai mantê-lo atualizado automaticamente a cada novo
+                lançamento neste cartão até o próximo fechamento.
+              </p>
+
+              <label class="credit-bill-check">
+                <input
+                  type="checkbox"
+                  [checked]="pendingCreditBillPrompt.hideExplanation"
+                  (change)="setCreditBillPromptPreference($any($event.target).checked)"
+                />
+                <span>Não me mostre esta explicação novamente</span>
+              </label>
+            }
+          </div>
+
+          <div class="credit-bill-total">
+            <span>Valor da fatura</span>
+            <strong>{{ formatEuro(pendingCreditBillPrompt.total) }}</strong>
+          </div>
+
+          <div class="credit-bill-actions">
+            <button type="button" class="quick-save-button secondary" [disabled]="isCreditBillPromptSaving" (click)="declineCreditBillPrompt()">
+              Agora não
+            </button>
+            <button type="button" class="quick-save-button" [disabled]="isCreditBillPromptSaving" (click)="confirmCreditBillPrompt()">
+              <ion-icon name="checkmark-outline"></ion-icon>
+              Criar fatura
+            </button>
+          </div>
+        </section>
+      </div>
+    }
+
     @if (quickCreateTarget) {
       <div class="quick-create-backdrop" (click)="closeQuickCreate()">
         <section class="quick-create-panel" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">

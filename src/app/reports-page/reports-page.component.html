@@ -63,7 +63,11 @@
     } @else {
       <section class="category-list">
         @for (category of categoryRows; track category.ledgerAccountId) {
-          <article class="category-row" [class.income]="category.isIncomeCategory">
+          <article
+            class="category-row"
+            [class.income]="category.isIncomeCategory"
+            [style.--category-progress]="getCategoryProgress(category)"
+          >
             <div class="category-icon">
               <ion-icon [name]="getCategoryIcon(category)"></ion-icon>
             </div>
@@ -71,7 +75,12 @@
               <div class="category-heading">
                 <div>
                   <h2>{{ category.name }}</h2>
-                  <span>{{ category.movementCount }} movimentos</span>
+                  <span class="category-meta">
+                    <span>{{ category.movementCount }} movimentos</span>
+                    @if (!category.isIncomeCategory) {
+                      <span>{{ category.expenseSharePercent | number:'1.0-0':'pt-PT' }}%</span>
+                    }
+                  </span>
                 </div>
                 <div
                   class="category-breakdown"

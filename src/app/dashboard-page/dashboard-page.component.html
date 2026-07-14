@@ -184,8 +184,8 @@
             </div>
           }
           <div class="summary-metric current-metric">
-            <span>Saldo atual</span>
-            <strong class="summary-value">{{ summary.currentBalance | appCurrency }}</strong>
+            <span>{{ primaryBalanceLabel }}</span>
+            <strong class="summary-value">{{ primaryBalanceValue | appCurrency }}</strong>
           </div>
           <div class="summary-metric savings-metric">
             <span>Economia</span>
@@ -227,13 +227,11 @@
         }
 
         <div class="summary-bottom">
-          <div class="forecast-hint" [ngClass]="'forecast-' + forecastTone">
-            <ion-icon name="bulb-outline"></ion-icon>
+          <div class="forecast-hint year-balance-hint" [class.negative]="summary.yearToDateSavings < 0">
+            <ion-icon name="calendar-outline"></ion-icon>
             <span>
-              @if (forecastTitle) {
-                <strong>{{ forecastTitle }}</strong>
-              }
-              {{ forecastMessage }}
+              <strong>{{ summary.yearToDateSavings | appCurrency }}</strong>
+              {{ yearToDateSavingsLabel }}
             </span>
           </div>
         </div>
