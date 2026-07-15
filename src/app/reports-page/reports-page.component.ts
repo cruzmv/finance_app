@@ -7,7 +7,6 @@ import {
   alertCircleOutline,
   bagHandleOutline,
   barChartOutline,
-  bulbOutline,
   businessOutline,
   calculatorOutline,
   carOutline,
@@ -39,7 +38,6 @@ import {
   MovimentAccountSettings,
 } from '../finance-data.service';
 import { AppCurrencyPipe } from '../app-currency.pipe';
-import { FinancialAiAnalysis } from '../financial-ai.types';
 
 interface CategoryReportRow {
   ledgerAccountId: number;
@@ -105,10 +103,7 @@ export class ReportsPageComponent implements OnInit {
   protected categoryRows: CategoryReportRow[] = [];
   protected availableMonthOptions: ReportMonthOption[] = [];
   protected isLoading = false;
-  protected isAiLoading = false;
   protected errorMessage = '';
-  protected aiErrorMessage = '';
-  protected aiAnalysis: FinancialAiAnalysis | null = null;
   protected isMonthPickerOpen = false;
 
   constructor() {
@@ -117,7 +112,6 @@ export class ReportsPageComponent implements OnInit {
       alertCircleOutline,
       bagHandleOutline,
       barChartOutline,
-      bulbOutline,
       businessOutline,
       calculatorOutline,
       carOutline,
@@ -266,7 +260,6 @@ export class ReportsPageComponent implements OnInit {
       1,
     );
     this.isMonthPickerOpen = false;
-    this.clearAiAnalysis();
     this.buildCategoryRows();
   }
 
@@ -307,7 +300,6 @@ export class ReportsPageComponent implements OnInit {
     event.stopPropagation();
     this.selectedMonthDate = new Date(option.date);
     this.isMonthPickerOpen = false;
-    this.clearAiAnalysis();
     this.buildCategoryRows();
   }
 
@@ -318,26 +310,6 @@ export class ReportsPageComponent implements OnInit {
   @HostListener('document:click')
   protected closeMonthPicker(): void {
     this.isMonthPickerOpen = false;
-  }
-
-  protected requestAiAnalysis(): void {
-    if (this.isAiLoading || this.isLoading) {
-      return;
-    }
-
-    this.isAiLoading = true;
-    this.aiErrorMessage = '';
-
-    this.financeData.getFinancialAiAnalysis(this.getMonthKey(this.selectedMonthDate))
-      .pipe(finalize(() => (this.isAiLoading = false)))
-      .subscribe({
-        next: (analysis) => {
-          this.aiAnalysis = analysis;
-        },
-        error: (error) => {
-          this.aiErrorMessage = error?.error?.message ?? 'Não foi possível gerar a análise IA.';
-        },
-      });
   }
 
   private loadReport(forceRefresh = false, refreshEvent?: CustomEvent): void {
@@ -425,11 +397,6 @@ export class ReportsPageComponent implements OnInit {
 
       return rightMagnitude - leftMagnitude || left.name.localeCompare(right.name);
     });
-  }
-
-  private clearAiAnalysis(): void {
-    this.aiAnalysis = null;
-    this.aiErrorMessage = '';
   }
 
   private getValidRows(rows: BalanceRow[]): BalanceRow[] {

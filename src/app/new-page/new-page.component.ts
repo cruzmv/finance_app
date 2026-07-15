@@ -17,6 +17,7 @@ import {
   alertCircleOutline,
   arrowDownCircleOutline,
   arrowUpCircleOutline,
+  barcodeOutline,
   bonfireOutline,
   businessOutline,
   calendarOutline,
@@ -36,6 +37,7 @@ import {
   homeOutline,
   informationCircleOutline,
   medkitOutline,
+  qrCodeOutline,
   repeatOutline,
   receiptOutline,
   restaurantOutline,
@@ -133,6 +135,18 @@ interface PreparedReceiptImage {
   height: number;
 }
 
+interface BarcodeDetectionResult {
+  rawValue: string;
+  format: string;
+}
+
+interface BarcodeDetectorConstructor {
+  new(options?: { formats?: string[] }): {
+    detect(source: CanvasImageSource): Promise<BarcodeDetectionResult[]>;
+  };
+  getSupportedFormats?: () => Promise<string[]>;
+}
+
 type NewMovementSource = 'dashboard' | 'finance' | 'generic';
 type QuickCreateTarget = 'account' | 'ledger';
 
@@ -211,6 +225,8 @@ export class NewPageComponent implements OnInit, OnDestroy {
   protected errorMessage = '';
   protected receiptMessage = '';
   protected receiptImagePreview = '';
+  protected receiptCodeValue = '';
+  protected receiptCodeFormat = '';
   protected isRecurringOpen = false;
   protected pendingCreditBillPrompt: CreditBillPromptState | null = null;
   protected isCreditBillPromptSaving = false;
@@ -273,6 +289,7 @@ export class NewPageComponent implements OnInit, OnDestroy {
       alertCircleOutline,
       arrowDownCircleOutline,
       arrowUpCircleOutline,
+      barcodeOutline,
       bonfireOutline,
       businessOutline,
       calendarOutline,
@@ -292,6 +309,7 @@ export class NewPageComponent implements OnInit, OnDestroy {
       homeOutline,
       informationCircleOutline,
       medkitOutline,
+      qrCodeOutline,
       repeatOutline,
       receiptOutline,
       restaurantOutline,
@@ -828,11 +846,21 @@ export class NewPageComponent implements OnInit, OnDestroy {
 
   private async analyzeReceipt(file: File): Promise<void> {
     this.isAnalyzingReceipt = true;
-    this.receiptMessage = 'A analisar recibo...';
+    this.receiptMessage = 'A analisar recibo, QR Code e código de barras...';
+    this.receiptCodeValue = '';
+    this.receiptCodeFormat = '';
 
     try {
       const image = await this.prepareReceiptImage(file);
       this.receiptImagePreview = image.dataUrl;
+      const detectedCodes = await this.detectReceiptCodes(image.dataUrl);
+      const firstCode = detectedCodes[0];
+
+      if (firstCode) {
+        this.receiptCodeValue = firstCode.rawValue;
+        this.receiptCodeFormat = this.getReceiptCodeFormatLabel(firstCode.format);
+      }
+
       console.info('[receipt] Image prepared for upload', {
         fileName: file.name,
         fileType: file.type,
@@ -840,18 +868,22 @@ export class NewPageComponent implements OnInit, OnDestroy {
         uploadBytes: image.uploadBytes,
         width: image.width,
         height: image.height,
+        detectedCodes: detectedCodes.length,
       });
 
       this.http
         .post<ReceiptAnalysisResponse>(`${this.apiBaseUrl}/analyze_moviment_receipt`, {
           imageBase64: image.dataUrl,
           ledgerAccounts: this.ledgerAccounts.map((account) => account.name),
+          detectedCodes,
         })
         .pipe(finalize(() => (this.isAnalyzingReceipt = false)))
         .subscribe({
           next: ({ data }) => {
             this.applyReceiptGuesses(data.guesses);
-            this.receiptMessage = 'Recibo analisado. Reveja os campos sugeridos antes de guardar.';
+            this.receiptMessage = detectedCodes.length > 0
+              ? 'Recibo e código lidos. Reveja os campos sugeridos antes de guardar.'
+              : 'Recibo analisado. Reveja os campos sugeridos antes de guardar.';
           },
           error: (error: HttpErrorResponse) => {
             console.error('[receipt] Analysis request failed', {
@@ -871,6 +903,77 @@ export class NewPageComponent implements OnInit, OnDestroy {
       this.isAnalyzingReceipt = false;
       this.receiptMessage = 'Não foi possível ler esta imagem.';
     }
+  }
+
+  private async detectReceiptCodes(dataUrl: string): Promise<BarcodeDetectionResult[]> {
+    const detectorConstructor = this.getBarcodeDetectorConstructor();
+
+    if (!detectorConstructor) {
+      return [];
+    }
+
+    try {
+      const requestedFormats = [
+        'qr_code',
+        'code_128',
+        'code_39',
+        'code_93',
+        'codabar',
+        'ean_13',
+        'ean_8',
+        'itf',
+        'upc_a',
+        'upc_e',
+      ];
+      const supportedFormats = await detectorConstructor.getSupportedFormats?.();
+      const formats = supportedFormats?.length
+        ? requestedFormats.filter((format) => supportedFormats.includes(format))
+        : requestedFormats;
+
+      if (formats.length === 0) {
+        return [];
+      }
+
+      const detector = new detectorConstructor({ formats });
+      const image = await this.loadImage(dataUrl);
+      const detections = await detector.detect(image);
+
+      return detections
+        .map((code) => ({
+          rawValue: String(code.rawValue ?? '').trim(),
+          format: String(code.format ?? '').trim(),
+        }))
+        .filter((code) => code.rawValue);
+    } catch (error) {
+      console.info('[receipt] Barcode detection unavailable for this image', error);
+      return [];
+    }
+  }
+
+  private getBarcodeDetectorConstructor(): BarcodeDetectorConstructor | null {
+    const detector = (window as Window & { BarcodeDetector?: BarcodeDetectorConstructor }).BarcodeDetector;
+    return detector ?? null;
+  }
+
+  protected get receiptCodeLabel(): string {
+    return this.receiptCodeFormat || 'Código lido';
+  }
+
+  private getReceiptCodeFormatLabel(format: string): string {
+    const labels: Record<string, string> = {
+      qr_code: 'QR Code',
+      code_128: 'Código de barras',
+      code_39: 'Código 39',
+      code_93: 'Código 93',
+      codabar: 'Codabar',
+      ean_13: 'EAN-13',
+      ean_8: 'EAN-8',
+      itf: 'Interleaved 2 of 5',
+      upc_a: 'UPC-A',
+      upc_e: 'UPC-E',
+    };
+
+    return labels[format] ?? format.replace(/_/g, ' ').toUpperCase();
   }
 
   private applyReceiptGuesses(guesses: ReceiptAnalysisResponse['data']['guesses']): void {
@@ -1078,6 +1181,8 @@ export class NewPageComponent implements OnInit, OnDestroy {
     this.errorMessage = '';
     this.receiptMessage = '';
     this.receiptImagePreview = '';
+    this.receiptCodeValue = '';
+    this.receiptCodeFormat = '';
     this.isRecurringOpen = false;
     this.valueSign = -1;
     this.currentStep = 1;
@@ -1384,6 +1489,7 @@ export class NewPageComponent implements OnInit, OnDestroy {
         }
 
         const cycle = this.getCreditBillCycle(account, movementDate);
+        const referenceDate = new Date();
         const cycleRows = balances.filter((row) => {
           if (row.account_type !== 1 || Number(row.moviment_account_id) !== account.id || row.credit_bill) {
             return false;
@@ -1391,12 +1497,13 @@ export class NewPageComponent implements OnInit, OnDestroy {
 
           const rowDate = new Date(row.datetime);
 
-          return Number(row.value) < 0 &&
-            this.shouldIncludeCreditBillRowStatus(row.status, creditBillSettings.includeProvisioned) &&
+          return Number(row.value) !== 0 &&
+            this.shouldIncludeCreditBillRowStatus(row.status, creditBillSettings.includeProvisioned, account, cycle.closingDate, referenceDate) &&
             rowDate.getTime() >= this.getPreviousCreditClosingDate(cycle.closingDate, account).getTime() &&
             rowDate.getTime() < cycle.closingDate.getTime();
         });
-        const value = Math.abs(cycleRows.reduce((total, row) => total + (Number(row.value) || 0), 0));
+        const cycleTotal = cycleRows.reduce((total, row) => total + (Number(row.value) || 0), 0);
+        const value = cycleTotal < 0 ? Math.abs(cycleTotal) : 0;
         const hasBill = this.hasCreditBillForCycle(balances, account, cycle);
 
         if (value <= 0) {
@@ -1633,8 +1740,22 @@ export class NewPageComponent implements OnInit, OnDestroy {
       !normalizedStatus.includes('pending');
   }
 
-  private shouldIncludeCreditBillRowStatus(status: string | null | undefined, includeProvisioned: boolean): boolean {
-    return this.isSettledStatusName(status) || (includeProvisioned && this.isPendingStatusName(status));
+  private shouldIncludeCreditBillRowStatus(
+    status: string | null | undefined,
+    includeProvisioned: boolean,
+    account: MovimentAccountSettings,
+    cycleClosingDate: Date,
+    referenceDate: Date,
+  ): boolean {
+    if (this.isSettledStatusName(status)) {
+      return true;
+    }
+
+    if (!includeProvisioned || !this.isPendingStatusName(status)) {
+      return false;
+    }
+
+    return cycleClosingDate.getTime() > this.getCurrentOrNextCreditClosingDate(account, referenceDate).getTime();
   }
 
   private isPendingStatusName(status: string | null | undefined): boolean {

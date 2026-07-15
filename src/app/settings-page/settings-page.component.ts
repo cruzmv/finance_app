@@ -2,6 +2,9 @@ import { CommonModule } from '@angular/common';
 import { Component, HostListener, OnInit, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
+import { Capacitor } from '@capacitor/core';
+import { Directory, Filesystem } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
 import {
   IonContent,
   IonIcon,
@@ -53,6 +56,7 @@ import {
   BalanceRow,
   ContractOnboardingSetup,
   FinanceDataService,
+  FinanceSettingsData,
   LedgerAccountSettings,
   MovimentAccountSettings,
   StatusSettings,
@@ -78,7 +82,9 @@ import {
 import { FinancialAiAnalysis } from '../financial-ai.types';
 
 type SettingsTab = 'accounts' | 'ledger' | 'status' | 'notifications' | 'creditCards';
-type SettingsView = 'menu' | 'profile' | 'aiAnalysis' | SettingsTab;
+type SettingsView = 'menu' | 'profile' | 'aiAnalysis' | 'backupExport' | 'premium' | 'privacy' | 'about' | SettingsTab;
+type BackupExportFormat = 'json' | 'csv';
+type BackupExportSection = 'account' | 'auxiliary' | 'movements';
 type IconPickerTarget = 'account' | 'ledger' | 'status';
 
 interface IconOption {
@@ -90,6 +96,7 @@ interface ProfileAvatarOption {
   id: string;
   label: string;
   value: string;
+  backgroundPosition: string;
 }
 
 interface ExpectedCreditBill {
@@ -99,6 +106,26 @@ interface ExpectedCreditBill {
   due_datetime: string;
   value: number;
   movement_count: number;
+}
+
+interface BackupExportTable {
+  table: string;
+  rows: Array<Record<string, unknown>>;
+}
+
+interface BackupExportPayload {
+  metadata: {
+    exportedAt: string;
+    formatVersion: number;
+    contractId: number | null;
+    userId: number | null;
+  };
+  tables: BackupExportTable[];
+}
+
+interface BackupZipFile {
+  filename: string;
+  content: string;
 }
 
 @Component({
@@ -113,6 +140,7 @@ export class SettingsPageComponent implements OnInit {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly currencySettings = inject(CurrencySettingsService);
+  private readonly appReviewUrl = 'https://play.google.com/store/apps/details?id=com.camplife.wakeradio';
   private loadedToken = '';
 
   protected activeView: SettingsView = 'menu';
@@ -125,6 +153,14 @@ export class SettingsPageComponent implements OnInit {
   protected isLoading = false;
   protected isSaving = false;
   protected isSavingPassword = false;
+  protected isExportingBackup = false;
+  protected isImportingBackup = false;
+  protected selectedBackupExportFormat: BackupExportFormat = 'json';
+  protected selectedBackupExportSections: Record<BackupExportSection, boolean> = {
+    account: true,
+    auxiliary: true,
+    movements: true,
+  };
   protected errorMessage = '';
   protected successMessage = '';
   protected isNotificationMenuOpen = false;
@@ -144,6 +180,7 @@ export class SettingsPageComponent implements OnInit {
   protected activeIconPicker: IconPickerTarget | null = null;
   private readonly selectedMovimentStorageKey = 'selectedMoviment';
   private readonly notificationReadStorageKey = 'dashboardProvisionNotificationReads';
+  private hasSettingsDetailHistory = false;
   private balanceRows: BalanceRow[] = [];
   protected readonly iconOptions: IconOption[] = [
     { name: 'wallet-outline', label: 'Carteira' },
@@ -166,12 +203,19 @@ export class SettingsPageComponent implements OnInit {
     { name: 'alert-circle-outline', label: 'Atenção' },
   ];
   protected readonly profileAvatarOptions: ProfileAvatarOption[] = [
-    { id: 'sorriso', label: 'Sorriso', value: '😀' },
-    { id: 'piscadinha', label: 'Piscadinha', value: '😉' },
-    { id: 'oculos', label: 'Óculos', value: '😎' },
-    { id: 'foguinho', label: 'Foguinho', value: '🔥' },
-    { id: 'raio', label: 'Raio', value: '⚡' },
-    { id: 'estrela', label: 'Estrela', value: '⭐' },
+    { id: 'pao-duro', label: 'O Milionário Pão-Duro', value: 'MP', backgroundPosition: '0% 0%' },
+    { id: 'bilionario-nervosinho', label: 'O Bilionário Nervosinho', value: 'BN', backgroundPosition: '33.333% 0%' },
+    { id: 'rainha-cupons', label: 'A Rainha dos Cupons', value: 'RC', backgroundPosition: '66.667% 0%' },
+    { id: 'rei-pix', label: 'O Rei do Pix', value: 'RP', backgroundPosition: '100% 0%' },
+    { id: 'investidora-zen', label: 'A Investidora Zen', value: 'IZ', backgroundPosition: '0% 33.333%' },
+    { id: 'gastador-compulsivo', label: 'O Gastador Compulsivo', value: 'GC', backgroundPosition: '33.333% 33.333%' },
+    { id: 'cacadora-promocoes', label: 'A Caçadora de Promoções', value: 'CP', backgroundPosition: '66.667% 33.333%' },
+    { id: 'contador-maluco', label: 'O Contador Maluco', value: 'CM', backgroundPosition: '100% 33.333%' },
+    { id: 'chefe-orcamento', label: 'A Chefe do Orçamento', value: 'CO', backgroundPosition: '0% 66.667%' },
+    { id: 'pirata-cashback', label: 'O Pirata do Cashback', value: 'PC', backgroundPosition: '33.333% 66.667%' },
+    { id: 'mago-juros-compostos', label: 'O Mago dos Juros Compostos', value: 'MJ', backgroundPosition: '66.667% 66.667%' },
+    { id: 'capivara-economica', label: 'A Capivara Econômica', value: 'CE', backgroundPosition: '100% 66.667%' },
+    { id: 'gato-magnata', label: 'O Gato Magnata', value: 'GM', backgroundPosition: '0% 100%' },
   ];
   protected readonly currencyOptions = appCurrencyOptions;
   protected readonly notificationTypeOptions: Array<{ value: NotificationRuleType; label: string }> = [
@@ -300,6 +344,7 @@ export class SettingsPageComponent implements OnInit {
   }
 
   protected setActiveTab(tab: SettingsTab): void {
+    this.pushSettingsDetailHistory();
     this.activeView = tab;
     this.activeTab = tab;
     this.activeIconPicker = null;
@@ -312,13 +357,31 @@ export class SettingsPageComponent implements OnInit {
   }
 
   protected openAiAnalysisView(): void {
+    this.pushSettingsDetailHistory();
     this.activeView = 'aiAnalysis';
     this.activeIconPicker = null;
     this.errorMessage = '';
     this.successMessage = '';
   }
 
+  protected openBackupExportView(): void {
+    this.pushSettingsDetailHistory();
+    this.activeView = 'backupExport';
+    this.activeIconPicker = null;
+    this.errorMessage = '';
+    this.successMessage = '';
+  }
+
+  protected openInfoView(view: 'premium' | 'privacy' | 'about'): void {
+    this.pushSettingsDetailHistory();
+    this.activeView = view;
+    this.activeIconPicker = null;
+    this.errorMessage = '';
+    this.successMessage = '';
+  }
+
   protected openProfileView(): void {
+    this.pushSettingsDetailHistory();
     this.activeView = 'profile';
     this.activeIconPicker = null;
     this.errorMessage = '';
@@ -327,10 +390,36 @@ export class SettingsPageComponent implements OnInit {
   }
 
   protected backToMenu(): void {
+    if (this.hasSettingsDetailHistory) {
+      window.history.back();
+      return;
+    }
+
+    this.closeSettingsDetailView();
+  }
+
+  @HostListener('window:popstate')
+  protected handleBrowserBack(): void {
+    if (this.activeView !== 'menu') {
+      this.closeSettingsDetailView();
+    }
+  }
+
+  private closeSettingsDetailView(): void {
     this.activeView = 'menu';
     this.activeIconPicker = null;
     this.errorMessage = '';
     this.successMessage = '';
+    this.hasSettingsDetailHistory = false;
+  }
+
+  private pushSettingsDetailHistory(): void {
+    if (this.activeView !== 'menu' || this.hasSettingsDetailHistory) {
+      return;
+    }
+
+    window.history.pushState({ settingsDetail: true }, '');
+    this.hasSettingsDetailHistory = true;
   }
 
   protected get username(): string {
@@ -890,6 +979,113 @@ export class SettingsPageComponent implements OnInit {
     this.loadSettings(event);
   }
 
+  protected selectBackupExportFormat(format: BackupExportFormat): void {
+    this.selectedBackupExportFormat = format;
+  }
+
+  protected toggleBackupSectionSelection(section: BackupExportSection): void {
+    this.selectedBackupExportSections = {
+      ...this.selectedBackupExportSections,
+      [section]: !this.selectedBackupExportSections[section],
+    };
+  }
+
+  protected exportBackupData(format = this.selectedBackupExportFormat): void {
+    if (this.isExportingBackup) {
+      return;
+    }
+
+    if (!this.hasSelectedBackupExportSections()) {
+      this.errorMessage = 'Selecione pelo menos um grupo de dados para exportar.';
+      this.successMessage = '';
+      return;
+    }
+
+    this.isExportingBackup = true;
+    this.errorMessage = '';
+    this.successMessage = '';
+
+    forkJoin({
+      profile: this.auth.getProfile(),
+      onboarding: this.financeData.getContractOnboardingSetup(),
+      settings: this.financeData.getFinanceSettings(),
+      balances: this.financeData.getBalances(true),
+    })
+      .subscribe({
+        next: async ({ profile, onboarding, settings, balances }) => {
+          this.profile = profile.data.user;
+          this.onboardingSetup = onboarding;
+          this.accounts = settings.accounts;
+          this.ledgerAccounts = settings.ledgerAccounts;
+          this.statuses = settings.statuses;
+          this.balanceRows = balances;
+
+          const payload = this.buildBackupExportPayload(profile.data.user, onboarding, settings, balances);
+          const fileDate = this.getBackupFileDate();
+          const contractId = payload.metadata.contractId ?? 'sem-contrato';
+          const baseFilename = `salarium-backup-${contractId}-${fileDate}`;
+          let exportTarget: 'shared' | 'downloaded';
+
+          try {
+            if (format === 'json') {
+              exportTarget = await this.saveBackupFile(
+                `${baseFilename}.json`,
+                'application/json;charset=utf-8',
+                JSON.stringify(payload, null, 2),
+              );
+            } else {
+              exportTarget = await this.saveBackupBlob(
+                `${baseFilename}-csv.zip`,
+                this.createZipBlob(this.backupPayloadToCsvFiles(payload)),
+              );
+            }
+
+            this.successMessage = this.getBackupExportSuccessMessage(format, exportTarget);
+          } catch {
+            this.errorMessage = 'Não foi possível gerar o backup agora.';
+          } finally {
+            this.isExportingBackup = false;
+          }
+        },
+        error: () => {
+          this.isExportingBackup = false;
+          this.errorMessage = 'Não foi possível gerar o backup agora.';
+        },
+      });
+  }
+
+  protected importBackupData(event: Event): void {
+    const input = event.target as HTMLInputElement | null;
+    const file = input?.files?.[0];
+
+    if (!file || this.isImportingBackup) {
+      return;
+    }
+
+    this.isImportingBackup = true;
+    this.errorMessage = '';
+    this.successMessage = '';
+
+    const fileName = file.name.toLowerCase();
+    const readFile = fileName.endsWith('.zip')
+      ? Promise.resolve('Arquivo ZIP selecionado para restauração.')
+      : file.text().then((content) => this.getBackupImportSummary(content, file.name));
+
+    readFile
+      .then((content) => {
+        this.successMessage = `Arquivo "${file.name}" lido: ${content}. A restauração será aplicada na próxima etapa.`;
+      })
+      .catch(() => {
+        this.errorMessage = 'Não foi possível ler o arquivo de backup.';
+      })
+      .finally(() => {
+        this.isImportingBackup = false;
+        if (input) {
+          input.value = '';
+        }
+      });
+  }
+
   protected saveProfile(): void {
     this.profileForm.markAllAsTouched();
     this.errorMessage = '';
@@ -967,6 +1163,10 @@ export class SettingsPageComponent implements OnInit {
 
   protected logout(): void {
     this.auth.logout();
+  }
+
+  protected openAppReview(): void {
+    window.open(this.appReviewUrl, '_blank', 'noopener,noreferrer');
   }
 
   protected openRecurringMovements(): void {
@@ -1125,6 +1325,372 @@ export class SettingsPageComponent implements OnInit {
       });
   }
 
+  private buildBackupExportPayload(
+    profile: UserProfile,
+    onboarding: ContractOnboardingSetup | null,
+    settings: FinanceSettingsData,
+    balances: BalanceRow[],
+  ): BackupExportPayload {
+    const contractId = profile.contractId ?? this.auth.user?.contractId ?? null;
+    const userId = profile.id ?? this.auth.user?.userId ?? null;
+
+    const tables: BackupExportTable[] = [];
+
+    if (this.selectedBackupExportSections.account) {
+      tables.push(
+        {
+          table: 'finance.contracts',
+          rows: [{
+            id: contractId,
+            onboarding_setup: onboarding,
+          }],
+        },
+        {
+          table: 'finance.users',
+          rows: [{
+            id: userId,
+            contract: contractId,
+            contractId,
+            username: profile.username,
+            email: profile.email,
+            name: profile.name,
+            hasPassword: profile.hasPassword,
+          }],
+        },
+      );
+    }
+
+    if (this.selectedBackupExportSections.auxiliary) {
+      tables.push(
+        {
+          table: 'finance.moviment_accounts',
+          rows: settings.accounts.map((account) => ({ ...account })),
+        },
+        {
+          table: 'finance.ledger_accounts',
+          rows: settings.ledgerAccounts.map((account) => ({ ...account })),
+        },
+        {
+          table: 'finance.status',
+          rows: settings.statuses.map((status) => ({ ...status })),
+        },
+      );
+    }
+
+    if (this.selectedBackupExportSections.movements) {
+      tables.push({
+        table: 'finance.moviments',
+        rows: balances.map((row) => ({ ...row })),
+      });
+    }
+
+    return {
+      metadata: {
+        exportedAt: new Date().toISOString(),
+        formatVersion: 1,
+        contractId,
+        userId,
+      },
+      tables,
+    };
+  }
+
+  private hasSelectedBackupExportSections(): boolean {
+    return Object.values(this.selectedBackupExportSections).some(Boolean);
+  }
+
+  private backupPayloadToCsvFiles(payload: BackupExportPayload): BackupZipFile[] {
+    return payload.tables.map((table) => {
+      return {
+        filename: `${table.table.replace(/\W+/g, '_')}.csv`,
+        content: this.tableToCsv(table),
+      };
+    });
+  }
+
+  private tableToCsv(table: BackupExportTable): string {
+    const columns = this.getCsvColumns(table);
+    const csvRows = [
+      columns,
+      ...table.rows.map((row) => columns.map((column) => {
+        const value = row[column];
+
+        return typeof value === 'object' && value !== null ? JSON.stringify(value) : String(value ?? '');
+      })),
+    ];
+
+    return csvRows
+      .map((row) => row.map((value) => this.escapeCsvValue(value)).join(','))
+      .join('\n');
+  }
+
+  private getCsvColumns(table: BackupExportTable): string[] {
+    if (table.table === 'finance.moviments') {
+      return [
+      'id',
+      'datetime',
+      'description',
+      'ledger_account_id',
+      'ledger_account',
+      'moviment_account_id',
+      'moviment_account',
+      'status_id',
+      'status',
+      'value',
+      'balances',
+      'credit_status',
+      'credit_bill',
+      'account_type',
+      'planning',
+      ];
+    }
+
+    const columns = new Set<string>();
+
+    table.rows.forEach((row) => {
+      Object.keys(row).forEach((key) => columns.add(key));
+    });
+
+    return [
+      ...(['id', 'contract', 'contractId'].filter((column) => columns.delete(column))),
+      ...Array.from(columns),
+    ];
+  }
+
+  private createZipBlob(files: BackupZipFile[]): Blob {
+    const encoder = new TextEncoder();
+    const localFileParts: Uint8Array[] = [];
+    const centralDirectoryParts: Uint8Array[] = [];
+    let offset = 0;
+
+    files.forEach((file) => {
+      const nameBytes = encoder.encode(file.filename);
+      const dataBytes = encoder.encode(file.content);
+      const crc = this.getCrc32(dataBytes);
+      const localHeader = this.createZipLocalHeader(nameBytes, dataBytes, crc);
+      const centralDirectoryHeader = this.createZipCentralDirectoryHeader(nameBytes, dataBytes, crc, offset);
+
+      localFileParts.push(localHeader, dataBytes);
+      centralDirectoryParts.push(centralDirectoryHeader);
+      offset += localHeader.length + dataBytes.length;
+    });
+
+    const centralDirectoryOffset = offset;
+    const centralDirectorySize = centralDirectoryParts.reduce((total, part) => total + part.length, 0);
+    const endRecord = this.createZipEndRecord(files.length, centralDirectorySize, centralDirectoryOffset);
+
+    return new Blob([...localFileParts, ...centralDirectoryParts, endRecord], {
+      type: 'application/zip',
+    });
+  }
+
+  private createZipLocalHeader(nameBytes: Uint8Array, dataBytes: Uint8Array, crc: number): Uint8Array {
+    const header = new Uint8Array(30 + nameBytes.length);
+    const view = new DataView(header.buffer);
+
+    view.setUint32(0, 0x04034b50, true);
+    view.setUint16(4, 20, true);
+    view.setUint16(6, 0, true);
+    view.setUint16(8, 0, true);
+    view.setUint16(10, 0, true);
+    view.setUint16(12, 0, true);
+    view.setUint32(14, crc, true);
+    view.setUint32(18, dataBytes.length, true);
+    view.setUint32(22, dataBytes.length, true);
+    view.setUint16(26, nameBytes.length, true);
+    view.setUint16(28, 0, true);
+    header.set(nameBytes, 30);
+
+    return header;
+  }
+
+  private createZipCentralDirectoryHeader(
+    nameBytes: Uint8Array,
+    dataBytes: Uint8Array,
+    crc: number,
+    offset: number,
+  ): Uint8Array {
+    const header = new Uint8Array(46 + nameBytes.length);
+    const view = new DataView(header.buffer);
+
+    view.setUint32(0, 0x02014b50, true);
+    view.setUint16(4, 20, true);
+    view.setUint16(6, 20, true);
+    view.setUint16(8, 0, true);
+    view.setUint16(10, 0, true);
+    view.setUint16(12, 0, true);
+    view.setUint16(14, 0, true);
+    view.setUint32(16, crc, true);
+    view.setUint32(20, dataBytes.length, true);
+    view.setUint32(24, dataBytes.length, true);
+    view.setUint16(28, nameBytes.length, true);
+    view.setUint16(30, 0, true);
+    view.setUint16(32, 0, true);
+    view.setUint16(34, 0, true);
+    view.setUint16(36, 0, true);
+    view.setUint32(38, 0, true);
+    view.setUint32(42, offset, true);
+    header.set(nameBytes, 46);
+
+    return header;
+  }
+
+  private createZipEndRecord(fileCount: number, centralDirectorySize: number, centralDirectoryOffset: number): Uint8Array {
+    const record = new Uint8Array(22);
+    const view = new DataView(record.buffer);
+
+    view.setUint32(0, 0x06054b50, true);
+    view.setUint16(4, 0, true);
+    view.setUint16(6, 0, true);
+    view.setUint16(8, fileCount, true);
+    view.setUint16(10, fileCount, true);
+    view.setUint32(12, centralDirectorySize, true);
+    view.setUint32(16, centralDirectoryOffset, true);
+    view.setUint16(20, 0, true);
+
+    return record;
+  }
+
+  private getCrc32(bytes: Uint8Array): number {
+    let crc = 0xffffffff;
+
+    bytes.forEach((byte) => {
+      crc ^= byte;
+      for (let bit = 0; bit < 8; bit += 1) {
+        crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+      }
+    });
+
+    return (crc ^ 0xffffffff) >>> 0;
+  }
+
+  private getBackupImportSummary(content: string, filename: string): string {
+    const trimmedContent = content.trim();
+
+    if (!trimmedContent) {
+      throw new Error('empty backup file');
+    }
+
+    if (filename.toLowerCase().endsWith('.json') || trimmedContent.startsWith('{')) {
+      const payload = JSON.parse(trimmedContent) as Partial<BackupExportPayload>;
+      const tableCount = payload.tables?.length ?? 0;
+      const rowCount = payload.tables?.reduce((total, table) => total + (table.rows?.length ?? 0), 0) ?? 0;
+
+      return `${tableCount} tabelas e ${rowCount} registros encontrados`;
+    }
+
+    const lineCount = trimmedContent.split(/\r?\n/).filter(Boolean).length;
+    const dataRows = Math.max(lineCount - 1, 0);
+
+    return `${dataRows} registros CSV encontrados`;
+  }
+
+  private escapeCsvValue(value: unknown): string {
+    const text = value === null || value === undefined ? '' : String(value);
+    const escapedText = text.replace(/"/g, '""');
+
+    return `"${escapedText}"`;
+  }
+
+  private async saveBackupFile(
+    filename: string,
+    mimeType: string,
+    content: string,
+  ): Promise<'shared' | 'downloaded'> {
+    const blob = new Blob([content], { type: mimeType });
+    return this.saveBackupBlob(filename, blob);
+  }
+
+  private async saveBackupBlob(filename: string, blob: Blob): Promise<'shared' | 'downloaded'> {
+    if (Capacitor.isNativePlatform()) {
+      await this.shareNativeBackupFile(filename, blob);
+      return 'shared';
+    }
+
+    this.downloadBackupBlob(filename, blob);
+    return 'downloaded';
+  }
+
+  private async shareNativeBackupFile(filename: string, blob: Blob): Promise<void> {
+    const data = await this.blobToBase64(blob);
+    const result = await Filesystem.writeFile({
+      path: `backups/${filename}`,
+      data,
+      directory: Directory.Cache,
+      recursive: true,
+    });
+
+    await Share.share({
+      title: 'Backup Salarium',
+      text: 'Backup exportado com IDs preservados.',
+      files: [result.uri],
+      dialogTitle: 'Salvar ou compartilhar backup',
+    });
+  }
+
+  private downloadBackupBlob(filename: string, blob: Blob): void {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.style.display = 'none';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  private blobToBase64(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+
+      reader.onloadend = () => {
+        const result = reader.result;
+
+        if (typeof result !== 'string') {
+          reject(new Error('invalid backup file content'));
+          return;
+        }
+
+        resolve(result.split(',')[1] ?? '');
+      };
+      reader.onerror = () => reject(reader.error ?? new Error('backup file read failed'));
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  private getBackupExportSuccessMessage(
+    format: BackupExportFormat,
+    target: 'shared' | 'downloaded',
+  ): string {
+    if (target === 'shared') {
+      return format === 'json'
+        ? 'Backup JSON pronto para salvar ou compartilhar.'
+        : 'Backup CSV em ZIP pronto para salvar ou compartilhar.';
+    }
+
+    return format === 'json'
+      ? 'Backup JSON exportado com IDs.'
+      : 'Backup CSV exportado em ZIP com arquivos separados por tabela.';
+  }
+
+  private getBackupFileDate(): string {
+    const now = new Date();
+    const date = [
+      now.getFullYear(),
+      String(now.getMonth() + 1).padStart(2, '0'),
+      String(now.getDate()).padStart(2, '0'),
+    ].join('');
+    const time = [
+      String(now.getHours()).padStart(2, '0'),
+      String(now.getMinutes()).padStart(2, '0'),
+      String(now.getSeconds()).padStart(2, '0'),
+    ].join('');
+
+    return `${date}-${time}`;
+  }
+
   private getMonthKey(date: Date): string {
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
   }
@@ -1178,15 +1744,15 @@ export class SettingsPageComponent implements OnInit {
         return bills;
       }
 
+      const referenceDate = new Date();
       const cycles = new Map<string, { closingDate: Date; dueDate: Date; rows: BalanceRow[] }>();
 
       this.balanceRows
         .filter((row) => {
           return row.account_type === 1 &&
             Number(row.moviment_account_id) === account.id &&
-            Number(row.value) < 0 &&
-            !row.credit_bill &&
-            this.shouldIncludeCreditBillRowStatus(row.status, settings.includeProvisioned);
+            Number(row.value) !== 0 &&
+            !row.credit_bill;
         })
         .forEach((row) => {
           const rowDate = new Date(row.datetime);
@@ -1196,6 +1762,11 @@ export class SettingsPageComponent implements OnInit {
           }
 
           const cycle = this.getCreditBillCycle(account, rowDate);
+
+          if (!this.shouldIncludeCreditBillRowStatus(row.status, settings.includeProvisioned, account, cycle.closingDate, referenceDate)) {
+            return;
+          }
+
           const cycleKey = this.getDateMonthKey(cycle.closingDate);
           const currentCycle = cycles.get(cycleKey) ?? {
             closingDate: cycle.closingDate,
@@ -1208,7 +1779,8 @@ export class SettingsPageComponent implements OnInit {
         });
 
       bills.push(...Array.from(cycles.entries()).map(([cycleKey, cycle]) => {
-        const value = Math.abs(cycle.rows.reduce((total, row) => total + (Number(row.value) || 0), 0));
+        const cycleTotal = cycle.rows.reduce((total, row) => total + (Number(row.value) || 0), 0);
+        const value = cycleTotal < 0 ? Math.abs(cycleTotal) : 0;
 
         return {
           account_id: account.id,
@@ -1448,8 +2020,22 @@ export class SettingsPageComponent implements OnInit {
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
   }
 
-  private shouldIncludeCreditBillRowStatus(status: string | null | undefined, includeProvisioned: boolean): boolean {
-    return this.isSettledStatusName(status) || (includeProvisioned && this.isPendingStatusName(status));
+  private shouldIncludeCreditBillRowStatus(
+    status: string | null | undefined,
+    includeProvisioned: boolean,
+    account: MovimentAccountSettings,
+    cycleClosingDate: Date,
+    referenceDate: Date,
+  ): boolean {
+    if (this.isSettledStatusName(status)) {
+      return true;
+    }
+
+    if (!includeProvisioned || !this.isPendingStatusName(status)) {
+      return false;
+    }
+
+    return cycleClosingDate.getTime() > this.getCurrentOrNextCreditClosingDate(account, referenceDate).getTime();
   }
 
   private isSettledStatusName(status: string | null | undefined): boolean {

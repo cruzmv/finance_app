@@ -390,8 +390,11 @@ h2 {
 }
 
 .forecast-hint {
-  gap: 7px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
   min-width: 0;
+  width: 100%;
   color: #fff;
   font-size: 0.74rem;
   line-height: 1.18;
@@ -404,15 +407,20 @@ h2 {
 }
 
 .forecast-hint span {
+  display: flex;
   min-width: 0;
+  align-items: center;
+  gap: 7px;
   overflow-wrap: anywhere;
 }
 
 .forecast-hint strong {
   display: block;
   color: #fff;
-  font-size: 1rem;
+  font-size: clamp(1.06rem, 4.1vw, 1.28rem);
   font-weight: 950;
+  text-align: right;
+  white-space: nowrap;
 }
 
 .savings-chart {

@@ -71,3 +71,56 @@ label > span,
   font-family: var(--salarium-display-font);
   letter-spacing: 0.035em;
 }
+
+.settings-page .character-avatar,
+.settings-page .avatar-thumbnail {
+  background-image: url("/assets/avatars/finance-characters.png");
+  background-size: 400% 400%;
+}
+
+.settings-page .avatar-thumbnail {
+  display: inline-block;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+}
+
+.settings-page .profile-card-main {
+  min-width: 0;
+  flex: 1;
+  gap: 16px;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.settings-page .profile-copy {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.settings-page .profile-copy strong {
+  font-size: 1.08rem;
+  font-weight: 950;
+}
+
+.settings-page .profile-copy span {
+  overflow-wrap: anywhere;
+  color: var(--settings-muted);
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.settings-page .profile-logout-button {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: #fff1ef;
+  color: #ba372c;
+  font-size: 0.82rem;
+  font-weight: 950;
+}

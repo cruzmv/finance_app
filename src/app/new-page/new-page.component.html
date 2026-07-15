@@ -237,13 +237,23 @@
               <span>
                 <ion-icon name="camera-outline"></ion-icon>
               </span>
-              <strong>{{ isAnalyzingReceipt ? 'A analisar recibo...' : 'Fotografar recibo' }}</strong>
-              <small>Preenchimento automático com OCR</small>
+              <strong>{{ isAnalyzingReceipt ? 'A analisar recibo...' : 'Fotografar recibo ou código' }}</strong>
+              <small>OCR, QR Code e boleto bancário</small>
               <ion-icon class="row-chevron" name="chevron-forward-outline"></ion-icon>
             </button>
 
             @if (receiptImagePreview) {
               <img class="receipt-preview" [src]="receiptImagePreview" alt="Pré-visualização do recibo" />
+            }
+
+            @if (receiptCodeValue) {
+              <div class="receipt-code-preview">
+                <ion-icon [name]="receiptCodeFormat === 'QR Code' ? 'qr-code-outline' : 'barcode-outline'"></ion-icon>
+                <span>
+                  <small>{{ receiptCodeLabel }}</small>
+                  <strong>{{ receiptCodeValue }}</strong>
+                </span>
+              </div>
             }
 
             @if (receiptMessage) {

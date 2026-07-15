@@ -6,25 +6,7 @@
   <main class="dashboard-page">
     <header class="welcome-header">
       <div class="account-menu">
-        <button
-          type="button"
-          class="account-menu-trigger"
-          aria-haspopup="menu"
-          [attr.aria-expanded]="isAccountMenuOpen"
-          (click)="toggleAccountMenu($event)"
-        >
-          <h1>Olá, {{ username }}! <span aria-hidden="true">👋</span></h1>
-          <ion-icon name="chevron-down-outline"></ion-icon>
-        </button>
-
-        @if (isAccountMenuOpen) {
-          <div class="account-menu-dropdown" role="menu" (click)="$event.stopPropagation()">
-            <button type="button" role="menuitem" (click)="logout()">
-              <ion-icon name="log-out-outline"></ion-icon>
-              Sair
-            </button>
-          </div>
-        }
+        <h1>Olá, {{ username }}!</h1>
         <p>Aqui está o resumo das suas finanças</p>
       </div>
       <div class="notification-menu" style="position: relative;" (click)="$event.stopPropagation()">
@@ -228,11 +210,11 @@
 
         <div class="summary-bottom">
           <div class="forecast-hint year-balance-hint" [class.negative]="summary.yearToDateSavings < 0">
-            <ion-icon name="calendar-outline"></ion-icon>
             <span>
-              <strong>{{ summary.yearToDateSavings | appCurrency }}</strong>
+              <ion-icon name="calendar-outline"></ion-icon>
               {{ yearToDateSavingsLabel }}
             </span>
+            <strong>{{ summary.yearToDateSavings | appCurrency }}</strong>
           </div>
         </div>
       </section>

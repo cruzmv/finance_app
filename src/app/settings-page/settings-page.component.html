@@ -52,14 +52,24 @@
         }
       </header>
 
-      <button type="button" class="profile-card" (click)="openProfileView()">
-        <span class="profile-avatar">{{ selectedProfileAvatar.value }}</span>
-        <div>
-          <strong>{{ username }}</strong>
-          <span>{{ profileEmail }}</span>
-        </div>
+      <article class="profile-card">
+        <button type="button" class="profile-card-main" (click)="openProfileView()">
+          <span
+            class="profile-avatar character-avatar"
+            [style.background-position]="selectedProfileAvatar.backgroundPosition"
+            [attr.aria-label]="selectedProfileAvatar.label"
+          ></span>
+          <span class="profile-copy">
+            <strong>{{ username }}</strong>
+            <span>{{ profileEmail }}</span>
+          </span>
+        </button>
+        <button type="button" class="profile-logout-button" (click)="logout()" aria-label="Sair da conta">
+          <ion-icon name="log-out-outline"></ion-icon>
+          <span>Sair</span>
+        </button>
         <ion-icon name="chevron-forward-outline"></ion-icon>
-      </button>
+      </article>
 
       <section class="settings-menu-card">
         <h2>Gerenciar dados</h2>
@@ -82,15 +92,19 @@
         <button type="button" class="settings-menu-row" (click)="openRecurringMovements()">
           <span class="row-tile blue"><ion-icon name="repeat-outline"></ion-icon></span>
           <span>
-            <strong>Recorrências</strong>
+            <strong>Contas Mensais</strong>
             <small>Séries e lançamentos recorrentes</small>
           </span>
           <ion-icon name="chevron-forward-outline"></ion-icon>
         </button>
+      </section>
+
+      <section class="settings-menu-card">
+        <h2>Ferramentas</h2>
         <button type="button" class="settings-menu-row" (click)="openSettingsView('creditCards')">
           <span class="row-tile green"><ion-icon name="card-outline"></ion-icon></span>
           <span>
-            <strong>Cartões de Crédito</strong>
+            <strong>Cartão de Crédito</strong>
             <small>Faturas atuais e provisionadas</small>
           </span>
           <ion-icon name="chevron-forward-outline"></ion-icon>
@@ -111,31 +125,11 @@
           </span>
           <ion-icon name="chevron-forward-outline"></ion-icon>
         </button>
-      </section>
-
-      <section class="settings-menu-card">
-        <h2>Segurança e dados</h2>
-        <button type="button" class="settings-menu-row">
+        <button type="button" class="settings-menu-row" (click)="openBackupExportView()">
           <span class="row-tile blue"><ion-icon name="cloud-upload-outline"></ion-icon></span>
           <span>
-            <strong>Backup e sincronização</strong>
-            <small>Seus dados salvos com segurança</small>
-          </span>
-          <ion-icon name="chevron-forward-outline"></ion-icon>
-        </button>
-        <button type="button" class="settings-menu-row">
-          <span class="row-tile green"><ion-icon name="download-outline"></ion-icon></span>
-          <span>
-            <strong>Exportar dados</strong>
-            <small>Baixe seus dados em CSV ou JSON</small>
-          </span>
-          <ion-icon name="chevron-forward-outline"></ion-icon>
-        </button>
-        <button type="button" class="settings-menu-row">
-          <span class="row-tile red"><ion-icon name="shield-checkmark-outline"></ion-icon></span>
-          <span>
-            <strong>Privacidade</strong>
-            <small>Política de privacidade e termos de uso</small>
+            <strong>Backup e Exportação</strong>
+            <small>Baixe seus dados em CSV ou JSON com IDs</small>
           </span>
           <ion-icon name="chevron-forward-outline"></ion-icon>
         </button>
@@ -143,7 +137,7 @@
 
       <section class="settings-menu-card">
         <h2>Aplicativo</h2>
-        <button type="button" class="settings-menu-row">
+        <button type="button" class="settings-menu-row" (click)="openInfoView('premium')">
           <span class="row-tile amber"><ion-icon name="star-outline"></ion-icon></span>
           <span>
             <strong>Premium</strong>
@@ -152,7 +146,7 @@
           <em>Upgrade</em>
           <ion-icon name="chevron-forward-outline"></ion-icon>
         </button>
-        <button type="button" class="settings-menu-row">
+        <button type="button" class="settings-menu-row" (click)="openAppReview()">
           <span class="row-tile red"><ion-icon name="heart-outline"></ion-icon></span>
           <span>
             <strong>Avaliar o aplicativo</strong>
@@ -160,7 +154,15 @@
           </span>
           <ion-icon name="chevron-forward-outline"></ion-icon>
         </button>
-        <button type="button" class="settings-menu-row">
+        <button type="button" class="settings-menu-row" (click)="openInfoView('privacy')">
+          <span class="row-tile red"><ion-icon name="shield-checkmark-outline"></ion-icon></span>
+          <span>
+            <strong>Privacidade</strong>
+            <small>Política de privacidade e termos de uso</small>
+          </span>
+          <ion-icon name="chevron-forward-outline"></ion-icon>
+        </button>
+        <button type="button" class="settings-menu-row" (click)="openInfoView('about')">
           <span class="row-tile purple"><ion-icon name="information-circle-outline"></ion-icon></span>
           <span>
             <strong>Sobre o SalariuM</strong>
@@ -170,17 +172,6 @@
         </button>
       </section>
 
-      <section class="settings-menu-card">
-        <h2>Conta</h2>
-        <button type="button" class="settings-menu-row danger-row" (click)="logout()">
-          <span class="row-tile red"><ion-icon name="log-out-outline"></ion-icon></span>
-          <span>
-            <strong>Sair da conta</strong>
-            <small>Encerrar a sessão neste dispositivo</small>
-          </span>
-          <ion-icon name="chevron-forward-outline"></ion-icon>
-        </button>
-      </section>
     } @else {
       <header class="settings-detail-header">
         <button type="button" class="icon-button" aria-label="Voltar" (click)="backToMenu()">
@@ -195,6 +186,10 @@
             @if (activeView === 'status') { Status }
             @if (activeView === 'creditCards') { Cartões de Crédito }
             @if (activeView === 'aiAnalysis') { Análise IA }
+            @if (activeView === 'backupExport') { Backup e Exportação }
+            @if (activeView === 'premium') { Premium }
+            @if (activeView === 'privacy') { Privacidade }
+            @if (activeView === 'about') { Sobre o SalariuM }
             @if (activeView === 'notifications') { Notificações }
           </h1>
         </div>
@@ -222,7 +217,11 @@
 
             <form class="settings-form account-profile-form" [formGroup]="profileForm" (ngSubmit)="saveProfile()">
               <div class="profile-preview">
-                <span class="profile-avatar large">{{ selectedProfileAvatar.value }}</span>
+                <span
+                  class="profile-avatar large character-avatar"
+                  [style.background-position]="selectedProfileAvatar.backgroundPosition"
+                  [attr.aria-label]="selectedProfileAvatar.label"
+                ></span>
                 <div>
                   <strong>{{ profileForm.controls.name.value || profileForm.controls.username.value || 'Usuário' }}</strong>
                   <span>{{ profileForm.controls.email.value || 'Email da conta' }}</span>
@@ -263,7 +262,11 @@
                     role="radio"
                     (click)="profileForm.controls.profileAvatar.setValue(avatar.id)"
                   >
-                    <span>{{ avatar.value }}</span>
+                    <span
+                      class="avatar-thumbnail"
+                      [style.background-position]="avatar.backgroundPosition"
+                      [attr.aria-hidden]="true"
+                    ></span>
                     <small>{{ avatar.label }}</small>
                   </button>
                 }
@@ -469,6 +472,259 @@
                   }
                 </div>
               }
+            </section>
+          </section>
+        }
+
+        @if (activeView === 'backupExport') {
+          <section class="settings-panel backup-export-panel">
+            <header class="section-toolbar">
+              <div>
+                <h2>Backup e Exportação</h2>
+                <p>Exporte os dados financeiros com IDs para futura restauração.</p>
+              </div>
+            </header>
+
+            <section class="settings-form backup-export-card">
+              <div class="backup-format-toggle" role="radiogroup" aria-label="Formato do backup">
+                <button
+                  type="button"
+                  role="radio"
+                  [class.active]="selectedBackupExportFormat === 'json'"
+                  [attr.aria-checked]="selectedBackupExportFormat === 'json'"
+                  (click)="selectBackupExportFormat('json')"
+                >
+                  JSON
+                </button>
+                <button
+                  type="button"
+                  role="radio"
+                  [class.active]="selectedBackupExportFormat === 'csv'"
+                  [attr.aria-checked]="selectedBackupExportFormat === 'csv'"
+                  (click)="selectBackupExportFormat('csv')"
+                >
+                  CSV
+                </button>
+              </div>
+
+              <div class="backup-table-list">
+                <article>
+                  <div>
+                    <strong>Conta</strong>
+                    <span>Dados de sua conta</span>
+                  </div>
+                  <button
+                    type="button"
+                    class="backup-switch"
+                    role="switch"
+                    [class.active]="selectedBackupExportSections.account"
+                    [attr.aria-checked]="selectedBackupExportSections.account"
+                    (click)="toggleBackupSectionSelection('account')"
+                  >
+                    <span>{{ selectedBackupExportSections.account ? 'ON' : 'OFF' }}</span>
+                  </button>
+                </article>
+                <article>
+                  <div>
+                    <strong>Tabelas auxiliares</strong>
+                    <span>Contas, categorias e status</span>
+                  </div>
+                  <button
+                    type="button"
+                    class="backup-switch"
+                    role="switch"
+                    [class.active]="selectedBackupExportSections.auxiliary"
+                    [attr.aria-checked]="selectedBackupExportSections.auxiliary"
+                    (click)="toggleBackupSectionSelection('auxiliary')"
+                  >
+                    <span>{{ selectedBackupExportSections.auxiliary ? 'ON' : 'OFF' }}</span>
+                  </button>
+                </article>
+                <article>
+                  <div>
+                    <strong>Movimentos</strong>
+                    <span>Dados dos seus movimentos financeiros</span>
+                  </div>
+                  <button
+                    type="button"
+                    class="backup-switch"
+                    role="switch"
+                    [class.active]="selectedBackupExportSections.movements"
+                    [attr.aria-checked]="selectedBackupExportSections.movements"
+                    (click)="toggleBackupSectionSelection('movements')"
+                  >
+                    <span>{{ selectedBackupExportSections.movements ? 'ON' : 'OFF' }}</span>
+                  </button>
+                </article>
+              </div>
+
+              <p class="settings-hint">
+                Os IDs são preservados para permitir que a restauração ignore registros já existentes e cadastre apenas os ausentes.
+              </p>
+
+              <div class="backup-action-row">
+                <button type="button" class="save-button" [disabled]="isExportingBackup" (click)="exportBackupData()">
+                  <ion-icon name="download-outline"></ion-icon>
+                  {{ isExportingBackup ? 'Exportando...' : 'Exportar backup' }}
+                </button>
+                <label class="save-button secondary-save-button backup-import-button" [class.disabled]="isImportingBackup">
+                  <ion-icon name="cloud-upload-outline"></ion-icon>
+                  {{ isImportingBackup ? 'Importando...' : 'Importar backup' }}
+                  <input type="file" accept=".json,.csv,.zip,application/json,text/csv,application/zip" [disabled]="isImportingBackup" (change)="importBackupData($event)" />
+                </label>
+              </div>
+            </section>
+          </section>
+        }
+
+        @if (activeView === 'premium') {
+          <section class="settings-panel info-settings-panel">
+            <header class="section-toolbar">
+              <div>
+                <h2>Premium</h2>
+                <p>Mais automação, inteligência e relatórios para sua vida financeira.</p>
+              </div>
+            </header>
+
+            <section class="settings-form info-settings-card">
+              <div class="about-brand-block">
+                <span class="row-tile amber"><ion-icon name="star-outline"></ion-icon></span>
+                <div>
+                  <strong>SalariuM Premium</strong>
+                  <small>Página temporária de recursos</small>
+                </div>
+              </div>
+
+              <article>
+                <h3>Disponível hoje</h3>
+                <ul>
+                  <li>Controle de fatura do cartão de crédito.</li>
+                  <li>Análise IA mensal sob demanda.</li>
+                  <li>Notificações para contas, limites, lembretes e confirmações.</li>
+                  <li>Backup e exportação em CSV, JSON e ZIP.</li>
+                  <li>Relatórios financeiros por período, conta e categoria.</li>
+                </ul>
+              </article>
+
+              <article>
+                <h3>Em preparação</h3>
+                <ul>
+                  <li>OCR para ler recibos, faturas e comprovativos.</li>
+                  <li>Resultados e metas financeiras acompanhadas mês a mês.</li>
+                  <li>Comparativos automáticos entre meses e categorias.</li>
+                  <li>Restauração de backup com validação por ID.</li>
+                </ul>
+              </article>
+
+              <article>
+                <h3>Objetivo</h3>
+                <p>
+                  O Premium reúne os recursos que poupam tempo, automatizam conferências e transformam os
+                  dados do dia a dia em decisões mais claras.
+                </p>
+              </article>
+            </section>
+          </section>
+        }
+
+        @if (activeView === 'privacy') {
+          <section class="settings-panel info-settings-panel">
+            <header class="section-toolbar">
+              <div>
+                <h2>Privacidade</h2>
+                <p>Como seus dados são usados dentro do SalariuM.</p>
+              </div>
+            </header>
+
+            <section class="settings-form info-settings-card">
+              <article>
+                <h3>Dados financeiros</h3>
+                <p>
+                  O SalariuM usa suas contas, categorias, status e movimentos para montar saldos,
+                  relatórios, notificações, faturas e análises financeiras dentro da sua conta.
+                </p>
+              </article>
+
+              <article>
+                <h3>Conta e autenticação</h3>
+                <p>
+                  Mantemos informações básicas de perfil, como nome, usuário e email, para identificar
+                  sua sessão e organizar os dados vinculados ao seu contrato.
+                </p>
+              </article>
+
+              <article>
+                <h3>Backup e exportação</h3>
+                <p>
+                  Arquivos exportados são gerados no seu dispositivo com os IDs preservados. Ao compartilhar
+                  esses arquivos, você também compartilha os dados financeiros contidos neles.
+                </p>
+              </article>
+
+              <article>
+                <h3>Análise IA</h3>
+                <p>
+                  Quando você solicita uma análise, os dados financeiros do período selecionado podem ser
+                  enviados para gerar um resumo. Use esse recurso apenas quando quiser essa leitura automática.
+                </p>
+              </article>
+
+              <article>
+                <h3>Segurança</h3>
+                <p>
+                  Mantenha sua senha protegida e encerre a sessão em dispositivos compartilhados. Não inclua
+                  dados sensíveis nas descrições dos movimentos se não forem necessários.
+                </p>
+              </article>
+            </section>
+          </section>
+        }
+
+        @if (activeView === 'about') {
+          <section class="settings-panel info-settings-panel">
+            <header class="section-toolbar">
+              <div>
+                <h2>Sobre o SalariuM</h2>
+                <p>Seu painel financeiro para rotina, planejamento e decisões melhores.</p>
+              </div>
+            </header>
+
+            <section class="settings-form info-settings-card about-settings-card">
+              <div class="about-brand-block">
+                <span class="row-tile purple"><ion-icon name="information-circle-outline"></ion-icon></span>
+                <div>
+                  <strong>SalariuM</strong>
+                  <small>Versão 1.0.0</small>
+                </div>
+              </div>
+
+              <article>
+                <h3>O que é</h3>
+                <p>
+                  O SalariuM organiza contas, cartões, categorias, movimentos, recorrências e alertas para
+                  ajudar você a acompanhar o dinheiro com clareza no dia a dia.
+                </p>
+              </article>
+
+              <article>
+                <h3>Principais recursos</h3>
+                <ul>
+                  <li>Controle de contas, cartões e categorias.</li>
+                  <li>Movimentos financeiros com status e recorrências.</li>
+                  <li>Geração e projeção de faturas de cartão de crédito.</li>
+                  <li>Notificações para lembretes, limites e confirmações.</li>
+                  <li>Backup e exportação em JSON ou CSV.</li>
+                  <li>Análise financeira com IA sob demanda.</li>
+                </ul>
+              </article>
+
+              <article>
+                <h3>Missão</h3>
+                <p>
+                  Dar uma visão simples e prática da vida financeira, sem esconder os detalhes importantes
+                  que fazem diferença no fim do mês.
+                </p>
+              </article>
             </section>
           </section>
         }

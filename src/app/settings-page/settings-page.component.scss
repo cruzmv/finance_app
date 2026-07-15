@@ -26,6 +26,7 @@ button {
 .settings-hero,
 .settings-detail-header,
 .profile-card,
+.profile-card-main,
 .settings-menu-row,
 .settings-row,
 .settings-row-main,
@@ -186,7 +187,7 @@ button {
   flex: 0 0 auto;
   place-items: center;
   border-radius: 50%;
-  background: linear-gradient(135deg, #08a15d, #006a3d);
+  background-color: #07864f;
   color: #fff;
   font-size: 1.35rem;
   font-weight: 950;
@@ -196,25 +197,6 @@ button {
   width: 76px;
   height: 76px;
   font-size: 2rem;
-}
-
-.profile-card div {
-  display: grid;
-  min-width: 0;
-  flex: 1;
-  gap: 4px;
-}
-
-.profile-card strong {
-  font-size: 1.08rem;
-  font-weight: 950;
-}
-
-.profile-card span:not(.profile-avatar) {
-  overflow-wrap: anywhere;
-  color: var(--settings-muted);
-  font-size: 0.82rem;
-  font-weight: 750;
 }
 
 .profile-card > ion-icon,
@@ -439,6 +421,151 @@ button {
   gap: 7px;
   margin: 0;
   padding-left: 18px;
+}
+
+.backup-export-panel,
+.backup-export-card,
+.backup-table-list {
+  display: grid;
+  gap: 14px;
+}
+
+.backup-format-toggle {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid var(--settings-border);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.backup-format-toggle button {
+  min-height: 44px;
+  border-right: 1px solid var(--settings-border);
+  background: transparent;
+  color: var(--settings-muted);
+  font-weight: 950;
+}
+
+.backup-format-toggle button:last-child {
+  border-right: 0;
+}
+
+.backup-format-toggle button.active {
+  background: var(--settings-green);
+  color: #fff;
+}
+
+.backup-table-list article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--settings-border);
+  border-radius: 8px;
+  background: #f8fbf8;
+}
+
+.backup-table-list article > div {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.backup-table-list strong {
+  color: var(--settings-ink);
+  font-size: 0.94rem;
+  font-weight: 950;
+}
+
+.backup-table-list span {
+  overflow-wrap: anywhere;
+  color: var(--settings-muted);
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.backup-switch {
+  position: relative;
+  display: inline-flex;
+  width: 74px;
+  height: 38px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 10px 0 34px;
+  border: 1px solid #d4ddd0;
+  border-radius: 999px;
+  background: #eef2ef;
+  color: #6c7670;
+  font-size: 0.68rem;
+  font-weight: 950;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+.backup-switch::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 3px 8px rgba(28, 42, 36, 0.18);
+  transition: transform 0.18s ease;
+}
+
+.backup-switch.active {
+  justify-content: flex-start;
+  padding: 0 34px 0 10px;
+  border-color: rgba(11, 129, 73, 0.34);
+  background: #0b8149;
+  color: #fff;
+}
+
+.backup-switch.active::before {
+  transform: translateX(36px);
+}
+
+.backup-action-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.backup-import-button {
+  position: relative;
+  cursor: pointer;
+}
+
+.backup-import-button.disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.backup-import-button input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.info-settings-card article,
+.about-brand-block {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--settings-border);
+  border-radius: 8px;
+  background: #f8fbf8;
+}
+
+.info-settings-card p,
+.info-settings-card li {
+  margin: 0;
+  color: var(--settings-muted);
 }
 
 .settings-detail-header {
@@ -684,25 +811,20 @@ button {
 
 .avatar-picker {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
   gap: 8px;
 }
 
 .avatar-option {
   display: grid;
-  min-height: 86px;
+  min-height: 108px;
   place-items: center;
-  gap: 5px;
   padding: 8px;
   border: 1px solid #d6dfd2;
   border-radius: 8px;
   background: #fbfcfa;
   color: #17201a;
   font-weight: 850;
-}
-
-.avatar-option span {
-  font-size: 1.55rem;
 }
 
 .avatar-option small {

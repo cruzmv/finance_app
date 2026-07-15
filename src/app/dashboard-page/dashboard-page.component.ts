@@ -20,7 +20,6 @@ import {
   checkmarkCircleOutline,
   gameControllerOutline,
   homeOutline,
-  logOutOutline,
   medkitOutline,
   notificationsOutline,
   receiptOutline,
@@ -44,6 +43,7 @@ import {
   MovimentAccountSettings,
   StatusSettings,
 } from '../finance-data.service';
+import { NotificationDeliveryService } from '../notification-delivery.service';
 import { AppNotification, evaluateNotifications } from '../notification-settings';
 
 interface DashboardSummary {
@@ -114,6 +114,7 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   private readonly auth = inject(AuthService);
   private readonly financeData = inject(FinanceDataService);
   private readonly currencySettings = inject(CurrencySettingsService);
+  private readonly notificationDelivery = inject(NotificationDeliveryService);
   private readonly router = inject(Router);
   private now = new Date();
   private readonly monthSwipeThreshold = 48;
@@ -192,7 +193,6 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
       chevronForwardOutline,
       gameControllerOutline,
       homeOutline,
-      logOutOutline,
       medkitOutline,
       notificationsOutline,
       receiptOutline,
@@ -361,7 +361,7 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   }
 
   protected get yearToDateSavingsLabel(): string {
-    return `Saldo do ano até ${this.selectedMonthLabel}`;
+    return `Economizado do início do ano até ${this.selectedMonthLabel}`;
   }
 
   protected get savingsStartPercent(): number {
@@ -691,6 +691,18 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   private scheduleConfiguredNotifications(rows: BalanceRow[]): void {
     this.clearNotificationTimers();
 
+    const sentIds = this.getStoredIdSet(this.notificationSentStorageKey);
+    const notifications = this.buildDashboardNotifications(rows);
+
+    if (this.notificationDelivery.usesNativeNotifications) {
+      void this.notificationDelivery.scheduleNativeNotifications(notifications, sentIds)
+        .then((scheduledIds) => {
+          scheduledIds.forEach((id) => sentIds.add(id));
+          this.storeIdSet(this.notificationSentStorageKey, sentIds);
+        });
+      return;
+    }
+
     if ('Notification' in window && Notification.permission === 'default') {
       void Notification.requestPermission().then((permission) => {
         if (permission === 'granted') {
@@ -698,9 +710,6 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
         }
       });
     }
-
-    const sentIds = this.getStoredIdSet(this.notificationSentStorageKey);
-    const notifications = this.buildDashboardNotifications(rows);
 
     notifications
       .forEach((notification) => {
@@ -731,41 +740,24 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   private showSystemNotification(notificationData: AppNotification, sentIds: Set<string>): void {
     const id = notificationData.id;
 
-    if (!this.canUseSystemNotifications() || sentIds.has(id)) {
+    if (sentIds.has(id)) {
       return;
     }
 
-    const notification = new Notification(notificationData.title, {
-      body: notificationData.message,
-      tag: id,
-    });
+    void this.notificationDelivery.showNow(notificationData)
+      .then((didShow) => {
+        if (!didShow) {
+          return;
+        }
 
-    notification.onclick = () => {
-      window.focus();
-      if (notificationData.movement) {
-        this.openEditMoviment(notificationData.movement);
-      }
-    };
-
-    sentIds.add(id);
-    this.storeIdSet(this.notificationSentStorageKey, sentIds);
+        sentIds.add(id);
+        this.storeIdSet(this.notificationSentStorageKey, sentIds);
+      });
   }
 
   private clearNotificationTimers(): void {
     this.notificationTimers.forEach((timer) => clearTimeout(timer));
     this.notificationTimers = [];
-  }
-
-  private canUseSystemNotifications(): boolean {
-    if (!('Notification' in window)) {
-      return false;
-    }
-
-    if (Notification.permission === 'granted') {
-      return true;
-    }
-
-    return false;
   }
 
   private markNotificationsAsRead(): void {
@@ -1019,12 +1011,13 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   private getCreditExpenseRows(rows: BalanceRow[], afterDate: Date, untilDate: Date): BalanceRow[] {
     const afterTime = afterDate.getTime();
     const untilTime = untilDate.getTime();
+    const includeProvisioned = this.isFutureSelectedMonth();
 
     return rows.filter((row) => {
       const time = this.getTime(row);
 
       return Number(row.value) < 0 &&
-        this.isStatus(row, 'consumado') &&
+        this.isCreditSummaryStatus(row, includeProvisioned) &&
         time >= afterTime &&
         time < untilTime;
     });
@@ -1033,12 +1026,13 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   private getCreditConsumedRows(rows: BalanceRow[], afterDate: Date, untilDate: Date): BalanceRow[] {
     const afterTime = afterDate.getTime();
     const untilTime = untilDate.getTime();
+    const includeProvisioned = this.isFutureSelectedMonth();
 
     return rows.filter((row) => {
       const time = this.getTime(row);
 
       return Number(row.value) !== 0 &&
-        this.isStatus(row, 'consumado') &&
+        this.isCreditSummaryStatus(row, includeProvisioned) &&
         time >= afterTime &&
         time < untilTime;
     });
@@ -1202,6 +1196,18 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
         this.selectedMonthDate.getFullYear() === this.now.getFullYear()
         && this.selectedMonthDate.getMonth() < this.now.getMonth()
       );
+  }
+
+  private isFutureSelectedMonth(): boolean {
+    return this.selectedMonthDate.getFullYear() > this.now.getFullYear()
+      || (
+        this.selectedMonthDate.getFullYear() === this.now.getFullYear()
+        && this.selectedMonthDate.getMonth() > this.now.getMonth()
+      );
+  }
+
+  private isCreditSummaryStatus(row: BalanceRow, includeProvisioned: boolean): boolean {
+    return this.isStatus(row, 'consumado') || (includeProvisioned && this.isStatus(row, 'provisionado'));
   }
 
   private isSameMonth(left: Date, right: Date): boolean {
