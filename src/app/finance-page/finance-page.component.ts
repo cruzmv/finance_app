@@ -179,6 +179,7 @@ export class FinancePageComponent implements OnInit, OnDestroy {
   protected expandedMovementIds = new Set<number>();
   private hasLoadedBalances = false;
   private loadedToken = '';
+  private loadedBalancesRevision = -1;
   private pendingFocusTarget: FinanceFocusTarget | null = null;
   private scrollTicking = false;
   private ledgerAccounts = new Map<number, LedgerAccountSettings>();
@@ -224,7 +225,10 @@ export class FinancePageComponent implements OnInit, OnDestroy {
     this.consumeCreditBillUpdateHint();
     const storedFocusTarget = this.consumeStoredFocusTarget();
 
-    if (this.loadedToken !== this.authToken) {
+    if (
+      this.loadedToken !== this.authToken ||
+      this.loadedBalancesRevision !== this.financeData.balancesRevision
+    ) {
       this.loadBalances(storedFocusTarget ?? this.buildInitialFocusTarget(), true);
       return;
     }
@@ -567,7 +571,7 @@ export class FinancePageComponent implements OnInit, OnDestroy {
 
         const expectedValue = this.getCreditBillExpectedValue(balances, account, cycle.closingDate);
 
-        if (expectedValue === 0) {
+        if (expectedValue === 0 && !this.isSettledStatusName(billRow.status)) {
           this.financeData.deleteMoviment(billRow.id).subscribe({
             next: () => this.loadBalances(focusTarget, true),
             error: () => this.loadBalances(focusTarget, true),
@@ -575,7 +579,7 @@ export class FinancePageComponent implements OnInit, OnDestroy {
           return;
         }
 
-        if (Math.abs((Number(billRow.value) || 0) - expectedValue) < 0.01) {
+        if (this.isSettledStatusName(billRow.status) || Math.abs((Number(billRow.value) || 0) - expectedValue) < 0.01) {
           this.loadBalances(focusTarget, true);
           return;
         }
@@ -615,8 +619,8 @@ export class FinancePageComponent implements OnInit, OnDestroy {
 
         return Number(row.value) < 0 &&
           this.isSettledStatusName(row.status) &&
-          rowDate.getTime() > previousClosingDate.getTime() &&
-          rowDate.getTime() <= closingDate.getTime();
+          rowDate.getTime() >= previousClosingDate.getTime() &&
+          rowDate.getTime() < closingDate.getTime();
       })
       .reduce((sum, row) => sum + (Number(row.value) || 0), 0);
 
@@ -642,10 +646,10 @@ export class FinancePageComponent implements OnInit, OnDestroy {
       referenceDate.getFullYear(),
       referenceDate.getMonth(),
       this.getSafeClosingDay(account, referenceDate),
-      23,
-      59,
-      59,
-      999,
+      0,
+      0,
+      0,
+      0,
     );
 
     if (referenceDate.getTime() <= currentClosingDate.getTime()) {
@@ -658,10 +662,10 @@ export class FinancePageComponent implements OnInit, OnDestroy {
       nextMonthReference.getFullYear(),
       nextMonthReference.getMonth(),
       this.getSafeClosingDay(account, nextMonthReference),
-      23,
-      59,
-      59,
-      999,
+      0,
+      0,
+      0,
+      0,
     );
   }
 
@@ -672,10 +676,10 @@ export class FinancePageComponent implements OnInit, OnDestroy {
       previousMonthReference.getFullYear(),
       previousMonthReference.getMonth(),
       this.getSafeClosingDay(account, previousMonthReference),
-      23,
-      59,
-      59,
-      999,
+      0,
+      0,
+      0,
+      0,
     );
   }
 
@@ -849,6 +853,7 @@ export class FinancePageComponent implements OnInit, OnDestroy {
     refreshEvent?: CustomEvent,
   ): void {
     this.loadedToken = this.authToken;
+    this.loadedBalancesRevision = this.financeData.balancesRevision;
     this.isLoading = true;
     this.errorMessage = '';
     this.pendingFocusTarget = focusTarget ?? null;

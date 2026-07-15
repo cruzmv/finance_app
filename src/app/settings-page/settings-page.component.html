@@ -95,6 +95,14 @@
           </span>
           <ion-icon name="chevron-forward-outline"></ion-icon>
         </button>
+        <button type="button" class="settings-menu-row" (click)="openAiAnalysisView()">
+          <span class="row-tile amber"><ion-icon name="bulb-outline"></ion-icon></span>
+          <span>
+            <strong>Análise IA</strong>
+            <small>Resumo financeiro com OpenAI</small>
+          </span>
+          <ion-icon name="chevron-forward-outline"></ion-icon>
+        </button>
         <button type="button" class="settings-menu-row" (click)="openSettingsView('notifications')">
           <span class="row-tile purple"><ion-icon name="notifications-outline"></ion-icon></span>
           <span>
@@ -186,6 +194,7 @@
             @if (activeView === 'ledger') { Categorias }
             @if (activeView === 'status') { Status }
             @if (activeView === 'creditCards') { Cartões de Crédito }
+            @if (activeView === 'aiAnalysis') { Análise IA }
             @if (activeView === 'notifications') { Notificações }
           </h1>
         </div>
@@ -301,46 +310,166 @@
               </div>
             </header>
 
-            <form class="settings-form account-profile-form" [formGroup]="creditBillForm" (ngSubmit)="saveCreditBillSettings()">
-              <label class="form-toggle-row">
+            <form class="settings-form account-profile-form" [formGroup]="creditBillForm" (ngSubmit)="saveAndGenerateCreditBills()">
+              <div class="form-toggle-row">
                 <span>
-                  <strong>Gerar fatura para pagamento do cartão</strong>
+                  <strong>Gerar fatura automatica para pagamento do cartão</strong>
                   <small>Criar e atualizar movimentos de fatura automaticamente.</small>
                 </span>
-                <input type="checkbox" formControlName="enabled" />
-              </label>
+                <div class="settings-radio-toggle" role="radiogroup" aria-label="Gerar fatura automatica para pagamento do cartão">
+                  <button
+                    type="button"
+                    role="radio"
+                    [class.active]="creditBillForm.controls.enabled.value"
+                    [attr.aria-checked]="creditBillForm.controls.enabled.value"
+                    (click)="setCreditBillEnabled(true)"
+                  >
+                    ON
+                  </button>
+                  <button
+                    type="button"
+                    role="radio"
+                    [class.active]="!creditBillForm.controls.enabled.value"
+                    [attr.aria-checked]="!creditBillForm.controls.enabled.value"
+                    (click)="setCreditBillEnabled(false)"
+                  >
+                    OFF
+                  </button>
+                </div>
+              </div>
 
-              <label class="form-toggle-row">
+              <div class="form-toggle-row" [class.disabled]="!creditBillForm.controls.enabled.value">
                 <span>
-                  <strong>Gerar apenas dos valores já pagos</strong>
-                  <small>Compras consumadas sempre entram quando a geração está ativa.</small>
+                  <strong>Incluir valores a pagar</strong>
+                  <small>Adiciona lançamentos provisionados do cartão para projetar faturas futuras.</small>
                 </span>
-                <input type="checkbox" checked disabled />
-              </label>
+                <div class="settings-radio-toggle" role="radiogroup" aria-label="Incluir valores a pagar">
+                  <button
+                    type="button"
+                    role="radio"
+                    [disabled]="!creditBillForm.controls.enabled.value"
+                    [class.active]="creditBillForm.controls.includeProvisioned.value"
+                    [attr.aria-checked]="creditBillForm.controls.includeProvisioned.value"
+                    (click)="setCreditBillIncludeProvisioned(true)"
+                  >
+                    ON
+                  </button>
+                  <button
+                    type="button"
+                    role="radio"
+                    [disabled]="!creditBillForm.controls.enabled.value"
+                    [class.active]="!creditBillForm.controls.includeProvisioned.value"
+                    [attr.aria-checked]="!creditBillForm.controls.includeProvisioned.value"
+                    (click)="setCreditBillIncludeProvisioned(false)"
+                  >
+                    OFF
+                  </button>
+                </div>
+              </div>
 
-              <label class="form-toggle-row">
-                <span>
-                  <strong>Gerar fatura sobre os valores a pagar</strong>
-                  <small>Inclui lançamentos provisionados do cartão para projetar faturas futuras.</small>
-                </span>
-                <input type="checkbox" formControlName="includeProvisioned" [disabled]="!creditBillForm.controls.enabled.value" />
-              </label>
-
-              <button type="submit" class="save-button" [disabled]="isSaving">
-                {{ isSaving ? 'Salvando...' : 'Salvar configuração' }}
-              </button>
-            </form>
-
-            <div class="settings-form">
-              <h2>Gerar agora</h2>
               <p class="settings-hint">
                 Executa para meses que têm movimentos em cartão, cria faturas ausentes e atualiza somente faturas provisionadas.
                 Faturas consumadas não serão alteradas.
               </p>
-              <button type="button" class="save-button" [disabled]="isSaving || !creditBillForm.controls.enabled.value" (click)="generateCreditBillsNow()">
-                {{ isSaving ? 'Executando...' : 'Gerar e atualizar faturas agora' }}
+
+              <button type="submit" class="save-button" [disabled]="isSaving">
+                {{ isSaving ? 'Executando...' : 'Salva e Atualizar' }}
               </button>
-            </div>
+            </form>
+          </section>
+        }
+
+        @if (activeView === 'aiAnalysis') {
+          <section class="settings-panel ai-settings-panel">
+            <header class="section-toolbar">
+              <div>
+                <h2>Análise IA</h2>
+                <p>Gere uma leitura financeira do mês selecionado.</p>
+              </div>
+            </header>
+
+            <section class="settings-form ai-settings-card">
+              <div class="ai-month-row">
+                <button
+                  type="button"
+                  class="icon-button"
+                  aria-label="Mês anterior"
+                  (click)="changeAiAnalysisMonth(-1)"
+                >
+                  <ion-icon name="chevron-forward-outline"></ion-icon>
+                </button>
+                <div>
+                  <span>Período</span>
+                  <strong>{{ aiAnalysisMonthLabel }} {{ aiAnalysisYear }}</strong>
+                </div>
+                <button
+                  type="button"
+                  class="icon-button next"
+                  aria-label="Mês seguinte"
+                  (click)="changeAiAnalysisMonth(1)"
+                >
+                  <ion-icon name="chevron-forward-outline"></ion-icon>
+                </button>
+              </div>
+
+              <button type="button" class="save-button" [disabled]="isAiAnalysisLoading" (click)="requestAiAnalysis()">
+                <ion-icon name="bulb-outline"></ion-icon>
+                @if (isAiAnalysisLoading) {
+                  Analisando...
+                } @else if (aiAnalysis) {
+                  Atualizar análise
+                } @else {
+                  Gerar análise
+                }
+              </button>
+
+              @if (aiAnalysisErrorMessage) {
+                <p class="settings-message error compact">{{ aiAnalysisErrorMessage }}</p>
+              }
+
+              @if (aiAnalysis) {
+                <div class="ai-settings-result">
+                  <article class="ai-result-summary">
+                    <strong>{{ aiAnalysis.headline }}</strong>
+                    <p>{{ aiAnalysis.summary }}</p>
+                  </article>
+
+                  @if (aiAnalysis.insights.length) {
+                    <section>
+                      <h3>Principais sinais</h3>
+                      @for (insight of aiAnalysis.insights; track insight.title) {
+                        <article>
+                          <strong>{{ insight.title }}</strong>
+                          <p>{{ insight.detail }}</p>
+                        </article>
+                      }
+                    </section>
+                  }
+
+                  @if (aiAnalysis.risks.length) {
+                    <section>
+                      <h3>Atenção</h3>
+                      <ul>
+                        @for (risk of aiAnalysis.risks; track risk) {
+                          <li>{{ risk }}</li>
+                        }
+                      </ul>
+                    </section>
+                  }
+
+                  @if (aiAnalysis.recommendations.length) {
+                    <section>
+                      <h3>Próximas ações</h3>
+                      <ul>
+                        @for (recommendation of aiAnalysis.recommendations; track recommendation) {
+                          <li>{{ recommendation }}</li>
+                        }
+                      </ul>
+                    </section>
+                  }
+                </div>
+              }
+            </section>
           </section>
         }
 

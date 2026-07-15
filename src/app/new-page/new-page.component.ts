@@ -1393,8 +1393,8 @@ export class NewPageComponent implements OnInit, OnDestroy {
 
           return Number(row.value) < 0 &&
             this.shouldIncludeCreditBillRowStatus(row.status, creditBillSettings.includeProvisioned) &&
-            rowDate.getTime() > this.getPreviousCreditClosingDate(cycle.closingDate, account).getTime() &&
-            rowDate.getTime() <= cycle.closingDate.getTime();
+            rowDate.getTime() >= this.getPreviousCreditClosingDate(cycle.closingDate, account).getTime() &&
+            rowDate.getTime() < cycle.closingDate.getTime();
         });
         const value = Math.abs(cycleRows.reduce((total, row) => total + (Number(row.value) || 0), 0));
         const hasBill = this.hasCreditBillForCycle(balances, account, cycle);
@@ -1439,7 +1439,7 @@ export class NewPageComponent implements OnInit, OnDestroy {
             const billRow = this.findCreditBillRow(balances, account, dueDate);
             const expectedValue = -Math.abs(Number(bill.value) || 0);
 
-            if (!billRow || Math.abs((Number(billRow.value) || 0) - expectedValue) < 0.01) {
+            if (!billRow || this.isSettledStatusName(billRow.status) || Math.abs((Number(billRow.value) || 0) - expectedValue) < 0.01) {
               return null;
             }
 
@@ -1522,10 +1522,10 @@ export class NewPageComponent implements OnInit, OnDestroy {
       referenceDate.getFullYear(),
       referenceDate.getMonth(),
       this.getSafeClosingDay(account, referenceDate),
-      23,
-      59,
-      59,
-      999,
+      0,
+      0,
+      0,
+      0,
     );
 
     if (referenceDate.getTime() <= currentClosingDate.getTime()) {
@@ -1538,10 +1538,10 @@ export class NewPageComponent implements OnInit, OnDestroy {
       nextMonthReference.getFullYear(),
       nextMonthReference.getMonth(),
       this.getSafeClosingDay(account, nextMonthReference),
-      23,
-      59,
-      59,
-      999,
+      0,
+      0,
+      0,
+      0,
     );
   }
 
@@ -1552,10 +1552,10 @@ export class NewPageComponent implements OnInit, OnDestroy {
       previousMonthReference.getFullYear(),
       previousMonthReference.getMonth(),
       this.getSafeClosingDay(account, previousMonthReference),
-      23,
-      59,
-      59,
-      999,
+      0,
+      0,
+      0,
+      0,
     );
   }
 

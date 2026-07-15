@@ -1025,8 +1025,8 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
 
       return Number(row.value) < 0 &&
         this.isStatus(row, 'consumado') &&
-        time > afterTime &&
-        time <= untilTime;
+        time >= afterTime &&
+        time < untilTime;
     });
   }
 
@@ -1039,8 +1039,8 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
 
       return Number(row.value) !== 0 &&
         this.isStatus(row, 'consumado') &&
-        time > afterTime &&
-        time <= untilTime;
+        time >= afterTime &&
+        time < untilTime;
     });
   }
 
@@ -1069,10 +1069,10 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
       referenceDate.getFullYear(),
       referenceDate.getMonth(),
       closingDay,
-      23,
-      59,
-      59,
-      999,
+      0,
+      0,
+      0,
+      0,
     );
 
     if (closingDate.getTime() <= referenceDate.getTime()) {
@@ -1085,10 +1085,10 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
       previousMonthReference.getFullYear(),
       previousMonthReference.getMonth(),
       this.getSafeClosingDay(account, previousMonthReference),
-      23,
-      59,
-      59,
-      999,
+      0,
+      0,
+      0,
+      0,
     );
   }
 
@@ -1099,10 +1099,10 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
       previousMonthReference.getFullYear(),
       previousMonthReference.getMonth(),
       this.getSafeClosingDay(account, previousMonthReference),
-      23,
-      59,
-      59,
-      999,
+      0,
+      0,
+      0,
+      0,
     );
   }
 
@@ -1113,10 +1113,10 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
       nextMonthReference.getFullYear(),
       nextMonthReference.getMonth(),
       this.getSafeClosingDay(account, nextMonthReference),
-      23,
-      59,
-      59,
-      999,
+      0,
+      0,
+      0,
+      0,
     );
   }
 

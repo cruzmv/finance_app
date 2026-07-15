@@ -12,6 +12,7 @@ import { addIcons } from 'ionicons';
 import {
   airplaneOutline,
   alertCircleOutline,
+  bulbOutline,
   businessOutline,
   carOutline,
   cardOutline,
@@ -74,9 +75,10 @@ import {
   getRuleTypeLabel,
   setNotificationRules,
 } from '../notification-settings';
+import { FinancialAiAnalysis } from '../financial-ai.types';
 
 type SettingsTab = 'accounts' | 'ledger' | 'status' | 'notifications' | 'creditCards';
-type SettingsView = 'menu' | 'profile' | SettingsTab;
+type SettingsView = 'menu' | 'profile' | 'aiAnalysis' | SettingsTab;
 type IconPickerTarget = 'account' | 'ledger' | 'status';
 
 interface IconOption {
@@ -127,6 +129,10 @@ export class SettingsPageComponent implements OnInit {
   protected successMessage = '';
   protected isNotificationMenuOpen = false;
   protected settingsNotifications: AppNotification[] = [];
+  protected aiAnalysis: FinancialAiAnalysis | null = null;
+  protected aiAnalysisMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  protected isAiAnalysisLoading = false;
+  protected aiAnalysisErrorMessage = '';
   protected notificationRules: NotificationRule[] = [];
   protected showNotificationForm = false;
   protected showAccountForm = false;
@@ -246,6 +252,7 @@ export class SettingsPageComponent implements OnInit {
       addOutline,
       airplaneOutline,
       alertCircleOutline,
+      bulbOutline,
       businessOutline,
       carOutline,
       cardOutline,
@@ -304,6 +311,13 @@ export class SettingsPageComponent implements OnInit {
     this.setActiveTab(view);
   }
 
+  protected openAiAnalysisView(): void {
+    this.activeView = 'aiAnalysis';
+    this.activeIconPicker = null;
+    this.errorMessage = '';
+    this.successMessage = '';
+  }
+
   protected openProfileView(): void {
     this.activeView = 'profile';
     this.activeIconPicker = null;
@@ -331,12 +345,44 @@ export class SettingsPageComponent implements OnInit {
     return this.accounts.filter((account) => account.account_type === 1);
   }
 
+  protected setCreditBillEnabled(enabled: boolean): void {
+    this.creditBillForm.controls.enabled.setValue(enabled);
+
+    if (!enabled) {
+      this.creditBillForm.controls.includeProvisioned.setValue(false);
+    }
+  }
+
+  protected setCreditBillIncludeProvisioned(includeProvisioned: boolean): void {
+    if (!this.creditBillForm.controls.enabled.value) {
+      return;
+    }
+
+    this.creditBillForm.controls.includeProvisioned.setValue(includeProvisioned);
+  }
+
+  protected saveAndGenerateCreditBills(): void {
+    const settings = this.getCreditBillFormSettings();
+    const onboardingSetup = setCreditBillSettings(this.onboardingSetup, settings);
+
+    this.isSaving = true;
+    this.successMessage = '';
+    this.financeData.saveContractOnboardingSetup(onboardingSetup)
+      .subscribe({
+        next: (savedSetup) => {
+          this.onboardingSetup = savedSetup;
+          this.patchCreditBillForm(savedSetup);
+          this.generateCreditBillsNow(settings);
+        },
+        error: () => {
+          this.isSaving = false;
+          this.errorMessage = 'Não foi possível salvar a configuração dos cartões.';
+        },
+      });
+  }
+
   protected saveCreditBillSettings(): void {
-    const formValue = this.creditBillForm.getRawValue();
-    const settings: CreditBillSettings = {
-      enabled: formValue.enabled,
-      includeProvisioned: formValue.enabled && formValue.includeProvisioned,
-    };
+    const settings = this.getCreditBillFormSettings();
     const onboardingSetup = setCreditBillSettings(this.onboardingSetup, settings);
 
     this.isSaving = true;
@@ -355,24 +401,77 @@ export class SettingsPageComponent implements OnInit {
       });
   }
 
-  protected generateCreditBillsNow(): void {
-    const settings = getCreditBillSettings(this.onboardingSetup);
+  protected generateCreditBillsNow(settings = getCreditBillSettings(this.onboardingSetup)): void {
+    const provisionedAutomaticBills = this.getProvisionedAutomaticCreditBillRows();
 
     if (!settings.enabled) {
-      this.errorMessage = 'Ative a geração de faturas para executar agora.';
+      if (provisionedAutomaticBills.length === 0) {
+        this.isSaving = false;
+        this.successMessage = 'Configuração salva. A geração automática de faturas está desligada.';
+        this.reloadSettingsAfterCreditBillReconcile();
+        return;
+      }
+
+      forkJoin(provisionedAutomaticBills.map((row) => this.financeData.deleteMoviment(row.id)))
+        .pipe(finalize(() => (this.isSaving = false)))
+        .subscribe({
+          next: () => {
+            this.successMessage = 'Geração automática desligada. Faturas provisionadas removidas.';
+            this.reloadSettingsAfterCreditBillReconcile();
+          },
+          error: () => {
+            this.errorMessage = 'Não foi possível excluir as faturas provisionadas atuais.';
+          },
+        });
       return;
     }
 
     const expectedBills = this.buildExpectedCreditBills(settings);
 
-    if (expectedBills.length === 0) {
-      this.successMessage = 'Nenhuma fatura pendente para gerar ou atualizar.';
-      return;
-    }
-
     this.isSaving = true;
     this.successMessage = '';
 
+    const cleanupRequest = provisionedAutomaticBills.length > 0
+      ? forkJoin(provisionedAutomaticBills.map((row) => this.financeData.deleteMoviment(row.id)))
+      : null;
+
+    const runGeneration = () => {
+      if (expectedBills.length === 0) {
+        this.isSaving = false;
+        this.successMessage = provisionedAutomaticBills.length > 0
+          ? 'Faturas provisionadas removidas. Nenhuma nova fatura para gerar.'
+          : 'Nenhuma fatura pendente para gerar ou atualizar.';
+        this.reloadSettingsAfterCreditBillReconcile();
+        return;
+      }
+
+      this.createExpectedCreditBills(expectedBills);
+    };
+
+    if (cleanupRequest) {
+      cleanupRequest.subscribe({
+        next: () => runGeneration(),
+        error: () => {
+          this.isSaving = false;
+          this.errorMessage = 'Não foi possível excluir as faturas provisionadas atuais.';
+        },
+      });
+      return;
+    }
+
+    runGeneration();
+  }
+
+  private getCreditBillFormSettings(): CreditBillSettings {
+    const formValue = this.creditBillForm.getRawValue();
+
+    return {
+      enabled: formValue.enabled,
+      includeProvisioned: formValue.enabled && formValue.includeProvisioned,
+    };
+  }
+
+  private createExpectedCreditBills(expectedBills: ExpectedCreditBill[]): void {
     forkJoin(this.creditAccounts.map((account) => {
       const accountBills = expectedBills.filter((bill) => bill.account_id === account.id);
       return accountBills.length > 0
@@ -408,6 +507,46 @@ export class SettingsPageComponent implements OnInit {
   protected get selectedProfileAvatar(): ProfileAvatarOption {
     return this.profileAvatarOptions.find((option) => option.id === this.profileForm.controls.profileAvatar.value)
       ?? this.profileAvatarOptions[0];
+  }
+
+  protected get aiAnalysisMonthLabel(): string {
+    return new Intl.DateTimeFormat('pt-PT', { month: 'long' })
+      .format(this.aiAnalysisMonth)
+      .replace(/^./, (letter) => letter.toUpperCase());
+  }
+
+  protected get aiAnalysisYear(): number {
+    return this.aiAnalysisMonth.getFullYear();
+  }
+
+  protected changeAiAnalysisMonth(direction: -1 | 1): void {
+    this.aiAnalysisMonth = new Date(
+      this.aiAnalysisMonth.getFullYear(),
+      this.aiAnalysisMonth.getMonth() + direction,
+      1,
+    );
+    this.aiAnalysis = null;
+    this.aiAnalysisErrorMessage = '';
+  }
+
+  protected requestAiAnalysis(): void {
+    if (this.isAiAnalysisLoading) {
+      return;
+    }
+
+    this.isAiAnalysisLoading = true;
+    this.aiAnalysisErrorMessage = '';
+
+    this.financeData.getFinancialAiAnalysis(this.getMonthKey(this.aiAnalysisMonth))
+      .pipe(finalize(() => (this.isAiAnalysisLoading = false)))
+      .subscribe({
+        next: (analysis) => {
+          this.aiAnalysis = analysis;
+        },
+        error: (error) => {
+          this.aiAnalysisErrorMessage = error?.error?.message ?? 'Não foi possível gerar a análise IA.';
+        },
+      });
   }
 
   protected toggleNotificationMenu(event: Event): void {
@@ -986,6 +1125,10 @@ export class SettingsPageComponent implements OnInit {
       });
   }
 
+  private getMonthKey(date: Date): string {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+  }
+
   private loadProfile(): void {
     this.isLoading = true;
     this.errorMessage = '';
@@ -1081,12 +1224,34 @@ export class SettingsPageComponent implements OnInit {
     }, []);
   }
 
+  private getProvisionedAutomaticCreditBillRows(): BalanceRow[] {
+    return this.balanceRows.filter((row) => {
+      return this.isProvisionedAutomaticCreditBillRow(row);
+    });
+  }
+
+  private isProvisionedAutomaticCreditBillRow(row: BalanceRow): boolean {
+    if (this.isSettledStatusName(row.status)) {
+      return false;
+    }
+
+    return !!row.credit_bill || this.normalizeCreditBillDescription(row.description).startsWith('fatura ');
+  }
+
   private enforceGeneratedCreditBills(expectedBills: ExpectedCreditBill[]): void {
     forkJoin({
       balances: this.financeData.getBalances(true),
       settings: this.financeData.getFinanceSettings(),
     }).subscribe({
       next: ({ balances, settings }) => {
+        const expectedBillKeys = new Set(expectedBills.map((bill) => this.getExpectedBillKey(bill)));
+        const staleBills = balances.filter((row) => {
+          if (!this.isProvisionedAutomaticCreditBillRow(row)) {
+            return false;
+          }
+
+          return !expectedBillKeys.has(this.getExistingBillKey(row));
+        });
         const edits = expectedBills
           .map((bill) => {
             const account = settings.accounts.find((item) => item.id === bill.account_id && item.account_type === 1);
@@ -1107,34 +1272,81 @@ export class SettingsPageComponent implements OnInit {
           })
           .filter((item): item is { row: BalanceRow; value: number } => !!item);
 
-        if (edits.length === 0) {
-          this.successMessage = 'Faturas de cartão verificadas.';
-          this.loadSettings();
+        const deleteStaleBills$ = staleBills.length > 0
+          ? forkJoin(staleBills.map((row) => this.financeData.deleteMoviment(row.id)))
+          : null;
+
+        const runEdits = () => {
+          if (edits.length === 0) {
+            this.successMessage = staleBills.length > 0
+              ? 'Faturas antigas removidas e faturas de cartão verificadas.'
+              : 'Faturas de cartão verificadas.';
+            this.reloadSettingsAfterCreditBillReconcile();
+            return;
+          }
+
+          forkJoin(edits.map(({ row, value }) => this.financeData.saveMoviment('edit', {
+            datetime: row.datetime,
+            description: row.description,
+            ledger_account: row.ledger_account_id,
+            moviment_account: row.moviment_account_id,
+            status: row.status_id,
+            value,
+          }, row))).subscribe({
+            next: () => {
+              this.successMessage = 'Faturas de cartão geradas e atualizadas.';
+              this.reloadSettingsAfterCreditBillReconcile();
+            },
+            error: () => {
+              this.errorMessage = 'As faturas foram geradas, mas não foi possível ajustar todos os valores.';
+              this.reloadSettingsAfterCreditBillReconcile();
+            },
+          });
+        };
+
+        if (deleteStaleBills$) {
+          deleteStaleBills$.subscribe({
+            next: () => runEdits(),
+            error: () => {
+              this.errorMessage = 'Não foi possível excluir faturas antigas.';
+              this.reloadSettingsAfterCreditBillReconcile();
+            },
+          });
           return;
         }
 
-        forkJoin(edits.map(({ row, value }) => this.financeData.saveMoviment('edit', {
-          datetime: row.datetime,
-          description: row.description,
-          ledger_account: row.ledger_account_id,
-          moviment_account: row.moviment_account_id,
-          status: row.status_id,
-          value,
-        }, row))).subscribe({
-          next: () => {
-            this.successMessage = 'Faturas de cartão geradas e atualizadas.';
-            this.loadSettings();
-          },
-          error: () => {
-            this.errorMessage = 'As faturas foram geradas, mas não foi possível ajustar todos os valores.';
-            this.loadSettings();
-          },
-        });
+        runEdits();
       },
       error: () => {
         this.errorMessage = 'Não foi possível validar as faturas geradas.';
       },
     });
+  }
+
+  private reloadSettingsAfterCreditBillReconcile(): void {
+    this.financeData.getBalances(true).subscribe({
+      next: (rows) => {
+        this.balanceRows = rows;
+        this.loadSettings();
+      },
+      error: () => this.loadSettings(),
+    });
+  }
+
+  private getExpectedBillKey(bill: ExpectedCreditBill): string {
+    const dueDate = new Date(bill.due_datetime);
+
+    return Number.isNaN(dueDate.getTime()) ? '' : this.getBillDueDateKey(dueDate);
+  }
+
+  private getExistingBillKey(row: BalanceRow): string {
+    const dueDate = new Date(row.datetime);
+
+    return Number.isNaN(dueDate.getTime()) ? '' : this.getBillDueDateKey(dueDate);
+  }
+
+  private getBillDueDateKey(date: Date): string {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
   }
 
   private getProfileAvatarId(onboarding: ContractOnboardingSetup | null): string {
@@ -1176,13 +1388,13 @@ export class SettingsPageComponent implements OnInit {
       referenceDate.getFullYear(),
       referenceDate.getMonth(),
       this.getSafeClosingDay(account, referenceDate),
-      23,
-      59,
-      59,
-      999,
+      0,
+      0,
+      0,
+      0,
     );
 
-    if (referenceDate.getTime() <= currentClosingDate.getTime()) {
+    if (referenceDate.getTime() < currentClosingDate.getTime()) {
       return currentClosingDate;
     }
 
@@ -1192,10 +1404,10 @@ export class SettingsPageComponent implements OnInit {
       nextMonthReference.getFullYear(),
       nextMonthReference.getMonth(),
       this.getSafeClosingDay(account, nextMonthReference),
-      23,
-      59,
-      59,
-      999,
+      0,
+      0,
+      0,
+      0,
     );
   }
 
@@ -1318,24 +1530,38 @@ export class SettingsPageComponent implements OnInit {
     });
   }
 
-  private openEditMoviment(row: BalanceRow): void {
-    const navigationState = {
-      mode: 'edit',
-      moviment: row,
-      ledgerAccounts: this.ledgerAccounts.map((account) => this.toOption(account.id, account.description, account.icon)),
-      movimentAccounts: this.accounts.map((account) => this.toOption(account.id, account.description, account.icon)),
-      statuses: this.statuses.map((status) => this.toOption(status.id, status.description, status.icon)),
-    };
+  private publishSystemNotification(notificationData: AppNotification): void {
+    if (!this.canUseSystemNotifications()) {
+      return;
+    }
 
-    sessionStorage.setItem(this.selectedMovimentStorageKey, JSON.stringify(navigationState));
-    void this.router.navigate(['/example/new'], {
-      queryParams: { mode: 'edit' },
-      state: navigationState,
+    const notification = new Notification(notificationData.title, {
+      body: notificationData.message,
+      tag: notificationData.id,
     });
+
+    notification.onclick = () => {
+      window.focus();
+      if (notificationData.movement) {
+        this.openEditMoviment(notificationData.movement);
+      }
+    };
   }
 
-  private toOption(id: number, name: string, icon?: string | null) {
-    return { id, name, icon };
+  private canUseSystemNotifications(): boolean {
+    return 'Notification' in window && Notification.permission === 'granted';
+  }
+
+  private getStoredIdSet(key: string): Set<string> {
+    try {
+      return new Set(JSON.parse(localStorage.getItem(key) ?? '[]') as string[]);
+    } catch {
+      return new Set<string>();
+    }
+  }
+
+  private storeIdSet(key: string, values: Set<string>): void {
+    localStorage.setItem(key, JSON.stringify(Array.from(values)));
   }
 
   private getSettledStatusOption(): StatusSettings | undefined {
@@ -1360,27 +1586,37 @@ export class SettingsPageComponent implements OnInit {
       .toLocaleLowerCase('pt-BR');
   }
 
-  private isStatus(row: BalanceRow, status: string): boolean {
-    return row.status?.trim().toLowerCase() === status;
+  private normalizeDescription(description: string | null | undefined): string {
+    return (description ?? '').trim().toLocaleLowerCase();
   }
 
-  private getTime(row: BalanceRow): number {
-    return new Date(row.datetime).getTime();
+  private toOption(id: number, name: string, icon?: string | null) {
+    return { id, name, icon };
   }
 
-  private markNotificationsAsRead(): void {
-    if (this.settingsNotifications.length === 0) {
-      return;
-    }
+  private normalizeIcon(icon: string | null | undefined, fallbackIcon: string): string {
+    const normalizedIcon = (icon ?? '').trim();
+    return this.iconOptions.some((option) => option.name === normalizedIcon) ? normalizedIcon : fallbackIcon;
+  }
 
-    const readIds = this.getStoredIdSet(this.notificationReadStorageKey);
+  private buildMovimentNavigationState(row: BalanceRow) {
+    return {
+      mode: 'edit',
+      moviment: row,
+      ledgerAccounts: this.ledgerAccounts.map((account) => this.toOption(account.id, account.description, account.icon)),
+      movimentAccounts: this.accounts.map((account) => this.toOption(account.id, account.description, account.icon)),
+      statuses: this.statuses.map((status) => this.toOption(status.id, status.description, status.icon)),
+    };
+  }
 
-    this.settingsNotifications.forEach((notification) => readIds.add(notification.id));
-    this.storeIdSet(this.notificationReadStorageKey, readIds);
-    this.settingsNotifications = this.settingsNotifications.map((notification) => ({
-      ...notification,
-      isRead: true,
-    }));
+  private openEditMoviment(row: BalanceRow): void {
+    const navigationState = this.buildMovimentNavigationState(row);
+
+    sessionStorage.setItem(this.selectedMovimentStorageKey, JSON.stringify(navigationState));
+    void this.router.navigate(['/example/new'], {
+      queryParams: { mode: 'edit' },
+      state: navigationState,
+    });
   }
 
   private markNotificationAsRead(id: string): void {
@@ -1391,36 +1627,13 @@ export class SettingsPageComponent implements OnInit {
     this.settingsNotifications = this.settingsNotifications.filter((notification) => notification.id !== id);
   }
 
-  private getStoredIdSet(key: string): Set<string> {
-    try {
-      return new Set(JSON.parse(localStorage.getItem(key) ?? '[]') as string[]);
-    } catch {
-      return new Set<string>();
-    }
-  }
-
-  private storeIdSet(key: string, values: Set<string>): void {
-    localStorage.setItem(key, JSON.stringify(Array.from(values)));
-  }
-
   private hasDuplicateAccountDescription(description: string): boolean {
     const normalizedDescription = this.normalizeDescription(description);
 
     return this.accounts.some((account) => {
-      return (
-        account.id !== this.accountEditId &&
-        this.normalizeDescription(account.description) === normalizedDescription
-      );
+      return account.id !== this.accountEditId &&
+        this.normalizeDescription(account.description) === normalizedDescription;
     });
-  }
-
-  private normalizeDescription(description: string | null | undefined): string {
-    return (description ?? '').trim().toLocaleLowerCase();
-  }
-
-  private normalizeIcon(icon: string | null | undefined, fallbackIcon: string): string {
-    const normalizedIcon = (icon ?? '').trim();
-    return this.iconOptions.some((option) => option.name === normalizedIcon) ? normalizedIcon : fallbackIcon;
   }
 
   private toDateInputValue(value: string | null): string {

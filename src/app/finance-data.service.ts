@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, finalize, map, of, shareReplay, tap } from 'rxjs';
 import { environment } from '../environments/environment';
 import { AuthService } from './auth.service';
+import { FinancialAiAnalysis } from './financial-ai.types';
 
 export type BalanceSnapshot = Record<string, number>;
 
@@ -117,6 +118,10 @@ interface CreditStatusToggleResponse {
       credit_status?: string | null;
     };
   };
+}
+
+interface FinancialAiAnalysisResponse {
+  data: FinancialAiAnalysis;
 }
 
 export interface MovimentAccountSettings {
@@ -295,6 +300,12 @@ export class FinanceDataService {
   getFinanceSettings(): Observable<FinanceSettingsData> {
     return this.http
       .get<{ data: FinanceSettingsData }>(`${this.apiBaseUrl}/get_finance_settings`)
+      .pipe(map(({ data }) => data));
+  }
+
+  getFinancialAiAnalysis(period: string): Observable<FinancialAiAnalysis> {
+    return this.http
+      .post<FinancialAiAnalysisResponse>(`${this.apiBaseUrl}/financial_ai_analysis`, { period })
       .pipe(map(({ data }) => data));
   }
 

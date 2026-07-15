@@ -28,6 +28,7 @@ p {
 
 .month-card,
 .report-overview,
+.ai-analysis-panel,
 .category-list,
 .message,
 .empty-state {
@@ -35,6 +36,129 @@ p {
   max-width: 920px;
   margin-right: auto;
   margin-left: auto;
+}
+
+.ai-analysis-panel {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid rgba(35, 94, 72, 0.12);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(26, 62, 48, 0.08);
+}
+
+.ai-analysis-heading,
+.ai-analysis-title {
+  display: flex;
+  align-items: center;
+}
+
+.ai-analysis-heading {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ai-analysis-title {
+  min-width: 0;
+  gap: 10px;
+}
+
+.ai-analysis-title h2 {
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.ai-analysis-title p,
+.ai-analysis-summary p,
+.ai-analysis-section p,
+.ai-analysis-section li,
+.ai-analysis-error {
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.42;
+}
+
+.ai-analysis-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 50%;
+  background: #f6ebd7;
+  color: var(--yellow);
+  font-size: 1.25rem;
+}
+
+.ai-analysis-button {
+  min-height: 38px;
+  flex: 0 0 auto;
+  padding: 0 14px;
+  border-radius: 8px;
+  background: var(--green);
+  color: #fff;
+  font-size: 0.84rem;
+  font-weight: 900;
+}
+
+.ai-analysis-button:disabled {
+  opacity: 0.7;
+}
+
+.ai-analysis-error {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fff0f0;
+  color: var(--red-dark);
+}
+
+.ai-analysis-result {
+  display: grid;
+  gap: 14px;
+}
+
+.ai-analysis-summary {
+  display: grid;
+  gap: 4px;
+  padding-top: 2px;
+}
+
+.ai-analysis-summary strong {
+  color: var(--ink);
+  font-size: 1rem;
+}
+
+.ai-analysis-section {
+  display: grid;
+  gap: 8px;
+}
+
+.ai-analysis-section h3 {
+  margin: 0;
+  color: #2b3431;
+  font-size: 0.86rem;
+  font-weight: 900;
+}
+
+.ai-analysis-section article {
+  display: grid;
+  gap: 3px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.ai-analysis-section article strong {
+  color: var(--ink);
+  font-size: 0.88rem;
+}
+
+.ai-analysis-section ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
 }
 
 .month-card {
