@@ -141,6 +141,7 @@ export class SettingsPageComponent implements OnInit {
   private readonly router = inject(Router);
   private readonly currencySettings = inject(CurrencySettingsService);
   private readonly appReviewUrl = 'https://play.google.com/store/apps/details?id=com.camplife.wakeradio';
+  private readonly settingsInitialViewStorageKey = 'settingsInitialView';
   private loadedToken = '';
 
   protected activeView: SettingsView = 'menu';
@@ -335,9 +336,12 @@ export class SettingsPageComponent implements OnInit {
 
   ngOnInit() {
     this.loadSettings();
+    this.openRequestedInitialView();
   }
 
   ionViewWillEnter(): void {
+    this.openRequestedInitialView();
+
     if (this.loadedToken !== this.auth.token) {
       this.loadSettings();
     }
@@ -387,6 +391,15 @@ export class SettingsPageComponent implements OnInit {
     this.errorMessage = '';
     this.successMessage = '';
     this.loadProfile();
+  }
+
+  private openRequestedInitialView(): void {
+    if (sessionStorage.getItem(this.settingsInitialViewStorageKey) !== 'profile') {
+      return;
+    }
+
+    sessionStorage.removeItem(this.settingsInitialViewStorageKey);
+    this.openProfileView();
   }
 
   protected backToMenu(): void {

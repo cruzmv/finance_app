@@ -31,7 +31,7 @@ import {
   walletOutline,
 } from 'ionicons/icons';
 import { finalize, forkJoin } from 'rxjs';
-import { AuthService } from '../auth.service';
+import { AuthService, UserProfile } from '../auth.service';
 import { AppCurrencyPipe } from '../app-currency.pipe';
 import { CurrencySettingsService } from '../currency-settings.service';
 import {
@@ -84,6 +84,11 @@ interface CreditSummary {
   payableLabel: string;
 }
 
+interface CreditBillCycle {
+  closingDate: Date;
+  nextClosingDate: Date;
+}
+
 interface BalanceEntry {
   name: string;
   value: number;
@@ -104,6 +109,12 @@ interface DashboardMonthOption {
   date: Date;
 }
 
+interface ProfileAvatarOption {
+  id: string;
+  label: string;
+  backgroundPosition: string;
+}
+
 @Component({
   selector: 'app-dashboard-page',
   templateUrl: './dashboard-page.component.html',
@@ -121,6 +132,7 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   private monthSwipeStartX = 0;
   private monthSwipeStartY = 0;
   private readonly financeFocusStorageKey = 'financeFocusTarget';
+  private readonly settingsInitialViewStorageKey = 'settingsInitialView';
   private ledgerAccounts = new Map<number, LedgerAccountSettings>();
   private ledgerAccountOptions: LedgerAccountSettings[] = [];
   private movimentAccountOptions: MovimentAccountSettings[] = [];
@@ -132,6 +144,22 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   private readonly notificationSentStorageKey = 'dashboardProvisionNotificationSent';
   private notificationTimers: ReturnType<typeof setTimeout>[] = [];
   private onboardingSetup: ContractOnboardingSetup | null = null;
+  private profile: UserProfile | null = null;
+  protected readonly profileAvatarOptions: ProfileAvatarOption[] = [
+    { id: 'pao-duro', label: 'O Milionário Pão-Duro', backgroundPosition: '0% 0%' },
+    { id: 'bilionario-nervosinho', label: 'O Bilionário Nervosinho', backgroundPosition: '33.333% 0%' },
+    { id: 'rainha-cupons', label: 'A Rainha dos Cupons', backgroundPosition: '66.667% 0%' },
+    { id: 'rei-pix', label: 'O Rei do Pix', backgroundPosition: '100% 0%' },
+    { id: 'investidora-zen', label: 'A Investidora Zen', backgroundPosition: '0% 33.333%' },
+    { id: 'gastador-compulsivo', label: 'O Gastador Compulsivo', backgroundPosition: '33.333% 33.333%' },
+    { id: 'cacadora-promocoes', label: 'A Caçadora de Promoções', backgroundPosition: '66.667% 33.333%' },
+    { id: 'contador-maluco', label: 'O Contador Maluco', backgroundPosition: '100% 33.333%' },
+    { id: 'chefe-orcamento', label: 'A Chefe do Orçamento', backgroundPosition: '0% 66.667%' },
+    { id: 'pirata-cashback', label: 'O Pirata do Cashback', backgroundPosition: '33.333% 66.667%' },
+    { id: 'mago-juros-compostos', label: 'O Mago dos Juros Compostos', backgroundPosition: '66.667% 66.667%' },
+    { id: 'capivara-economica', label: 'A Capivara Econômica', backgroundPosition: '100% 66.667%' },
+    { id: 'gato-magnata', label: 'O Gato Magnata', backgroundPosition: '0% 100%' },
+  ];
 
   private loadedToken = '';
   private loadedBalancesRevision = -1;
@@ -223,7 +251,17 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   }
 
   protected get username(): string {
-    return this.auth.user?.name || this.auth.user?.username || 'Usuário';
+    return this.profile?.name || this.profile?.username || this.auth.user?.name || this.auth.user?.username || 'Usuário';
+  }
+
+  protected get profileEmail(): string {
+    return this.profile?.email || this.auth.user?.email || 'Email da conta';
+  }
+
+  protected get selectedProfileAvatar(): ProfileAvatarOption {
+    const avatarId = this.getProfileAvatarId(this.onboardingSetup);
+
+    return this.profileAvatarOptions.find((option) => option.id === avatarId) ?? this.profileAvatarOptions[0];
   }
 
   protected refreshDashboard(event: CustomEvent): void {
@@ -344,6 +382,11 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     void this.router.navigate(['/example/finance']);
   }
 
+  protected openProfileSettings(): void {
+    sessionStorage.setItem(this.settingsInitialViewStorageKey, 'profile');
+    void this.router.navigate(['/example/settings']);
+  }
+
   protected get savingsComparison(): number {
     return Math.abs(this.summary.savings - this.previousMonthSavings);
   }
@@ -358,6 +401,10 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
 
   protected get primaryBalanceValue(): number {
     return this.isCurrentSelectedMonth() ? this.summary.currentBalance : this.summary.monthStartBalance;
+  }
+
+  protected get shouldShowCurrentMonthStartBalance(): boolean {
+    return this.isCurrentSelectedMonth();
   }
 
   protected get yearToDateSavingsLabel(): string {
@@ -566,14 +613,16 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
       balances: this.financeData.getBalances(forceRefresh),
       settings: this.financeData.getFinanceSettings(),
       onboarding: this.financeData.getContractOnboardingSetup(),
+      profile: this.auth.getProfile(),
     })
       .pipe(finalize(() => {
         this.isLoading = false;
         this.completeRefresh(refreshEvent);
       }))
       .subscribe({
-        next: ({ balances, settings, onboarding }) => {
+        next: ({ balances, settings, onboarding, profile }) => {
           this.onboardingSetup = onboarding;
+          this.profile = profile.data.user;
           this.ledgerAccountOptions = settings.ledgerAccounts;
           this.movimentAccountOptions = settings.accounts;
           this.statusOptions = settings.statuses;
@@ -591,7 +640,7 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     this.dashboardRows = rows;
     const validRows = rows
       .filter((row) => !Number.isNaN(new Date(row.datetime).getTime()))
-      .sort((left, right) => this.getTime(left) - this.getTime(right));
+      .sort((left, right) => this.compareRowsByDate(left, right));
     this.availableMonthOptions = this.buildAvailableMonthOptions(validRows);
     const selectedYear = this.selectedMonthDate.getFullYear();
     const selectedMonth = this.selectedMonthDate.getMonth();
@@ -975,11 +1024,10 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
 
     const summary = this.creditAccounts.reduce<CreditSummary>((creditSummary, account) => {
       const accountRows = rows.filter((row) => this.isCreditAccountMovement(row, account));
-      const lastClosingDate = this.getCreditClosingDate(account);
-      const previousClosingDate = this.getPreviousClosingDate(lastClosingDate, account);
-      const nextClosingDate = this.getNextClosingDate(lastClosingDate, account);
-      const payableRows = this.getCreditExpenseRows(accountRows, previousClosingDate, lastClosingDate);
-      const openRows = this.getCreditConsumedRows(accountRows, lastClosingDate, nextClosingDate);
+      const billCycle = this.getSelectedMonthCreditBillCycle(account);
+      const previousClosingDate = this.getPreviousClosingDate(billCycle.closingDate, account);
+      const payableRows = this.getCreditExpenseRows(accountRows, previousClosingDate, billCycle.closingDate);
+      const openRows = this.getCreditConsumedRows(accountRows, billCycle.closingDate, billCycle.nextClosingDate);
       const payable = Math.abs(this.sumValues(payableRows));
       const open = Math.abs(this.sumValues(openRows));
       const limit = this.toNumber(account.start_value);
@@ -1038,52 +1086,18 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     });
   }
 
-  private getCreditReferenceDate(): Date {
-    const lastSelectedMonthDay = new Date(
+  private getSelectedMonthCreditBillCycle(account: MovimentAccountSettings): CreditBillCycle {
+    const closingMonthReference = new Date(
       this.selectedMonthDate.getFullYear(),
-      this.selectedMonthDate.getMonth() + 1,
-      0,
-    ).getDate();
-
-    return new Date(
-      this.selectedMonthDate.getFullYear(),
-      this.selectedMonthDate.getMonth(),
-      Math.min(this.now.getDate(), lastSelectedMonthDay),
-      this.now.getHours(),
-      this.now.getMinutes(),
-      this.now.getSeconds(),
-      this.now.getMilliseconds(),
+      this.selectedMonthDate.getMonth() - 1,
+      1,
     );
-  }
+    const closingDate = this.getClosingDateForMonth(account, closingMonthReference);
 
-  private getCreditClosingDate(account: MovimentAccountSettings): Date {
-    const referenceDate = this.getCreditReferenceDate();
-    const closingDay = this.getSafeClosingDay(account, referenceDate);
-    const closingDate = new Date(
-      referenceDate.getFullYear(),
-      referenceDate.getMonth(),
-      closingDay,
-      0,
-      0,
-      0,
-      0,
-    );
-
-    if (closingDate.getTime() <= referenceDate.getTime()) {
-      return closingDate;
-    }
-
-    const previousMonthReference = new Date(referenceDate.getFullYear(), referenceDate.getMonth() - 1, 1);
-
-    return new Date(
-      previousMonthReference.getFullYear(),
-      previousMonthReference.getMonth(),
-      this.getSafeClosingDay(account, previousMonthReference),
-      0,
-      0,
-      0,
-      0,
-    );
+    return {
+      closingDate,
+      nextClosingDate: this.getNextClosingDate(closingDate, account),
+    };
   }
 
   private getPreviousClosingDate(lastClosingDate: Date, account: MovimentAccountSettings): Date {
@@ -1103,10 +1117,14 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   private getNextClosingDate(lastClosingDate: Date, account: MovimentAccountSettings): Date {
     const nextMonthReference = new Date(lastClosingDate.getFullYear(), lastClosingDate.getMonth() + 1, 1);
 
+    return this.getClosingDateForMonth(account, nextMonthReference);
+  }
+
+  private getClosingDateForMonth(account: MovimentAccountSettings, monthReference: Date): Date {
     return new Date(
-      nextMonthReference.getFullYear(),
-      nextMonthReference.getMonth(),
-      this.getSafeClosingDay(account, nextMonthReference),
+      monthReference.getFullYear(),
+      monthReference.getMonth(),
+      this.getSafeClosingDay(account, monthReference),
       0,
       0,
       0,
@@ -1151,10 +1169,10 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   private areSelectedMonthCreditBillsPaid(rows: BalanceRow[]): boolean {
     return this.creditAccounts.every((account) => {
       const accountRows = rows.filter((row) => this.isCreditAccountMovement(row, account));
-      const closingDate = this.getCreditClosingDate(account);
-      const previousClosingDate = this.getPreviousClosingDate(closingDate, account);
+      const billCycle = this.getSelectedMonthCreditBillCycle(account);
+      const previousClosingDate = this.getPreviousClosingDate(billCycle.closingDate, account);
       const payable = Math.abs(this.sumValues(
-        this.getCreditExpenseRows(accountRows, previousClosingDate, closingDate),
+        this.getCreditExpenseRows(accountRows, previousClosingDate, billCycle.closingDate),
       ));
 
       return payable === 0 || this.hasPaidCreditBill(rows, account, payable);
@@ -1248,6 +1266,16 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     return new Date(row.datetime).getTime();
   }
 
+  private compareRowsByDate(left: BalanceRow, right: BalanceRow): number {
+    const timeComparison = this.getTime(left) - this.getTime(right);
+
+    if (timeComparison !== 0) {
+      return timeComparison;
+    }
+
+    return Number(left.id) - Number(right.id);
+  }
+
   private getStartOfToday(): Date {
     return this.getStartOfDay(this.now);
   }
@@ -1274,6 +1302,14 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     return new Intl.DateTimeFormat('pt-PT', { month: 'long' })
       .format(date)
       .replace(/^./, (letter) => letter.toUpperCase());
+  }
+
+  private getProfileAvatarId(onboarding: ContractOnboardingSetup | null): string {
+    const value = onboarding && typeof onboarding === 'object' && 'profileAvatar' in onboarding
+      ? String((onboarding as ContractOnboardingSetup & { profileAvatar?: unknown }).profileAvatar ?? '')
+      : '';
+
+    return this.profileAvatarOptions.some((option) => option.id === value) ? value : this.profileAvatarOptions[0].id;
   }
 
   private formatEuro(value: number): string {

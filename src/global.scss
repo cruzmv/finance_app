@@ -73,6 +73,7 @@ label > span,
 }
 
 .settings-page .character-avatar,
+.dashboard-page .character-avatar,
 .settings-page .avatar-thumbnail {
   background-image: url("/assets/avatars/finance-characters.png");
   background-size: 400% 400%;
@@ -83,6 +84,65 @@ label > span,
   width: 64px;
   height: 64px;
   border-radius: 50%;
+}
+
+.dashboard-page .profile-pill {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 12px;
+  padding: 9px 15px 9px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.dashboard-page .profile-pill-avatar {
+  width: 52px;
+  height: 52px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+}
+
+.dashboard-page .profile-pill-copy {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  justify-items: center;
+  text-align: center;
+}
+
+.dashboard-page .profile-pill-copy strong,
+.dashboard-page .profile-pill-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-page .profile-pill-copy strong {
+  color: var(--ink);
+  font-size: clamp(1.1rem, 4.2vw, 1.48rem);
+  white-space: normal;
+}
+
+.dashboard-page .profile-pill-copy span {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.dashboard-page .profile-pill-copy strong span {
+  font-size: 0.9rem;
+  font-weight: 800;
+  overflow: visible;
+  white-space: normal;
+}
+
+@media (max-width: 430px) {
+  .dashboard-page .profile-pill-copy {
+    justify-items: start;
+    text-align: left;
+  }
 }
 
 .settings-page .profile-card-main {

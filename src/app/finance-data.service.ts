@@ -392,7 +392,13 @@ export class FinanceDataService {
     return [...rows].sort((left, right) => {
       const leftTime = new Date(left.datetime).getTime();
       const rightTime = new Date(right.datetime).getTime();
-      return leftTime - rightTime;
+      const timeComparison = leftTime - rightTime;
+
+      if (timeComparison !== 0) {
+        return timeComparison;
+      }
+
+      return Number(left.id) - Number(right.id);
     });
   }
 }

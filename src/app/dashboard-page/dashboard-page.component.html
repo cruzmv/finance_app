@@ -5,10 +5,19 @@
 
   <main class="dashboard-page">
     <header class="welcome-header">
-      <div class="account-menu">
-        <h1>Olá, {{ username }}!</h1>
-        <p>Aqui está o resumo das suas finanças</p>
-      </div>
+      <button type="button" class="profile-pill" (click)="openProfileSettings()">
+        <span
+          class="profile-pill-avatar character-avatar"
+          [style.background-position]="selectedProfileAvatar.backgroundPosition"
+          [attr.aria-label]="selectedProfileAvatar.label"
+        ></span>
+        <span class="profile-pill-copy">
+          <strong>
+            {{ username }}<span>, {{ selectedProfileAvatar.label }}</span>
+          </strong>
+          <span>{{ profileEmail }}</span>
+        </span>
+      </button>
       <div class="notification-menu" style="position: relative;" (click)="$event.stopPropagation()">
         <button
           type="button"
@@ -139,7 +148,11 @@
           </button>
         </header>
 
-        <section class="summary-grid" aria-label="Resumo do mês">
+        <section
+          class="summary-grid"
+          [class.current-month-summary-grid]="shouldShowCurrentMonthStartBalance"
+          aria-label="Resumo do mês"
+        >
           @if (savingsTrend.length > 0) {
             <div class="summary-chart">
               <svg class="savings-chart" viewBox="0 0 190 70" role="img" aria-label="Economia dos últimos 6 meses">
@@ -165,9 +178,20 @@
               </div>
             </div>
           }
-          <div class="summary-metric current-metric">
-            <span>{{ primaryBalanceLabel }}</span>
-            <strong class="summary-value">{{ primaryBalanceValue | appCurrency }}</strong>
+          <div class="summary-metric current-metric" [class.current-month-metric]="shouldShowCurrentMonthStartBalance">
+            @if (shouldShowCurrentMonthStartBalance) {
+              <div class="month-start-balance">
+                <span>Início do mês</span>
+                <strong>{{ summary.monthStartBalance | appCurrency }}</strong>
+              </div>
+              <div class="current-balance-block">
+                <span>Saldo atual</span>
+                <strong class="summary-value">{{ summary.currentBalance | appCurrency }}</strong>
+              </div>
+            } @else {
+              <span>{{ primaryBalanceLabel }}</span>
+              <strong class="summary-value">{{ primaryBalanceValue | appCurrency }}</strong>
+            }
           </div>
           <div class="summary-metric savings-metric">
             <span>Economia</span>
