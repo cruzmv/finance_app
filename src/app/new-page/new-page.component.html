@@ -6,6 +6,18 @@
   <form class="moviment-form-page" [formGroup]="movimentForm" (ngSubmit)="saveMoviment()">
     <div class="page-backdrop" [ngClass]="backdropClass" aria-hidden="true"></div>
 
+    @if (isSavingMoviment) {
+      <div
+        role="status"
+        aria-live="polite"
+        style="position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; background: rgba(248, 250, 247, 0.84);"
+      >
+        <strong style="padding: 18px 22px; border-radius: 8px; background: #fff; color: #103329; font-size: 0.82rem; text-transform: uppercase;">
+          Saving...
+        </strong>
+      </div>
+    }
+
     <section class="movement-sheet" [class.details-step]="currentStep === 3">
       <span class="sheet-handle" aria-hidden="true"></span>
 

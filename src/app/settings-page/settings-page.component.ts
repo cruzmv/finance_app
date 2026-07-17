@@ -181,7 +181,6 @@ export class SettingsPageComponent implements OnInit {
   protected activeIconPicker: IconPickerTarget | null = null;
   private readonly selectedMovimentStorageKey = 'selectedMoviment';
   private readonly notificationReadStorageKey = 'dashboardProvisionNotificationReads';
-  private hasSettingsDetailHistory = false;
   private balanceRows: BalanceRow[] = [];
   protected readonly iconOptions: IconOption[] = [
     { name: 'wallet-outline', label: 'Carteira' },
@@ -347,8 +346,11 @@ export class SettingsPageComponent implements OnInit {
     }
   }
 
+  ionViewWillLeave(): void {
+    this.closeSettingsDetailView();
+  }
+
   protected setActiveTab(tab: SettingsTab): void {
-    this.pushSettingsDetailHistory();
     this.activeView = tab;
     this.activeTab = tab;
     this.activeIconPicker = null;
@@ -361,7 +363,6 @@ export class SettingsPageComponent implements OnInit {
   }
 
   protected openAiAnalysisView(): void {
-    this.pushSettingsDetailHistory();
     this.activeView = 'aiAnalysis';
     this.activeIconPicker = null;
     this.errorMessage = '';
@@ -369,7 +370,6 @@ export class SettingsPageComponent implements OnInit {
   }
 
   protected openBackupExportView(): void {
-    this.pushSettingsDetailHistory();
     this.activeView = 'backupExport';
     this.activeIconPicker = null;
     this.errorMessage = '';
@@ -377,7 +377,6 @@ export class SettingsPageComponent implements OnInit {
   }
 
   protected openInfoView(view: 'premium' | 'privacy' | 'about'): void {
-    this.pushSettingsDetailHistory();
     this.activeView = view;
     this.activeIconPicker = null;
     this.errorMessage = '';
@@ -385,7 +384,6 @@ export class SettingsPageComponent implements OnInit {
   }
 
   protected openProfileView(): void {
-    this.pushSettingsDetailHistory();
     this.activeView = 'profile';
     this.activeIconPicker = null;
     this.errorMessage = '';
@@ -403,11 +401,6 @@ export class SettingsPageComponent implements OnInit {
   }
 
   protected backToMenu(): void {
-    if (this.hasSettingsDetailHistory) {
-      window.history.back();
-      return;
-    }
-
     this.closeSettingsDetailView();
   }
 
@@ -423,16 +416,6 @@ export class SettingsPageComponent implements OnInit {
     this.activeIconPicker = null;
     this.errorMessage = '';
     this.successMessage = '';
-    this.hasSettingsDetailHistory = false;
-  }
-
-  private pushSettingsDetailHistory(): void {
-    if (this.activeView !== 'menu' || this.hasSettingsDetailHistory) {
-      return;
-    }
-
-    window.history.pushState({ settingsDetail: true }, '');
-    this.hasSettingsDetailHistory = true;
   }
 
   protected get username(): string {

@@ -55,12 +55,20 @@ interface DashboardSummary {
   income: number;
   receivedIncome: number;
   receivableIncome: number;
+  receivedIncomeCount: number;
+  receivableIncomeCount: number;
   consumedExpenses: number;
   consumedDebitExpenses: number;
   consumedCreditExpenses: number;
+  consumedExpensesCount: number;
+  consumedDebitExpensesCount: number;
+  consumedCreditExpensesCount: number;
   provisionedExpenses: number;
   provisionedDebitExpenses: number;
   provisionedCreditExpenses: number;
+  provisionedExpensesCount: number;
+  provisionedDebitExpensesCount: number;
+  provisionedCreditExpensesCount: number;
 }
 
 interface UpcomingMovement {
@@ -82,11 +90,10 @@ interface CreditSummary {
   payableCount: number;
   openCount: number;
   payableLabel: string;
-}
-
-interface CreditBillCycle {
-  closingDate: Date;
-  nextClosingDate: Date;
+  openLabel: string;
+  payableDateLabel: string;
+  openDateLabel: string;
+  openDetailLabel: string;
 }
 
 interface BalanceEntry {
@@ -98,9 +105,16 @@ interface BalanceEntry {
 
 interface SavingsTrendPoint {
   label: string;
+  year: number;
   value: number;
   x: number;
   y: number;
+}
+
+interface SavingsTrendYearSegment {
+  year: number;
+  start: number;
+  span: number;
 }
 
 interface DashboardMonthOption {
@@ -133,6 +147,9 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   private monthSwipeStartY = 0;
   private readonly financeFocusStorageKey = 'financeFocusTarget';
   private readonly settingsInitialViewStorageKey = 'settingsInitialView';
+  protected readonly negativeSavingsCardBackground =
+    'linear-gradient(118deg, rgba(124, 20, 28, 0.98) 0%, rgba(199, 45, 55, 0.98) 56%, rgba(132, 24, 32, 0.98) 100%)';
+  protected readonly negativeSavingsCardShadow = '0 12px 22px rgba(178, 35, 45, 0.24)';
   private ledgerAccounts = new Map<number, LedgerAccountSettings>();
   private ledgerAccountOptions: LedgerAccountSettings[] = [];
   private movimentAccountOptions: MovimentAccountSettings[] = [];
@@ -179,12 +196,20 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     income: 0,
     receivedIncome: 0,
     receivableIncome: 0,
+    receivedIncomeCount: 0,
+    receivableIncomeCount: 0,
     consumedExpenses: 0,
     consumedDebitExpenses: 0,
     consumedCreditExpenses: 0,
+    consumedExpensesCount: 0,
+    consumedDebitExpensesCount: 0,
+    consumedCreditExpensesCount: 0,
     provisionedExpenses: 0,
     provisionedDebitExpenses: 0,
     provisionedCreditExpenses: 0,
+    provisionedExpensesCount: 0,
+    provisionedDebitExpensesCount: 0,
+    provisionedCreditExpensesCount: 0,
   };
   protected creditSummary: CreditSummary = {
     payable: 0,
@@ -193,6 +218,10 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     payableCount: 0,
     openCount: 0,
     payableLabel: 'A pagar',
+    openLabel: 'Em aberto',
+    payableDateLabel: '',
+    openDateLabel: '',
+    openDetailLabel: '',
   };
   protected creditAccounts: MovimentAccountSettings[] = [];
   protected previousMonthSavings = 0;
@@ -202,6 +231,7 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   protected availableMonthOptions: DashboardMonthOption[] = [];
   protected expandedUpcomingMovementIds = new Set<number>();
   protected dashboardNotifications: AppNotification[] = [];
+  protected viewportWidth = typeof window === 'undefined' ? 390 : window.innerWidth;
 
   constructor() {
     addIcons({
@@ -395,6 +425,10 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     return this.summary.savings < 0 ? 'Em dívida' : 'Economia de';
   }
 
+  protected get monthlySavingsMetricLabel(): string {
+    return this.summary.savings < 0 ? 'Gastos' : 'Economia';
+  }
+
   protected get primaryBalanceLabel(): string {
     return this.isCurrentSelectedMonth() ? 'Saldo atual' : 'Saldo início mês';
   }
@@ -408,7 +442,9 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   }
 
   protected get yearToDateSavingsLabel(): string {
-    return `Economizado do início do ano até ${this.selectedMonthLabel}`;
+    const label = this.summary.yearToDateSavings < 0 ? 'Gastos' : 'Economizado';
+
+    return `${label} do início do ano até ${this.selectedMonthLabel}`;
   }
 
   protected get savingsStartPercent(): number {
@@ -421,6 +457,24 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
 
   protected get savingsTrendPolyline(): string {
     return this.savingsTrend.map((point) => `${point.x},${point.y}`).join(' ');
+  }
+
+  protected get savingsTrendViewBoxWidth(): number {
+    return this.getSavingsTrendChartWidth();
+  }
+
+  protected get savingsTrendYearSegments(): SavingsTrendYearSegment[] {
+    return this.savingsTrend.reduce<SavingsTrendYearSegment[]>((segments, point, index) => {
+      const previous = segments[segments.length - 1];
+
+      if (previous && previous.year === point.year) {
+        previous.span += 1;
+        return segments;
+      }
+
+      segments.push({ year: point.year, start: index + 1, span: 1 });
+      return segments;
+    }, []);
   }
 
   protected get totalMonthExpenses(): number {
@@ -602,6 +656,23 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     this.isNotificationMenuOpen = false;
   }
 
+  @HostListener('window:resize')
+  protected handleWindowResize(): void {
+    const nextViewportWidth = window.innerWidth;
+    const previousTrendLength = this.getSavingsTrendMonthCount(this.viewportWidth);
+    const nextTrendLength = this.getSavingsTrendMonthCount(nextViewportWidth);
+
+    this.viewportWidth = nextViewportWidth;
+
+    if (previousTrendLength !== nextTrendLength) {
+      this.savingsTrend = this.buildSavingsTrend(
+        this.dashboardRows
+          .filter((row) => !Number.isNaN(new Date(row.datetime).getTime()))
+          .sort((left, right) => this.compareRowsByDate(left, right)),
+      );
+    }
+  }
+
   private loadDashboard(forceRefresh = false, refreshEvent?: CustomEvent): void {
     this.now = new Date();
     this.loadedToken = this.auth.token;
@@ -666,6 +737,12 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     const provisionedCreditExpenses = Math.abs(this.sumValues(
       provisionedThisMonth.filter((row) => Number(row.value) < 0 && row.account_type === 1),
     ));
+    const receivedIncomeRows = positiveThisMonth.filter((row) => this.isStatus(row, 'consumado'));
+    const receivableIncomeRows = positiveThisMonth.filter((row) => this.isStatus(row, 'provisionado'));
+    const consumedDebitExpenseRows = consumedThisMonth.filter((row) => Number(row.value) < 0 && row.account_type !== 1);
+    const consumedCreditExpenseRows = consumedThisMonth.filter((row) => Number(row.value) < 0 && row.account_type === 1);
+    const provisionedDebitExpenseRows = provisionedThisMonth.filter((row) => Number(row.value) < 0 && row.account_type !== 1);
+    const provisionedCreditExpenseRows = provisionedThisMonth.filter((row) => Number(row.value) < 0 && row.account_type === 1);
     const monthStartBalance = this.getDebitSnapshotTotal(
       this.getLatestRowAtOrBefore(validRows, selectedMonthStart)?.balances,
     );
@@ -684,14 +761,22 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
       savings: monthEndBalance - monthStartBalance,
       yearToDateSavings,
       income: this.sumValues(positiveThisMonth),
-      receivedIncome: this.sumValues(positiveThisMonth.filter((row) => this.isStatus(row, 'consumado'))),
-      receivableIncome: this.sumValues(positiveThisMonth.filter((row) => this.isStatus(row, 'provisionado'))),
+      receivedIncome: this.sumValues(receivedIncomeRows),
+      receivableIncome: this.sumValues(receivableIncomeRows),
+      receivedIncomeCount: receivedIncomeRows.length,
+      receivableIncomeCount: receivableIncomeRows.length,
       consumedExpenses: consumedDebitExpenses + consumedCreditExpenses,
       consumedDebitExpenses,
       consumedCreditExpenses,
+      consumedExpensesCount: consumedDebitExpenseRows.length + consumedCreditExpenseRows.length,
+      consumedDebitExpensesCount: consumedDebitExpenseRows.length,
+      consumedCreditExpensesCount: consumedCreditExpenseRows.length,
       provisionedExpenses: provisionedDebitExpenses + provisionedCreditExpenses,
       provisionedDebitExpenses,
       provisionedCreditExpenses,
+      provisionedExpensesCount: provisionedDebitExpenseRows.length + provisionedCreditExpenseRows.length,
+      provisionedDebitExpensesCount: provisionedDebitExpenseRows.length,
+      provisionedCreditExpensesCount: provisionedCreditExpenseRows.length,
     };
     this.creditSummary = this.buildCreditSummary(validRows);
     this.previousMonthSavings = monthStartBalance - precedingMonthBalance;
@@ -865,10 +950,14 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   }
 
   private buildSavingsTrend(rows: BalanceRow[]): SavingsTrendPoint[] {
-    const monthReferences = Array.from({ length: 6 }, (_, index) => {
+    const monthCount = this.getSavingsTrendMonthCount();
+    const chartWidth = this.getSavingsTrendChartWidth();
+    const sidePadding = monthCount > 6 ? 8 : 15.83;
+    const xStep = monthCount === 1 ? 0 : (chartWidth - sidePadding * 2) / (monthCount - 1);
+    const monthReferences = Array.from({ length: monthCount }, (_, index) => {
       return new Date(
         this.selectedMonthDate.getFullYear(),
-        this.selectedMonthDate.getMonth() - (5 - index),
+        this.selectedMonthDate.getMonth() - ((monthCount - 1) - index),
         1,
       );
     });
@@ -885,11 +974,20 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     const range = maxValue - minValue || 1;
 
     return monthReferences.map((monthDate, index) => ({
-      label: new Intl.DateTimeFormat('pt-PT', { month: 'short' }).format(monthDate).replace('.', ''),
+      label: this.formatShortMonth(monthDate),
+      year: monthDate.getFullYear(),
       value: values[index],
-      x: 15.83 + index * 31.67,
+      x: sidePadding + index * xStep,
       y: 60 - ((values[index] - minValue) / range) * 44,
     }));
+  }
+
+  private getSavingsTrendMonthCount(viewportWidth = this.viewportWidth): number {
+    return viewportWidth >= 681 ? 12 : 6;
+  }
+
+  private getSavingsTrendChartWidth(viewportWidth = this.viewportWidth): number {
+    return viewportWidth >= 681 ? 560 : 190;
   }
 
   private getYearToDateSavings(rows: BalanceRow[]): number {
@@ -998,6 +1096,15 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     return (description ?? '').trim().toLocaleLowerCase();
   }
 
+  private normalizeCreditBillDescription(description: string): string {
+    return description
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLocaleLowerCase('pt-BR');
+  }
+
   private sumValues(rows: BalanceRow[]): number {
     return rows.reduce((total, row) => total + (Number(row.value) || 0), 0);
   }
@@ -1020,18 +1127,25 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
       payableCount: 0,
       openCount: 0,
       payableLabel: isPastMonth ? 'Pago' : 'A pagar',
+      openLabel: isPastMonth ? 'Fechamento' : (this.isFutureSelectedMonth() ? 'Provisionado' : 'Em aberto'),
+      payableDateLabel: '',
+      openDateLabel: '',
+      openDetailLabel: '',
     };
 
     const summary = this.creditAccounts.reduce<CreditSummary>((creditSummary, account) => {
       const accountRows = rows.filter((row) => this.isCreditAccountMovement(row, account));
-      const billCycle = this.getSelectedMonthCreditBillCycle(account);
-      const previousClosingDate = this.getPreviousClosingDate(billCycle.closingDate, account);
-      const payableRows = this.getCreditExpenseRows(accountRows, previousClosingDate, billCycle.closingDate);
-      const openRows = this.getCreditConsumedRows(accountRows, billCycle.closingDate, billCycle.nextClosingDate);
+      const payableClosingDate = this.getPayableClosingDateForSelectedMonth(account);
+      const previousPayableClosingDate = this.getPreviousClosingDate(payableClosingDate, account);
+      const selectedClosingDate = this.getClosingDateForMonth(account, this.selectedMonthDate);
+      const openStartDate = this.getCreditOpenStartDate(account, selectedClosingDate);
+      const openEndDate = this.getCreditOpenEndDate(account, selectedClosingDate);
+      const payableRows = this.getCreditConsumedRows(accountRows, previousPayableClosingDate, payableClosingDate);
+      const openRows = this.getCreditConsumedRows(accountRows, openStartDate, openEndDate);
       const payable = Math.abs(this.sumValues(payableRows));
       const open = Math.abs(this.sumValues(openRows));
       const limit = this.toNumber(account.start_value);
-      const isBillPaid = this.hasPaidCreditBill(rows, account, payable);
+      const isBillPaid = this.hasPaidCreditBill(rows, account, payable, payableClosingDate);
       const payableAffectsBalance = isPastMonth || (isCurrentMonth && isBillPaid) ? 0 : payable;
 
       return {
@@ -1042,6 +1156,12 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
         payableCount: creditSummary.payableCount + payableRows.length,
         openCount: creditSummary.openCount + openRows.length,
         payableLabel: creditSummary.payableLabel,
+        openLabel: creditSummary.openLabel,
+        payableDateLabel: creditSummary.payableDateLabel || this.formatCompactDate(
+          this.getCreditBillPayDate(account, payableClosingDate),
+        ),
+        openDateLabel: creditSummary.openDateLabel || this.formatCompactDate(selectedClosingDate),
+        openDetailLabel: creditSummary.openDetailLabel || this.getCreditOpenDetailLabel(selectedClosingDate),
       };
     }, initialSummary);
 
@@ -1053,22 +1173,13 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   }
 
   private isCreditAccountMovement(row: BalanceRow, account: MovimentAccountSettings): boolean {
-    return row.account_type === 1 && Number(row.moviment_account_id) === account.id;
+    return row.account_type === 1 &&
+      Number(row.moviment_account_id) === account.id &&
+      !this.isCreditBillMovement(row);
   }
 
-  private getCreditExpenseRows(rows: BalanceRow[], afterDate: Date, untilDate: Date): BalanceRow[] {
-    const afterTime = afterDate.getTime();
-    const untilTime = untilDate.getTime();
-    const includeProvisioned = this.isFutureSelectedMonth();
-
-    return rows.filter((row) => {
-      const time = this.getTime(row);
-
-      return Number(row.value) < 0 &&
-        this.isCreditSummaryStatus(row, includeProvisioned) &&
-        time >= afterTime &&
-        time < untilTime;
-    });
+  private isCreditBillMovement(row: BalanceRow): boolean {
+    return !!row.credit_bill || this.normalizeCreditBillDescription(row.description).startsWith('fatura ');
   }
 
   private getCreditConsumedRows(rows: BalanceRow[], afterDate: Date, untilDate: Date): BalanceRow[] {
@@ -1086,18 +1197,40 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     });
   }
 
-  private getSelectedMonthCreditBillCycle(account: MovimentAccountSettings): CreditBillCycle {
-    const closingMonthReference = new Date(
-      this.selectedMonthDate.getFullYear(),
-      this.selectedMonthDate.getMonth() - 1,
-      1,
-    );
-    const closingDate = this.getClosingDateForMonth(account, closingMonthReference);
+  private getPayableClosingDateForSelectedMonth(account: MovimentAccountSettings): Date {
+    const selectedClosingDate = this.getClosingDateForMonth(account, this.selectedMonthDate);
 
-    return {
-      closingDate,
-      nextClosingDate: this.getNextClosingDate(closingDate, account),
-    };
+    if (
+      this.isPastSelectedMonth() ||
+      this.isFutureSelectedMonth() ||
+      (this.isCurrentSelectedMonth() && this.now.getTime() < selectedClosingDate.getTime())
+    ) {
+      return this.getPreviousClosingDate(selectedClosingDate, account);
+    }
+
+    return selectedClosingDate;
+  }
+
+  private getCreditOpenStartDate(account: MovimentAccountSettings, selectedClosingDate: Date): Date {
+    if (this.isCurrentSelectedMonth() && this.now.getTime() >= selectedClosingDate.getTime()) {
+      return selectedClosingDate;
+    }
+
+    return this.getPreviousClosingDate(selectedClosingDate, account);
+  }
+
+  private getCreditOpenEndDate(account: MovimentAccountSettings, selectedClosingDate: Date): Date {
+    if (this.isCurrentSelectedMonth() && this.now.getTime() >= selectedClosingDate.getTime()) {
+      return this.getNextClosingDate(selectedClosingDate, account);
+    }
+
+    return selectedClosingDate;
+  }
+
+  private getCreditOpenDetailLabel(closingDate: Date): string {
+    const dateLabel = this.formatCompactDate(closingDate);
+
+    return this.isPastSelectedMonth() ? dateLabel : `Fecha em ${dateLabel}`;
   }
 
   private getPreviousClosingDate(lastClosingDate: Date, account: MovimentAccountSettings): Date {
@@ -1136,11 +1269,13 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     rows: BalanceRow[],
     account: MovimentAccountSettings,
     payable: number,
+    closingDate: Date,
   ): boolean {
     if (!payable) {
       return false;
     }
 
+    const expectedPayDate = this.getCreditBillPayDate(account, closingDate);
     const billRows = rows.filter((row) => {
       const rowDate = new Date(row.datetime);
 
@@ -1157,7 +1292,7 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
       }
 
       if (account.pay_day) {
-        return this.isSameDay(rowDate, this.getSelectedMonthPayDate(account));
+        return this.isSameDay(rowDate, expectedPayDate);
       }
 
       return true;
@@ -1169,25 +1304,22 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   private areSelectedMonthCreditBillsPaid(rows: BalanceRow[]): boolean {
     return this.creditAccounts.every((account) => {
       const accountRows = rows.filter((row) => this.isCreditAccountMovement(row, account));
-      const billCycle = this.getSelectedMonthCreditBillCycle(account);
-      const previousClosingDate = this.getPreviousClosingDate(billCycle.closingDate, account);
+      const payableClosingDate = this.getPayableClosingDateForSelectedMonth(account);
+      const previousClosingDate = this.getPreviousClosingDate(payableClosingDate, account);
       const payable = Math.abs(this.sumValues(
-        this.getCreditExpenseRows(accountRows, previousClosingDate, billCycle.closingDate),
+        this.getCreditConsumedRows(accountRows, previousClosingDate, payableClosingDate),
       ));
 
-      return payable === 0 || this.hasPaidCreditBill(rows, account, payable);
+      return payable === 0 || this.hasPaidCreditBill(rows, account, payable, payableClosingDate);
     });
   }
 
-  private getSelectedMonthPayDate(account: MovimentAccountSettings): Date {
-    const lastDayOfMonth = new Date(
-      this.selectedMonthDate.getFullYear(),
-      this.selectedMonthDate.getMonth() + 1,
-      0,
-    ).getDate();
-    const payDay = Math.min(Math.max(account.pay_day ?? lastDayOfMonth, 1), lastDayOfMonth);
+  private getCreditBillPayDate(account: MovimentAccountSettings, closingDate: Date): Date {
+    const payMonth = new Date(closingDate.getFullYear(), closingDate.getMonth() + 1, 1);
+    const lastDayOfPayMonth = new Date(payMonth.getFullYear(), payMonth.getMonth() + 1, 0).getDate();
+    const payDay = Math.min(Math.max(account.pay_day ?? lastDayOfPayMonth, 1), lastDayOfPayMonth);
 
-    return new Date(this.selectedMonthDate.getFullYear(), this.selectedMonthDate.getMonth(), payDay);
+    return new Date(payMonth.getFullYear(), payMonth.getMonth(), payDay);
   }
 
   private getSafeClosingDay(account: MovimentAccountSettings, referenceDate: Date): number {
@@ -1195,6 +1327,20 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     const closingDay = account.closing_day ?? lastDayOfMonth;
 
     return Math.min(Math.max(closingDay, 1), lastDayOfMonth);
+  }
+
+  private formatShortMonth(date: Date): string {
+    const label = new Intl.DateTimeFormat('pt-PT', { month: 'short' }).format(date).replace('.', '');
+
+    return label.charAt(0).toLocaleUpperCase('pt-PT') + label.slice(1);
+  }
+
+  private formatCompactDate(date: Date): string {
+    return new Intl.DateTimeFormat('pt-PT', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    }).format(date);
   }
 
   private isSelectedMonth(row: BalanceRow): boolean {
@@ -1267,13 +1413,7 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   }
 
   private compareRowsByDate(left: BalanceRow, right: BalanceRow): number {
-    const timeComparison = this.getTime(left) - this.getTime(right);
-
-    if (timeComparison !== 0) {
-      return timeComparison;
-    }
-
-    return Number(left.id) - Number(right.id);
+    return this.getTime(left) - this.getTime(right);
   }
 
   private getStartOfToday(): Date {

@@ -3,7 +3,15 @@
     <ion-refresher-content></ion-refresher-content>
   </ion-refresher>
 
-  <main class="dashboard-page">
+  @if (isLoading) {
+    <div class="dashboard-loading-overlay" role="status" aria-live="polite">
+      <div class="dashboard-loading-panel">
+        <strong>Loading...</strong>
+      </div>
+    </div>
+  }
+
+  <main class="dashboard-page" [class.dashboard-page-loading]="isLoading">
     <header class="welcome-header">
       <button type="button" class="profile-pill" (click)="openProfileSettings()">
         <span
@@ -91,12 +99,16 @@
       </div>
     </header>
 
-    @if (isLoading) {
-      <section class="state-panel"><p>Atualizando...</p></section>
-    } @else if (errorMessage) {
+    @if (errorMessage) {
       <section class="state-panel error"><p>{{ errorMessage }}</p></section>
     } @else {
-      <section class="summary-card" (touchstart)="startMonthSwipe($event)" (touchend)="finishMonthSwipe($event)">
+      <section
+        class="summary-card"
+        [style.background]="summary.savings < 0 ? negativeSavingsCardBackground : null"
+        [style.box-shadow]="summary.savings < 0 ? negativeSavingsCardShadow : null"
+        (touchstart)="startMonthSwipe($event)"
+        (touchend)="finishMonthSwipe($event)"
+      >
         <header class="card-heading month-heading">
           <button
             type="button"
@@ -155,7 +167,12 @@
         >
           @if (savingsTrend.length > 0) {
             <div class="summary-chart">
-              <svg class="savings-chart" viewBox="0 0 190 70" role="img" aria-label="Economia dos últimos 6 meses">
+              <svg
+                class="savings-chart"
+                [attr.viewBox]="'0 0 ' + savingsTrendViewBoxWidth + ' 70'"
+                role="img"
+                [attr.aria-label]="'Economia dos últimos ' + savingsTrend.length + ' meses'"
+              >
                 <defs>
                   <linearGradient id="dashboardSavingsFill" x1="0" x2="0" y1="0" y2="1">
                     <stop offset="0%" stop-color="rgba(255,255,255,0.46)" />
@@ -171,9 +188,14 @@
                   <circle class="savings-chart-point" [attr.cx]="point.x" [attr.cy]="point.y" r="2.8" />
                 }
               </svg>
-              <div class="summary-chart-months" aria-hidden="true">
+              <div class="summary-chart-months" [style.--trend-count]="savingsTrend.length" aria-hidden="true">
                 @for (point of savingsTrend; track point.label) {
-                  <span>{{ point.label.slice(0, 1) }}</span>
+                  <span>{{ point.label }}</span>
+                }
+              </div>
+              <div class="summary-chart-years" [style.--trend-count]="savingsTrend.length" aria-hidden="true">
+                @for (segment of savingsTrendYearSegments; track segment.year) {
+                  <span [style.--year-start]="segment.start" [style.--year-span]="segment.span">{{ segment.year }}</span>
                 }
               </div>
             </div>
@@ -194,8 +216,8 @@
             }
           </div>
           <div class="summary-metric savings-metric">
-            <span>Economia</span>
-            <strong class="summary-value" [class.negative]="summary.savings < 0">
+            <span>{{ monthlySavingsMetricLabel }}</span>
+            <strong class="summary-value">
               {{ summary.savings | appCurrency }}
             </strong>
             <small [class.negative]="savingsStartPercent < 0">
@@ -212,33 +234,54 @@
         @if (shouldShowCreditSummary) {
           <section class="credit-highlight">
             <header>
-              <span class="credit-highlight-icon">
-                <ion-icon name="card-outline"></ion-icon>
-              </span>
               <strong>Cartão de crédito</strong>
             </header>
-            <div class="credit-highlight-grid">
-              <div>
-                <span>{{ creditSummary.payableLabel }}</span>
-                <strong class="negative">{{ creditSummary.payable | appCurrency }}</strong>
-                <small>{{ getMovementCountLabel(creditSummary.payableCount) }}</small>
+              <div class="credit-highlight-grid">
+                <div>
+                  <span>{{ creditSummary.payableLabel }}</span>
+                  <strong class="negative">{{ creditSummary.payable | appCurrency }}</strong>
+                  <small>
+                    {{ creditSummary.payableDateLabel }}<br />
+                    {{ getMovementCountLabel(creditSummary.payableCount) }}
+                  </small>
+                </div>
+                <div>
+                  <span>{{ creditSummary.openLabel }}</span>
+                  <strong>{{ creditSummary.open | appCurrency }}</strong>
+                  <small>
+                    {{ creditSummary.openDetailLabel }}<br />
+                    {{ getMovementCountLabel(creditSummary.openCount) }}
+                  </small>
+                </div>
               </div>
-              <div>
-                <span>Em aberto</span>
-                <strong>{{ creditSummary.open | appCurrency }}</strong>
-                <small>{{ getMovementCountLabel(creditSummary.openCount) }}</small>
-              </div>
-            </div>
-          </section>
+            </section>
         }
 
-        <div class="summary-bottom">
-          <div class="forecast-hint year-balance-hint" [class.negative]="summary.yearToDateSavings < 0">
+        <div
+          class="summary-bottom"
+          [style.margin-left]="summary.yearToDateSavings < 0 ? '-18px' : null"
+          [style.margin-right]="summary.yearToDateSavings < 0 ? '-18px' : null"
+          [style.margin-bottom]="summary.yearToDateSavings < 0 ? '-16px' : null"
+          [style.padding-left]="summary.yearToDateSavings < 0 ? '18px' : null"
+          [style.padding-right]="summary.yearToDateSavings < 0 ? '18px' : null"
+          [style.padding-bottom]="summary.yearToDateSavings < 0 ? '16px' : null"
+          [style.background]="summary.yearToDateSavings < 0 ? 'linear-gradient(118deg, rgba(124, 20, 28, 0.98) 0%, rgba(199, 45, 55, 0.98) 56%, rgba(132, 24, 32, 0.98) 100%)' : null"
+          [style.box-shadow]="summary.yearToDateSavings < 0 ? 'inset 0 1px 0 rgba(255,255,255,0.16), 0 -10px 20px rgba(124,20,28,0.18)' : null"
+        >
+          <div
+            class="forecast-hint year-balance-hint"
+            [style.color]="summary.yearToDateSavings < 0 ? '#ffe1d8' : '#d8ffe8'"
+          >
             <span>
-              <ion-icon name="calendar-outline"></ion-icon>
+              <ion-icon
+                name="calendar-outline"
+                [style.color]="summary.yearToDateSavings < 0 ? '#ffe1d8' : '#d8ffe8'"
+              ></ion-icon>
               {{ yearToDateSavingsLabel }}
             </span>
-            <strong>{{ summary.yearToDateSavings | appCurrency }}</strong>
+            <strong [style.color]="summary.yearToDateSavings < 0 ? '#ffe1d8' : '#d8ffe8'">
+              {{ summary.yearToDateSavings | appCurrency }}
+            </strong>
           </div>
         </div>
       </section>
@@ -269,17 +312,29 @@
               </div>
               <div class="overview-lines">
                 <div [style.--progress]="getPercent(summary.receivedIncome, summary.income) + '%'">
-                  <span>Recebidos</span>
+                  <span>
+                    Recebidos
+                    <em>
+                      {{ getPercent(summary.receivedIncome, summary.income) | number:'1.0-0':'pt-PT' }}%
+                      ·
+                      {{ getMovementCountLabel(summary.receivedIncomeCount) }}
+                    </em>
+                  </span>
                   <strong>
                     {{ summary.receivedIncome | appCurrency }}
-                    <small>({{ getPercent(summary.receivedIncome, summary.income) | number:'1.0-0':'pt-PT' }}%)</small>
                   </strong>
                 </div>
                 <div [style.--progress]="getPercent(summary.receivableIncome, summary.income) + '%'">
-                  <span>A receber</span>
+                  <span>
+                    A receber
+                    <em>
+                      {{ getPercent(summary.receivableIncome, summary.income) | number:'1.0-0':'pt-PT' }}%
+                      ·
+                      {{ getMovementCountLabel(summary.receivableIncomeCount) }}
+                    </em>
+                  </span>
                   <strong>
                     {{ summary.receivableIncome | appCurrency }}
-                    <small>({{ getPercent(summary.receivableIncome, summary.income) | number:'1.0-0':'pt-PT' }}%)</small>
                   </strong>
                 </div>
               </div>
@@ -306,7 +361,11 @@
                     <span>Saídas pagas</span>
                     <strong>
                       {{ summary.consumedExpenses | appCurrency }}
-                      <small>({{ getPercent(summary.consumedExpenses, totalMonthExpenses) | number:'1.0-0':'pt-PT' }}%)</small>
+                      <small>
+                        ({{ getPercent(summary.consumedExpenses, totalMonthExpenses) | number:'1.0-0':'pt-PT' }}%
+                        ·
+                        {{ getMovementCountLabel(summary.consumedExpensesCount) }})
+                      </small>
                     </strong>
                   </div>
                   <div class="overview-lines">
@@ -314,7 +373,11 @@
                       <span>
                         <ion-icon name="wallet-outline"></ion-icon>
                         Débito
-                        <em>({{ getPercent(summary.consumedDebitExpenses, summary.consumedExpenses) | number:'1.0-0':'pt-PT' }}%)</em>
+                        <em>
+                          {{ getPercent(summary.consumedDebitExpenses, summary.consumedExpenses) | number:'1.0-0':'pt-PT' }}%
+                          ·
+                          {{ getMovementCountLabel(summary.consumedDebitExpensesCount) }}
+                        </em>
                       </span>
                       <strong>
                         {{ summary.consumedDebitExpenses | appCurrency }}
@@ -324,7 +387,11 @@
                       <span>
                         <ion-icon name="card-outline"></ion-icon>
                         Crédito
-                        <em>({{ getPercent(summary.consumedCreditExpenses, summary.consumedExpenses) | number:'1.0-0':'pt-PT' }}%)</em>
+                        <em>
+                          {{ getPercent(summary.consumedCreditExpenses, summary.consumedExpenses) | number:'1.0-0':'pt-PT' }}%
+                          ·
+                          {{ getMovementCountLabel(summary.consumedCreditExpensesCount) }}
+                        </em>
                       </span>
                       <strong>
                         {{ summary.consumedCreditExpenses | appCurrency }}
@@ -338,7 +405,11 @@
                     <span>Saídas a pagar</span>
                     <strong>
                       {{ summary.provisionedExpenses | appCurrency }}
-                      <small>({{ getPercent(summary.provisionedExpenses, totalMonthExpenses) | number:'1.0-0':'pt-PT' }}%)</small>
+                      <small>
+                        ({{ getPercent(summary.provisionedExpenses, totalMonthExpenses) | number:'1.0-0':'pt-PT' }}%
+                        ·
+                        {{ getMovementCountLabel(summary.provisionedExpensesCount) }})
+                      </small>
                     </strong>
                   </div>
                   <div class="overview-lines">
@@ -346,7 +417,11 @@
                       <span>
                         <ion-icon name="wallet-outline"></ion-icon>
                         Débito
-                        <em>({{ getPercent(summary.provisionedDebitExpenses, summary.provisionedExpenses) | number:'1.0-0':'pt-PT' }}%)</em>
+                        <em>
+                          {{ getPercent(summary.provisionedDebitExpenses, summary.provisionedExpenses) | number:'1.0-0':'pt-PT' }}%
+                          ·
+                          {{ getMovementCountLabel(summary.provisionedDebitExpensesCount) }}
+                        </em>
                       </span>
                       <strong>
                         {{ summary.provisionedDebitExpenses | appCurrency }}
@@ -356,7 +431,11 @@
                       <span>
                         <ion-icon name="card-outline"></ion-icon>
                         Crédito
-                        <em>({{ getPercent(summary.provisionedCreditExpenses, summary.provisionedExpenses) | number:'1.0-0':'pt-PT' }}%)</em>
+                        <em>
+                          {{ getPercent(summary.provisionedCreditExpenses, summary.provisionedExpenses) | number:'1.0-0':'pt-PT' }}%
+                          ·
+                          {{ getMovementCountLabel(summary.provisionedCreditExpensesCount) }}
+                        </em>
                       </span>
                       <strong>
                         {{ summary.provisionedCreditExpenses | appCurrency }}

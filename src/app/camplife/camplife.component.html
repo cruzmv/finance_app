@@ -11,25 +11,25 @@
   @if (!isSetupRoute) {
   <ion-tab-bar slot="bottom">
     <ion-tab-button tab="dashboard">
-      <ion-icon src="assets/icons/roman-temple.svg"></ion-icon>
-      Início
+      <span class="nav-icon home-icon" aria-hidden="true"></span>
+      <span class="tab-label">Início</span>
     </ion-tab-button>
-    <ion-tab-button tab="finance">
-      <ion-icon src="assets/icons/roman-scroll.svg"></ion-icon>
-      Movimentos
+    <ion-tab-button tab="finance" class="wide-label-tab">
+      <span class="nav-icon movements-icon" aria-hidden="true"></span>
+      <span class="tab-label finance-label">Movimentos</span>
     </ion-tab-button>
     <ion-tab-button tab="new" class="add-tab" aria-label="Novo movimento" (click)="openNewMovement($event)">
       <span class="add-button">
-        <ion-icon name="add-outline"></ion-icon>
+        <span class="add-glyph" aria-hidden="true"></span>
       </span>
     </ion-tab-button>
-    <ion-tab-button tab="reports">
-      <ion-icon name="bar-chart-outline"></ion-icon>
-      Relatórios
+    <ion-tab-button tab="reports" class="wide-label-tab">
+      <span class="nav-icon reports-icon" aria-hidden="true"></span>
+      <span class="tab-label reports-label">Relatórios</span>
     </ion-tab-button>
     <ion-tab-button tab="settings">
-      <ion-icon name="ellipsis-horizontal-outline"></ion-icon>
-      Mais
+      <span class="nav-icon more-icon" aria-hidden="true"></span>
+      <span class="tab-label">Mais</span>
     </ion-tab-button>
   </ion-tab-bar>
   }

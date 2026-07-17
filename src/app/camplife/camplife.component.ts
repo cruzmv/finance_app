@@ -1,13 +1,7 @@
 import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { NavigationCancel, NavigationEnd, NavigationError, NavigationStart, Router } from '@angular/router';
-import { IonIcon, IonSpinner, IonTabBar, IonTabButton, IonTabs } from '@ionic/angular/standalone';
+import { IonSpinner, IonTabBar, IonTabButton, IonTabs } from '@ionic/angular/standalone';
 
-import { addIcons } from 'ionicons';
-import {
-  addOutline,
-  barChartOutline,
-  ellipsisHorizontalOutline,
-} from 'ionicons/icons';
 import { Subscription } from 'rxjs';
 
 
@@ -15,7 +9,7 @@ import { Subscription } from 'rxjs';
   selector: 'app-camplife',
   templateUrl: './camplife.component.html',
   styleUrls: ['./camplife.component.scss'],
-  imports: [IonIcon, IonSpinner, IonTabBar, IonTabButton, IonTabs],
+  imports: [IonSpinner, IonTabBar, IonTabButton, IonTabs],
 })
 export class CamplifeComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
@@ -24,14 +18,6 @@ export class CamplifeComponent implements OnInit, OnDestroy {
   private lastContentRoute = '/example/dashboard';
   protected isFinanceRouteLoading = false;
   protected isSetupRoute = false;
-
-  constructor() {
-    addIcons({
-      addOutline,
-      barChartOutline,
-      ellipsisHorizontalOutline,
-    });
-  }
 
   ngOnInit() {
     this.isSetupRoute = this.router.url.includes('/example/setup');

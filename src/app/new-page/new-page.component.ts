@@ -221,6 +221,7 @@ export class NewPageComponent implements OnInit, OnDestroy {
   protected isEditMode = false;
   protected isLoading = false;
   protected isSaving = false;
+  protected isSavingMoviment = false;
   protected isAnalyzingReceipt = false;
   protected errorMessage = '';
   protected receiptMessage = '';
@@ -348,6 +349,7 @@ export class NewPageComponent implements OnInit, OnDestroy {
   }
 
   ionViewWillLeave(): void {
+    this.isSavingMoviment = false;
     this.clearCreditBillPrompt();
     this.backButtonSubscription?.unsubscribe();
     this.backButtonSubscription = undefined;
@@ -783,6 +785,7 @@ export class NewPageComponent implements OnInit, OnDestroy {
 
     const payload = this.buildPayload();
     this.isSaving = true;
+    this.isSavingMoviment = true;
     this.financeData
       .saveMoviment(this.isEditMode ? 'edit' : 'add', payload, this.originalMoviment)
       .pipe(finalize(() => (this.isSaving = false)))
@@ -791,6 +794,7 @@ export class NewPageComponent implements OnInit, OnDestroy {
           this.finishMovimentSave(response);
         },
         error: () => {
+          this.isSavingMoviment = false;
           this.errorMessage = this.isEditMode
             ? 'Não foi possível editar o movimento.'
             : 'Não foi possível adicionar o movimento.';
@@ -806,6 +810,7 @@ export class NewPageComponent implements OnInit, OnDestroy {
     }
 
     this.isSaving = true;
+    this.isSavingMoviment = true;
     this.financeData
       .savePlanning('add', payload)
       .pipe(finalize(() => (this.isSaving = false)))
@@ -816,6 +821,7 @@ export class NewPageComponent implements OnInit, OnDestroy {
           void this.router.navigate(['/example/finance']);
         },
         error: (error) => {
+          this.isSavingMoviment = false;
           this.errorMessage = error?.error?.message ?? 'Não foi possível criar a recorrência.';
         },
       });
@@ -1177,6 +1183,7 @@ export class NewPageComponent implements OnInit, OnDestroy {
     const now = new Date();
     const endDate = new Date(now.getFullYear() + 1, now.getMonth(), now.getDate());
     this.isEditMode = false;
+    this.isSavingMoviment = false;
     this.originalMoviment = null;
     this.errorMessage = '';
     this.receiptMessage = '';
@@ -1376,6 +1383,7 @@ export class NewPageComponent implements OnInit, OnDestroy {
             hideExplanation: false,
             compact: this.shouldHideCreditBillPromptExplanation(),
           };
+          this.isSavingMoviment = false;
         },
         error: () => this.navigateBackToFinance(),
       });
@@ -1439,6 +1447,7 @@ export class NewPageComponent implements OnInit, OnDestroy {
   }
 
   private navigateBackToFinance(): void {
+    this.isSavingMoviment = false;
     this.clearCreditBillPrompt();
     sessionStorage.removeItem(this.selectedMovimentStorageKey);
     void this.router.navigate(['/example/finance']);

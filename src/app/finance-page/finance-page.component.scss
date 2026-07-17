@@ -24,28 +24,63 @@ p {
   left: 14px;
   z-index: 40;
   display: grid;
-  grid-template-columns: 30px minmax(0, 1fr) 32px;
+  grid-template-columns: 42px minmax(0, 1fr) 34px;
   align-items: center;
-  gap: 10px;
-  min-height: 54px;
-  padding: 8px 10px;
-  border: 1px solid rgba(22, 132, 84, 0.18);
+  gap: 12px;
+  min-height: 68px;
+  padding: 10px 12px;
+  border: 1px solid rgba(22, 132, 84, 0.28);
   border-radius: 8px;
-  background: #f1faf5;
+  background: linear-gradient(135deg, #effbf5 0%, #fff 100%);
   color: #0b6b41;
-  box-shadow: 0 14px 34px rgba(18, 48, 37, 0.18);
-  font-size: 0.84rem;
-  font-weight: 850;
+  box-shadow: 0 18px 42px rgba(18, 48, 37, 0.24);
+  font-size: 0.9rem;
+  font-weight: 900;
 }
 
-.credit-bill-toast > ion-icon {
-  font-size: 1.35rem;
+.credit-bill-toast-copy {
+  display: grid;
+  gap: 2px;
+}
+
+.credit-bill-toast-copy strong {
+  color: #064f31;
+  font-size: 1.18rem;
+  font-weight: 1000;
+  line-height: 1;
+}
+
+.credit-bill-swipe {
+  position: relative;
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 12px;
+  background: rgba(22, 132, 84, 0.12);
+}
+
+.credit-bill-swipe ion-icon {
+  color: #0b6b41;
+  font-size: 1.5rem;
+}
+
+.credit-bill-swipe span {
+  position: absolute;
+  width: 26px;
+  height: 3px;
+  border-radius: 999px;
+  background: #0b6b41;
+  box-shadow: 0 0 10px rgba(11, 107, 65, 0.4);
+  transform: translateX(-34px) rotate(-18deg);
+  animation: credit-card-swipe 1400ms ease-in-out infinite;
 }
 
 .credit-bill-toast button {
   display: grid;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   place-items: center;
   border: 0;
   border-radius: 50%;
@@ -448,18 +483,20 @@ p {
 }
 
 .transaction-actions {
-  flex-wrap: wrap;
-  justify-content: flex-end;
+  flex-wrap: nowrap;
+  justify-content: stretch;
   gap: 6px;
-  margin-left: auto;
 }
 
 .transaction-action {
   display: inline-flex;
+  flex: 1 1 0;
+  min-width: 0;
   align-items: center;
+  justify-content: center;
   height: 28px;
   gap: 4px;
-  padding: 0 8px;
+  padding: 0 6px;
   border: 1px solid rgba(22, 132, 84, 0.18);
   border-radius: 999px;
   background: #fff;
@@ -468,19 +505,66 @@ p {
   font-weight: 700;
 }
 
+.transaction-action span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .transaction-action.danger {
   border-color: rgba(228, 62, 69, 0.18);
   color: var(--finance-expense);
 }
 
-.transaction-action.credit-toggle {
-  border-color: rgba(224, 180, 59, 0.32);
-  color: #9c6b12;
+.transaction-action.credit-toggle,
+.transaction-action.status-toggle {
+  position: relative;
+  justify-content: flex-start;
+  overflow: hidden;
+  padding: 0 8px 0 28px;
+  border-color: rgba(32, 38, 34, 0.1);
+  background: #f1f2f1;
+  color: #727976;
 }
 
-.transaction-action.credit-toggle.confirmed {
+.transaction-action.credit-toggle.confirmed,
+.transaction-action.status-toggle.settled {
   border-color: rgba(22, 132, 84, 0.18);
+  background: rgba(22, 132, 84, 0.1);
   color: var(--finance-accent);
+}
+
+.switch-action-label {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  font-size: 0.64rem;
+  text-align: center;
+}
+
+.switch-action-thumb {
+  position: absolute;
+  top: 4px;
+  left: 5px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(32, 38, 34, 0.2);
+  transition:
+    left 160ms ease,
+    background 160ms ease;
+}
+
+.transaction-action.credit-toggle.confirmed,
+.transaction-action.status-toggle.settled {
+  padding-right: 28px;
+  padding-left: 8px;
+}
+
+.transaction-action.credit-toggle.confirmed .switch-action-thumb,
+.transaction-action.status-toggle.settled .switch-action-thumb {
+  left: calc(100% - 23px);
 }
 
 .transaction-action ion-icon {
@@ -539,6 +623,19 @@ p {
   white-space: nowrap;
 }
 
+.transaction-value-group {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.transaction-expand-icon {
+  color: #8a908d;
+  font-size: 1.05rem;
+}
+
 .transaction-value-positive,
 .savings-amount {
   color: var(--finance-accent);
@@ -560,6 +657,14 @@ p {
 .transaction-meta span + span::before {
   content: '\00b7';
   margin-right: 10px;
+}
+
+.transaction-expanded-controls {
+  display: grid;
+  grid-column: 1 / -1;
+  margin-top: 10px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(32, 38, 34, 0.08);
 }
 
 .timeline-account-balances {
@@ -724,5 +829,22 @@ p {
   }
   100% {
     box-shadow: 0 0 0 0 rgba(22, 132, 84, 0);
+  }
+}
+
+@keyframes credit-card-swipe {
+  0%,
+  18% {
+    opacity: 0;
+    transform: translateX(-34px) rotate(-18deg);
+  }
+  36%,
+  72% {
+    opacity: 1;
+  }
+  88%,
+  100% {
+    opacity: 0;
+    transform: translateX(34px) rotate(-18deg);
   }
 }

@@ -389,16 +389,19 @@ export class FinanceDataService {
   }
 
   private sortRows(rows: BalanceRow[]): BalanceRow[] {
-    return [...rows].sort((left, right) => {
-      const leftTime = new Date(left.datetime).getTime();
-      const rightTime = new Date(right.datetime).getTime();
-      const timeComparison = leftTime - rightTime;
+    return rows
+      .map((row, index) => ({ row, index }))
+      .sort((left, right) => {
+        const leftTime = new Date(left.row.datetime).getTime();
+        const rightTime = new Date(right.row.datetime).getTime();
+        const timeComparison = leftTime - rightTime;
 
-      if (timeComparison !== 0) {
-        return timeComparison;
-      }
+        if (timeComparison !== 0) {
+          return timeComparison;
+        }
 
-      return Number(left.id) - Number(right.id);
-    });
+        return left.index - right.index;
+      })
+      .map(({ row }) => row);
   }
 }

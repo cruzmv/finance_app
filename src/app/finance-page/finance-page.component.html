@@ -6,8 +6,16 @@
   <div class="finance-dashboard" #financeDashboard>
     @if (creditBillUpdateHint) {
       <div class="credit-bill-toast" role="status" aria-live="polite">
-        <ion-icon name="card-outline"></ion-icon>
-        <span>{{ creditBillUpdateHint }}</span>
+        <span class="credit-bill-swipe" aria-hidden="true">
+          <ion-icon name="card-outline"></ion-icon>
+          <span></span>
+        </span>
+        <span class="credit-bill-toast-copy">
+          <span>{{ creditBillUpdateHint }}</span>
+          @if (creditBillUpdateHintValue) {
+            <strong>{{ creditBillUpdateHintValue }}</strong>
+          }
+        </span>
         <button type="button" aria-label="Fechar aviso" (click)="dismissCreditBillUpdateHint()">
           <ion-icon name="close-outline"></ion-icon>
         </button>
@@ -195,41 +203,6 @@
                       >
                         <div class="transaction-header">
                           <span class="transaction-time">{{ row.datetime | date:'HH:mm':'UTC' }}</span>
-                          @if (isMovementExpanded(row.id)) {
-                          <div class="transaction-actions">
-                            @if (isCreditMovement(row)) {
-                              <button
-                                type="button"
-                                class="transaction-action credit-toggle"
-                                [class.confirmed]="isCreditConfirmed(row)"
-                                [attr.aria-label]="isCreditConfirmed(row) ? 'Marcar crédito como pendente' : 'Marcar crédito como confirmado'"
-                                [attr.title]="isCreditConfirmed(row) ? 'Confirmado' : 'Pendente'"
-                                (click)="$event.stopPropagation(); toggleCreditStatus(row)"
-                              >
-                                <ion-icon [name]="isCreditConfirmed(row) ? 'checkmark-circle-outline' : 'time-outline'"></ion-icon>
-                                <span>{{ isCreditConfirmed(row) ? 'Confirmado' : 'Confirmar' }}</span>
-                              </button>
-                            }
-                            <button
-                              type="button"
-                              class="transaction-action"
-                              aria-label="Editar movimento"
-                              (click)="$event.stopPropagation(); openEditMoviment(row)"
-                            >
-                              <ion-icon name="create-outline"></ion-icon>
-                              <span>Editar</span>
-                            </button>
-                            <button
-                              type="button"
-                              class="transaction-action danger"
-                              aria-label="Excluir movimento"
-                              (click)="$event.stopPropagation(); deleteMoviment(row)"
-                            >
-                              <ion-icon name="trash-outline"></ion-icon>
-                              <span>Excluir</span>
-                            </button>
-                          </div>
-                          }
                         </div>
 
                         <div class="transaction-body">
@@ -239,8 +212,13 @@
                           <div class="transaction-main">
                             <div class="transaction-primary">
                               <span class="transaction-description">{{ row.description }}</span>
-                              <span class="transaction-value" [ngClass]="getValueToneClass(row.value)">
-                                {{ +row.value | appCurrency }}
+                              <span class="transaction-value-group">
+                                <span class="transaction-value" [ngClass]="getValueToneClass(row.value)">
+                                  {{ +row.value | appCurrency }}
+                                </span>
+                                @if (!isMovementExpanded(row.id)) {
+                                  <ion-icon class="transaction-expand-icon" name="chevron-down-outline" aria-hidden="true"></ion-icon>
+                                }
                               </span>
                             </div>
 
@@ -252,6 +230,53 @@
                           </div>
 
                           @if (isMovementExpanded(row.id)) {
+                            <div class="transaction-expanded-controls">
+                              <div class="transaction-actions">
+                                @if (isCreditMovement(row)) {
+                                  <button
+                                    type="button"
+                                    class="transaction-action credit-toggle"
+                                    [class.confirmed]="isCreditConfirmed(row)"
+                                    [attr.aria-label]="isCreditConfirmed(row) ? 'Marcar crédito como pendente' : 'Marcar crédito como confirmado'"
+                                    [attr.title]="isCreditConfirmed(row) ? 'Confirmado' : 'Pendente'"
+                                    (click)="$event.stopPropagation(); toggleCreditStatus(row)"
+                                  >
+                                    <span class="switch-action-label">{{ isCreditConfirmed(row) ? 'Confirmado' : 'Confirmar' }}</span>
+                                    <span class="switch-action-thumb" aria-hidden="true"></span>
+                                  </button>
+                                }
+                                <button
+                                  type="button"
+                                  class="transaction-action"
+                                  aria-label="Editar movimento"
+                                  (click)="$event.stopPropagation(); openEditMoviment(row)"
+                                >
+                                  <ion-icon name="create-outline"></ion-icon>
+                                  <span>Editar</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  class="transaction-action danger"
+                                  aria-label="Excluir movimento"
+                                  (click)="$event.stopPropagation(); deleteMoviment(row)"
+                                >
+                                  <ion-icon name="trash-outline"></ion-icon>
+                                  <span>Excluir</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  class="transaction-action status-toggle"
+                                  [class.settled]="isMovementSettled(row)"
+                                  [attr.aria-pressed]="isMovementSettled(row)"
+                                  [attr.aria-label]="'Alterar situação para ' + (isMovementSettled(row) ? getPendingStatusLabel(row) : getSettledStatusLabel(row))"
+                                  (click)="$event.stopPropagation(); toggleMovementStatus(row)"
+                                >
+                                  <span class="switch-action-label">{{ getMovementStatusLabel(row) }}</span>
+                                  <span class="switch-action-thumb" aria-hidden="true"></span>
+                                </button>
+                              </div>
+                            </div>
+
                             <div class="timeline-account-balances transaction-account-balances">
                               <div class="balance-row balance-savings-row">
                                 <span class="balance-label">

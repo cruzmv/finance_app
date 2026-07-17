@@ -18,6 +18,7 @@ import {
   cardOutline,
   cartOutline,
   cashOutline,
+  chevronDownOutline,
   checkmarkCircleOutline,
   closeOutline,
   createOutline,
@@ -173,6 +174,7 @@ export class FinancePageComponent implements OnInit, OnDestroy {
   protected isSearchOpen = false;
   protected searchQuery = '';
   protected creditBillUpdateHint = '';
+  protected creditBillUpdateHintValue = '';
   protected todayDayKey = this.getDateKey(new Date().toISOString());
   protected expandedDayKeys = new Set<string>();
   protected expandedMonthKeys = new Set<string>();
@@ -196,6 +198,7 @@ export class FinancePageComponent implements OnInit, OnDestroy {
       cardOutline,
       cartOutline,
       cashOutline,
+      chevronDownOutline,
       checkmarkCircleOutline,
       closeOutline,
       createOutline,
@@ -346,6 +349,7 @@ export class FinancePageComponent implements OnInit, OnDestroy {
 
   protected dismissCreditBillUpdateHint(): void {
     this.creditBillUpdateHint = '';
+    this.creditBillUpdateHintValue = '';
     this.clearCreditBillUpdateHintTimer();
   }
 
@@ -449,6 +453,18 @@ export class FinancePageComponent implements OnInit, OnDestroy {
     return row.status;
   }
 
+  protected getPendingStatusLabel(row: BalanceRow): string {
+    return Number(row.value) >= 0 ? 'A receber' : 'A pagar';
+  }
+
+  protected getSettledStatusLabel(row: BalanceRow): string {
+    return Number(row.value) >= 0 ? 'Recebido' : 'Pago';
+  }
+
+  protected isMovementSettled(row: BalanceRow): boolean {
+    return this.normalizeStatusName(row.status) === 'consumado';
+  }
+
   protected getLedgerToneClass(ledgerAccount: string | null | undefined): string {
     return this.pickToneClass(ledgerAccount, this.ledgerToneClasses);
   }
@@ -494,10 +510,48 @@ export class FinancePageComponent implements OnInit, OnDestroy {
         this.transactions = this.transactions.map((movement) => {
           return movement.id === row.id ? { ...movement, credit_status: creditStatus } : movement;
         });
-        this.rebuildFinanceState(this.buildFocusTargetFromRow(row));
+        this.rebuildFinanceState({
+          ...this.buildFocusTargetFromRow(row),
+          movementId: row.id,
+          expandDetails: true,
+          expandDayBalances: false,
+        });
       },
       error: () => {
         this.errorMessage = 'Não foi possível atualizar o status do crédito.';
+      },
+    });
+  }
+
+  protected toggleMovementStatus(row: BalanceRow): void {
+    const targetStatusName = this.isMovementSettled(row) ? 'provisionado' : 'consumado';
+    const targetStatus = this.getStatusOptions().find((status) => {
+      return this.normalizeStatusName(status.name) === targetStatusName;
+    });
+
+    if (!targetStatus) {
+      this.errorMessage = 'Não foi possível encontrar o status para atualizar o movimento.';
+      return;
+    }
+
+    const focusTarget = {
+      ...this.buildFocusTargetFromRow(row),
+      movementId: row.id,
+      expandDetails: true,
+      expandDayBalances: false,
+    };
+
+    this.financeData.updateMovimentStatus(row, targetStatus.id).subscribe({
+      next: () => {
+        if (this.isCreditMovement(row) && !row.credit_bill) {
+          this.syncCreditBillAfterMovementChange(row, focusTarget);
+          return;
+        }
+
+        this.loadBalances(focusTarget, true);
+      },
+      error: () => {
+        this.errorMessage = 'Não foi possível atualizar a situação do movimento.';
       },
     });
   }
@@ -531,7 +585,7 @@ export class FinancePageComponent implements OnInit, OnDestroy {
           return;
         }
 
-        this.syncCreditBillAfterDelete(row, focusTarget);
+        this.syncCreditBillAfterMovementChange(row, focusTarget);
       },
       error: () => {
         this.errorMessage = 'Não foi possível excluir o movimento.';
@@ -539,14 +593,14 @@ export class FinancePageComponent implements OnInit, OnDestroy {
     });
   }
 
-  private syncCreditBillAfterDelete(deletedRow: BalanceRow, focusTarget: FinanceFocusTarget): void {
+  private syncCreditBillAfterMovementChange(changedRow: BalanceRow, focusTarget: FinanceFocusTarget): void {
     forkJoin({
       settings: this.financeData.getFinanceSettings(),
       balances: this.financeData.getBalances(true),
     }).subscribe({
       next: ({ settings, balances }) => {
         const account = settings.accounts.find((item) => {
-          return item.id === Number(deletedRow.moviment_account_id) && item.account_type === 1;
+          return item.id === Number(changedRow.moviment_account_id) && item.account_type === 1;
         });
 
         if (!account?.debit_account) {
@@ -554,14 +608,14 @@ export class FinancePageComponent implements OnInit, OnDestroy {
           return;
         }
 
-        const deletedDate = new Date(deletedRow.datetime);
+        const changedDate = new Date(changedRow.datetime);
 
-        if (Number.isNaN(deletedDate.getTime())) {
+        if (Number.isNaN(changedDate.getTime())) {
           this.loadBalances(focusTarget, true);
           return;
         }
 
-        const cycle = this.getCreditBillCycle(account, deletedDate);
+        const cycle = this.getCreditBillCycle(account, changedDate);
         const billRow = this.findCreditBillRow(balances, account, cycle.dueDate);
 
         if (!billRow) {
@@ -593,7 +647,7 @@ export class FinancePageComponent implements OnInit, OnDestroy {
           value: expectedValue,
         }, billRow).subscribe({
           next: () => {
-            this.storeCreditBillUpdateHint(Math.abs(expectedValue));
+            this.storeCreditBillUpdateHint(Math.abs(expectedValue), billRow.datetime);
             this.loadBalances(focusTarget, true);
           },
           error: () => this.loadBalances(focusTarget, true),
@@ -734,9 +788,17 @@ export class FinancePageComponent implements OnInit, OnDestroy {
       .toLocaleLowerCase('pt-BR');
   }
 
-  private storeCreditBillUpdateHint(value: number): void {
+  private storeCreditBillUpdateHint(value: number, payDatetime: string): void {
+    const payDate = new Intl.DateTimeFormat('pt-PT', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      timeZone: 'UTC',
+    }).format(new Date(payDatetime));
+
     sessionStorage.setItem(this.creditBillUpdateHintStorageKey, JSON.stringify({
-      message: `Fatura atualizada para ${this.currencySettings.format(value)}.`,
+      message: `Fatura a pagar em ${payDate} atualizada para`,
+      value: this.currencySettings.format(value),
       createdAt: Date.now(),
     }));
     this.consumeCreditBillUpdateHint();
@@ -1273,20 +1335,23 @@ export class FinancePageComponent implements OnInit, OnDestroy {
     sessionStorage.removeItem(this.creditBillUpdateHintStorageKey);
 
     try {
-      const parsedHint = JSON.parse(storedHint) as { message?: string; createdAt?: number };
+      const parsedHint = JSON.parse(storedHint) as { message?: string; value?: string; createdAt?: number };
 
       if (!parsedHint.message) {
         return;
       }
 
       this.creditBillUpdateHint = parsedHint.message;
+      this.creditBillUpdateHintValue = parsedHint.value ?? '';
       this.clearCreditBillUpdateHintTimer();
       this.creditBillUpdateHintTimer = setTimeout(() => {
         this.creditBillUpdateHint = '';
+        this.creditBillUpdateHintValue = '';
         this.creditBillUpdateHintTimer = undefined;
       }, 15_000);
     } catch {
       this.creditBillUpdateHint = '';
+      this.creditBillUpdateHintValue = '';
     }
   }
 
