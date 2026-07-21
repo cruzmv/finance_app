@@ -201,6 +201,17 @@
                         [class.expanded-transaction]="isMovementExpanded(row.id)"
                         (click)="toggleMovementBalances(row.id)"
                       >
+                        @if (isMovementActionPending(row)) {
+                          <div
+                            class="transaction-action-layer"
+                            role="status"
+                            aria-live="polite"
+                            style="position:absolute;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;gap:9px;border-radius:inherit;background:rgba(255,255,255,.88);color:var(--finance-accent)"
+                          >
+                            <mat-spinner diameter="22"></mat-spinner>
+                            <strong style="font-size:.78rem">Aguarde...</strong>
+                          </div>
+                        }
                         <div class="transaction-header">
                           <span class="transaction-time">{{ row.datetime | date:'HH:mm':'UTC' }}</span>
                         </div>
@@ -239,6 +250,7 @@
                                     [class.confirmed]="isCreditConfirmed(row)"
                                     [attr.aria-label]="isCreditConfirmed(row) ? 'Marcar crédito como pendente' : 'Marcar crédito como confirmado'"
                                     [attr.title]="isCreditConfirmed(row) ? 'Confirmado' : 'Pendente'"
+                                    [disabled]="isMovementActionPending(row)"
                                     (click)="$event.stopPropagation(); toggleCreditStatus(row)"
                                   >
                                     <span class="switch-action-label">{{ isCreditConfirmed(row) ? 'Confirmado' : 'Confirmar' }}</span>
@@ -269,6 +281,7 @@
                                   [class.settled]="isMovementSettled(row)"
                                   [attr.aria-pressed]="isMovementSettled(row)"
                                   [attr.aria-label]="'Alterar situação para ' + (isMovementSettled(row) ? getPendingStatusLabel(row) : getSettledStatusLabel(row))"
+                                  [disabled]="isMovementActionPending(row)"
                                   (click)="$event.stopPropagation(); toggleMovementStatus(row)"
                                 >
                                   <span class="switch-action-label">{{ getMovementStatusLabel(row) }}</span>

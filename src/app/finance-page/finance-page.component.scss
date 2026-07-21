@@ -425,6 +425,7 @@ p {
 }
 
 .transaction-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   padding: 12px 14px;
@@ -434,6 +435,7 @@ p {
   background: #fff;
   box-shadow: none;
   cursor: pointer;
+  overflow: hidden;
 }
 
 .transaction-card:last-child {

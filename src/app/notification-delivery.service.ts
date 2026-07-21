@@ -78,6 +78,14 @@ export class NotificationDeliveryService {
     return true;
   }
 
+  async cancelNativeNotification(notificationId: string): Promise<void> {
+    if (!this.usesNativeNotifications) {
+      return;
+    }
+
+    await LocalNotifications.cancel({ notifications: [{ id: this.toNativeId(notificationId) }] });
+  }
+
   async requestPermission(): Promise<boolean> {
     if (this.usesNativeNotifications) {
       return this.ensureNativePermission();

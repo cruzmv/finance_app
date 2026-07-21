@@ -80,6 +80,7 @@ import {
   setNotificationRules,
 } from '../notification-settings';
 import { FinancialAiAnalysis } from '../financial-ai.types';
+import { NotificationDeliveryService } from '../notification-delivery.service';
 
 type SettingsTab = 'accounts' | 'ledger' | 'status' | 'notifications' | 'creditCards';
 type SettingsView = 'menu' | 'profile' | 'aiAnalysis' | 'backupExport' | 'premium' | 'privacy' | 'about' | SettingsTab;
@@ -140,6 +141,7 @@ export class SettingsPageComponent implements OnInit {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly currencySettings = inject(CurrencySettingsService);
+  private readonly notificationDelivery = inject(NotificationDeliveryService);
   private readonly appReviewUrl = 'https://play.google.com/store/apps/details?id=com.camplife.wakeradio';
   private readonly settingsInitialViewStorageKey = 'settingsInitialView';
   private loadedToken = '';
@@ -153,6 +155,7 @@ export class SettingsPageComponent implements OnInit {
   protected onboardingSetup: ContractOnboardingSetup | null = null;
   protected isLoading = false;
   protected isSaving = false;
+  protected isUpdatingCreditBills = false;
   protected isSavingPassword = false;
   protected isExportingBackup = false;
   protected isImportingBackup = false;
@@ -181,6 +184,7 @@ export class SettingsPageComponent implements OnInit {
   protected activeIconPicker: IconPickerTarget | null = null;
   private readonly selectedMovimentStorageKey = 'selectedMoviment';
   private readonly notificationReadStorageKey = 'dashboardProvisionNotificationReads';
+  private readonly notificationSentStorageKey = 'dashboardProvisionNotificationSent';
   private balanceRows: BalanceRow[] = [];
   protected readonly iconOptions: IconOption[] = [
     { name: 'wallet-outline', label: 'Carteira' },
@@ -451,6 +455,7 @@ export class SettingsPageComponent implements OnInit {
     const onboardingSetup = setCreditBillSettings(this.onboardingSetup, settings);
 
     this.isSaving = true;
+    this.isUpdatingCreditBills = true;
     this.successMessage = '';
     this.financeData.saveContractOnboardingSetup(onboardingSetup)
       .subscribe({
@@ -461,6 +466,7 @@ export class SettingsPageComponent implements OnInit {
         },
         error: () => {
           this.isSaving = false;
+          this.isUpdatingCreditBills = false;
           this.errorMessage = 'Não foi possível salvar a configuração dos cartões.';
         },
       });
@@ -505,6 +511,7 @@ export class SettingsPageComponent implements OnInit {
             this.reloadSettingsAfterCreditBillReconcile();
           },
           error: () => {
+            this.isUpdatingCreditBills = false;
             this.errorMessage = 'Não foi possível excluir as faturas provisionadas atuais.';
           },
         });
@@ -538,6 +545,7 @@ export class SettingsPageComponent implements OnInit {
         next: () => runGeneration(),
         error: () => {
           this.isSaving = false;
+          this.isUpdatingCreditBills = false;
           this.errorMessage = 'Não foi possível excluir as faturas provisionadas atuais.';
         },
       });
@@ -567,6 +575,7 @@ export class SettingsPageComponent implements OnInit {
       .subscribe({
         next: () => this.enforceGeneratedCreditBills(expectedBills),
         error: () => {
+          this.isUpdatingCreditBills = false;
           this.errorMessage = 'Não foi possível gerar as faturas agora.';
         },
       });
@@ -645,7 +654,6 @@ export class SettingsPageComponent implements OnInit {
     if (!notification.movement) {
       return;
     }
-    this.markNotificationAsRead(notification.id);
     this.openEditMoviment(notification.movement);
   }
 
@@ -657,23 +665,34 @@ export class SettingsPageComponent implements OnInit {
     }
 
     const settledStatus = this.getSettledStatusOption();
+    const settledResultLabel = this.getSettledResultLabel(notification.movement);
 
     if (!settledStatus) {
-      this.errorMessage = 'Não foi possível encontrar o status Consumado.';
+      this.errorMessage = `Não foi possível encontrar o status para marcar como ${settledResultLabel}.`;
       return;
     }
 
-    this.markNotificationAsRead(notification.id);
+    if (!window.confirm(`Marcar "${notification.movement.description}" como ${settledResultLabel}?`)) {
+      return;
+    }
+
     this.financeData.updateMovimentStatus(notification.movement, settledStatus.id).subscribe({
-      next: () => this.loadSettings(),
+      next: () => {
+        this.markNotificationAsRead(notification.id);
+        this.loadSettings();
+      },
       error: () => {
-        this.errorMessage = 'Não foi possível marcar o movimento como Consumado.';
+        this.errorMessage = `Não foi possível marcar o movimento como ${settledResultLabel}.`;
       },
     });
   }
 
   protected getSettledActionLabel(row: BalanceRow): string {
-    return Number(row.value) >= 0 ? 'Recebido' : 'Pago';
+    return Number(row.value) >= 0 ? 'Receber' : 'Pagar';
+  }
+
+  private getSettledResultLabel(row: BalanceRow): string {
+    return Number(row.value) >= 0 ? 'recebido' : 'pago';
   }
 
   protected startNewAccount(): void {
@@ -1301,6 +1320,7 @@ export class SettingsPageComponent implements OnInit {
     })
       .pipe(finalize(() => {
         this.isLoading = false;
+        this.isUpdatingCreditBills = false;
         this.completeRefresh(refreshEvent);
       }))
       .subscribe({
@@ -1314,6 +1334,7 @@ export class SettingsPageComponent implements OnInit {
           this.balanceRows = balances;
           this.notificationRules = getNotificationRules(onboarding);
           this.settingsNotifications = this.buildSettingsNotifications(balances, onboarding);
+          this.scheduleSettingsNotifications(balances, onboarding);
         },
         error: () => {
           this.errorMessage = 'Não foi possível carregar as configurações.';
@@ -1740,7 +1761,6 @@ export class SettingsPageComponent implements OnInit {
         return bills;
       }
 
-      const referenceDate = new Date();
       const cycles = new Map<string, { closingDate: Date; dueDate: Date; rows: BalanceRow[] }>();
 
       this.balanceRows
@@ -1759,7 +1779,7 @@ export class SettingsPageComponent implements OnInit {
 
           const cycle = this.getCreditBillCycle(account, rowDate);
 
-          if (!this.shouldIncludeCreditBillRowStatus(row.status, settings.includeProvisioned, account, cycle.closingDate, referenceDate)) {
+          if (!this.shouldIncludeCreditBillRowStatus(row.status, settings.includeProvisioned)) {
             return;
           }
 
@@ -1886,6 +1906,7 @@ export class SettingsPageComponent implements OnInit {
         runEdits();
       },
       error: () => {
+        this.isUpdatingCreditBills = false;
         this.errorMessage = 'Não foi possível validar as faturas geradas.';
       },
     });
@@ -2019,9 +2040,6 @@ export class SettingsPageComponent implements OnInit {
   private shouldIncludeCreditBillRowStatus(
     status: string | null | undefined,
     includeProvisioned: boolean,
-    account: MovimentAccountSettings,
-    cycleClosingDate: Date,
-    referenceDate: Date,
   ): boolean {
     if (this.isSettledStatusName(status)) {
       return true;
@@ -2031,7 +2049,7 @@ export class SettingsPageComponent implements OnInit {
       return false;
     }
 
-    return cycleClosingDate.getTime() > this.getCurrentOrNextCreditClosingDate(account, referenceDate).getTime();
+    return true;
   }
 
   private isSettledStatusName(status: string | null | undefined): boolean {
@@ -2090,6 +2108,7 @@ export class SettingsPageComponent implements OnInit {
           this.onboardingSetup = savedSetup;
           this.notificationRules = getNotificationRules(savedSetup);
           this.settingsNotifications = this.buildSettingsNotifications(this.balanceRows, savedSetup);
+          this.scheduleSettingsNotifications(this.balanceRows, savedSetup);
           this.successMessage = message;
           afterSave();
         },
@@ -2110,6 +2129,32 @@ export class SettingsPageComponent implements OnInit {
       readIds,
       now: new Date(),
     });
+  }
+
+  private scheduleSettingsNotifications(
+    rows: BalanceRow[],
+    onboardingSetup: ContractOnboardingSetup | null,
+  ): void {
+    if (!this.notificationDelivery.usesNativeNotifications) {
+      return;
+    }
+
+    const sentIds = this.getStoredIdSet(this.notificationSentStorageKey);
+    const notifications = evaluateNotifications({
+      rows,
+      accounts: this.accounts,
+      ledgerAccounts: this.ledgerAccounts,
+      onboardingSetup,
+      readIds: this.getStoredIdSet(this.notificationReadStorageKey),
+      now: new Date(),
+      includeFutureTriggers: true,
+    });
+
+    void this.notificationDelivery.scheduleNativeNotifications(notifications, sentIds)
+      .then((scheduledIds) => {
+        scheduledIds.forEach((id) => sentIds.add(id));
+        this.storeIdSet(this.notificationSentStorageKey, sentIds);
+      });
   }
 
   private publishSystemNotification(notificationData: AppNotification): void {

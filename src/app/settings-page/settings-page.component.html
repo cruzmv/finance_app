@@ -1,7 +1,19 @@
 <ion-content>
   <ion-refresher slot="fixed" (ionRefresh)="refreshSettings($event)">
-    <ion-refresher-content></ion-refresher-content>
+  <ion-refresher-content></ion-refresher-content>
   </ion-refresher>
+
+  @if (isUpdatingCreditBills) {
+    <div
+      role="status"
+      aria-live="polite"
+      style="position:fixed;inset:0;z-index:100;display:grid;place-items:center;background:rgba(248,250,247,.88);backdrop-filter:blur(3px)"
+    >
+      <strong style="padding:18px 22px;border-radius:8px;background:#fff;color:#103329;box-shadow:0 16px 42px rgba(18,48,37,.18)">
+        Aguarde... Salvando e atualizando faturas.
+      </strong>
+    </div>
+  }
 
   <div class="settings-page">
     @if (activeView === 'menu') {
@@ -376,7 +388,7 @@
               </p>
 
               <button type="submit" class="save-button" [disabled]="isSaving">
-                {{ isSaving ? 'Executando...' : 'Salva e Atualizar' }}
+                {{ isSaving ? 'Executando...' : 'Salvar e Atualiza' }}
               </button>
             </form>
           </section>

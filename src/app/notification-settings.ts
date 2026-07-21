@@ -43,6 +43,7 @@ export interface NotificationEvaluationContext {
   onboardingSetup: ContractOnboardingSetup | null;
   readIds: Set<string>;
   now: Date;
+  includeFutureTriggers?: boolean;
 }
 
 export function getNotificationRules(onboardingSetup: ContractOnboardingSetup | null): NotificationRule[] {
@@ -146,7 +147,12 @@ function evaluateMovementDueRule(rule: NotificationRule, context: NotificationEv
     .filter((row) => direction === 'both' || (direction === 'payable' ? Number(row.value) < 0 : Number(row.value) > 0))
     .filter((row) => {
       const time = getTime(row);
-      return time >= nowTime && time - nowTime <= leadMs;
+      const triggerTime = time - leadMs;
+
+      // Overdue provisioned movements remain actionable in the bell. Native
+      // scheduling can additionally ask for every future trigger so the OS can
+      // deliver it while the app is closed.
+      return context.includeFutureTriggers || triggerTime <= nowTime;
     })
     .map((row) => {
       const id = `${rule.id}:movement:${row.id}:${row.datetime}`;

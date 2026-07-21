@@ -70,7 +70,7 @@
                         style="width: auto; min-height: 32px; padding: 0 10px; background: var(--green); color: #fff;"
                         (click)="confirmNotificationMovement(notification, $event)"
                       >
-                        Consumado
+                        {{ getNotificationActionLabel(notification.movement) }}
                       </button>
                       <button
                         type="button"
@@ -203,7 +203,7 @@
           <div class="summary-metric current-metric" [class.current-month-metric]="shouldShowCurrentMonthStartBalance">
             @if (shouldShowCurrentMonthStartBalance) {
               <div class="month-start-balance">
-                <span>Início do mês</span>
+                <span>{{ monthStartDateLabel }}</span>
                 <strong>{{ summary.monthStartBalance | appCurrency }}</strong>
               </div>
               <div class="current-balance-block">
@@ -226,7 +226,7 @@
             </small>
           </div>
           <div class="summary-metric end-metric">
-            <span>Fim do mês</span>
+            <span>{{ monthEndDateLabel }}</span>
             <strong class="summary-value">{{ summary.monthEndBalance | appCurrency }}</strong>
           </div>
         </section>
@@ -237,21 +237,21 @@
               <strong>Cartão de crédito</strong>
             </header>
               <div class="credit-highlight-grid">
-                <div>
-                  <span>{{ creditSummary.payableLabel }}</span>
-                  <strong class="negative">{{ creditSummary.payable | appCurrency }}</strong>
-                  <small>
-                    {{ creditSummary.payableDateLabel }}<br />
-                    {{ getMovementCountLabel(creditSummary.payableCount) }}
-                  </small>
+                <div style="grid-template-rows:auto 1fr auto">
+                  <span style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+                    <span style="font-size:.72rem;font-weight:900;white-space:nowrap">{{ creditSummary.payableLabel }}</span>
+                    <span style="padding:3px 6px;border-radius:999px;background:rgba(255,255,255,.13);font-size:.6rem;font-weight:900;white-space:nowrap">{{ creditSummary.payableDateLabel }}</span>
+                  </span>
+                  <strong class="negative" style="place-self:center;font-size:1.34rem;line-height:1.15">{{ creditSummary.payable | appCurrency }}</strong>
+                  <small>{{ getMovementCountLabel(creditSummary.payableCount) }}</small>
                 </div>
-                <div>
-                  <span>{{ creditSummary.openLabel }}</span>
-                  <strong>{{ creditSummary.open | appCurrency }}</strong>
-                  <small>
-                    {{ creditSummary.openDetailLabel }}<br />
-                    {{ getMovementCountLabel(creditSummary.openCount) }}
-                  </small>
+                <div style="grid-template-rows:auto 1fr auto">
+                  <span style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+                    <span style="font-size:.72rem;font-weight:900;white-space:nowrap">{{ creditSummary.openLabel }}</span>
+                    <span style="padding:3px 6px;border-radius:999px;background:rgba(255,255,255,.13);font-size:.6rem;font-weight:900;white-space:nowrap">{{ creditSummary.openDateLabel }}</span>
+                  </span>
+                  <strong style="place-self:center;font-size:1.34rem;line-height:1.15">{{ creditSummary.open | appCurrency }}</strong>
+                  <small>{{ getMovementCountLabel(creditSummary.openCount) }}</small>
                 </div>
               </div>
             </section>

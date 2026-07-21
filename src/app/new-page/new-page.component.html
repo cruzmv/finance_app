@@ -36,7 +36,8 @@
             type="submit"
             class="header-action save-action"
             aria-label="Guardar movimento"
-            [disabled]="isSaving || isLoading"
+            [disabled]="!canSaveMoviment"
+            [style.color]="canSaveMoviment ? null : '#8e9692'"
           >
             <ion-icon name="checkmark-outline"></ion-icon>
           </button>
@@ -316,7 +317,13 @@
             </section>
           }
 
-          <button type="submit" class="save-button" [disabled]="isSaving || isLoading">
+          <button
+            type="submit"
+            class="save-button"
+            [disabled]="!canSaveMoviment"
+            [style.background]="canSaveMoviment ? null : 'linear-gradient(120deg, #df2d36, #b91f28)'"
+            [style.box-shadow]="canSaveMoviment ? null : 'none'"
+          >
             <ion-icon name="save-outline"></ion-icon>
             Guardar movimento
           </button>

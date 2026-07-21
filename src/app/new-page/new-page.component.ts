@@ -213,7 +213,7 @@ export class NewPageComponent implements OnInit, OnDestroy {
     movimentAccountId: [0, [Validators.required, Validators.min(1)]],
     ledgerAccountId: [0, [Validators.required, Validators.min(1)]],
     description: ['', Validators.required],
-    value: this.fb.control<number | null>(null, Validators.required),
+    value: this.fb.control<number | null>(null, [Validators.required, Validators.min(0.01)]),
     recurringDayOfMonth: [1, [Validators.min(1), Validators.max(31)]],
     recurringEndDate: [''],
   });
@@ -446,6 +446,20 @@ export class NewPageComponent implements OnInit, OnDestroy {
 
   protected get currencySymbol(): string {
     return this.currencySettings.option.symbol;
+  }
+
+  protected get canSaveMoviment(): boolean {
+    const form = this.movimentForm.controls;
+
+    return !this.isSaving &&
+      !this.isLoading &&
+      form.datetime.valid &&
+      form.statusId.valid &&
+      form.movimentAccountId.valid &&
+      form.ledgerAccountId.valid &&
+      form.description.valid &&
+      form.description.value.trim().length > 0 &&
+      form.value.valid;
   }
 
   protected setSettlementStatus(isSettled: boolean): void {

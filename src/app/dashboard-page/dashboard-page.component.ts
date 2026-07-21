@@ -45,6 +45,7 @@ import {
 } from '../finance-data.service';
 import { NotificationDeliveryService } from '../notification-delivery.service';
 import { AppNotification, evaluateNotifications } from '../notification-settings';
+import { getCreditBillSettings } from '../credit-bill-settings';
 
 interface DashboardSummary {
   monthStartBalance: number;
@@ -93,7 +94,6 @@ interface CreditSummary {
   openLabel: string;
   payableDateLabel: string;
   openDateLabel: string;
-  openDetailLabel: string;
 }
 
 interface BalanceEntry {
@@ -221,7 +221,6 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     openLabel: 'Em aberto',
     payableDateLabel: '',
     openDateLabel: '',
-    openDetailLabel: '',
   };
   protected creditAccounts: MovimentAccountSettings[] = [];
   protected previousMonthSavings = 0;
@@ -304,6 +303,16 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
 
   protected get selectedYear(): number {
     return this.selectedMonthDate.getFullYear();
+  }
+
+  protected get monthStartDateLabel(): string {
+    return `01 ${this.selectedMonthLabel}`;
+  }
+
+  protected get monthEndDateLabel(): string {
+    const lastDay = new Date(this.selectedYear, this.selectedMonthDate.getMonth() + 1, 0).getDate();
+
+    return `${String(lastDay).padStart(2, '0')} ${this.selectedMonthLabel}`;
   }
 
   protected get shouldShowCreditSummary(): boolean {
@@ -426,11 +435,15 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   }
 
   protected get monthlySavingsMetricLabel(): string {
-    return this.summary.savings < 0 ? 'Gastos' : 'Economia';
+    if (this.summary.savings < 0) {
+      return 'Gastos';
+    }
+
+    return this.isPastSelectedMonth() ? 'Economizado' : 'Economia prevista';
   }
 
   protected get primaryBalanceLabel(): string {
-    return this.isCurrentSelectedMonth() ? 'Saldo atual' : 'Saldo início mês';
+    return this.isCurrentSelectedMonth() ? 'Saldo atual' : this.monthStartDateLabel;
   }
 
   protected get primaryBalanceValue(): number {
@@ -576,7 +589,6 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     if (!notification.movement) {
       return;
     }
-    this.markNotificationAsRead(notification.id);
     this.openEditMoviment(notification.movement);
   }
 
@@ -588,29 +600,39 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     }
 
     const settledStatus = this.getSettledStatusOption();
+    const settledResultLabel = this.getNotificationResultLabel(notification.movement);
 
     if (!settledStatus) {
-      this.errorMessage = 'Não foi possível encontrar o status Consumado.';
+      this.errorMessage = `Não foi possível encontrar o status para marcar como ${settledResultLabel}.`;
       return;
     }
 
     const shouldSettle = window.confirm(
-      `Marcar "${notification.movement.description}" como Consumado?`,
+      `Marcar "${notification.movement.description}" como ${settledResultLabel}?`,
     );
 
     if (!shouldSettle) {
       return;
     }
 
-    this.markNotificationAsRead(notification.id);
     this.financeData.updateMovimentStatus(notification.movement, settledStatus.id).subscribe({
       next: () => {
+        this.markNotificationAsRead(notification.id);
+        void this.notificationDelivery.cancelNativeNotification(notification.id);
         this.loadDashboard(true);
       },
       error: () => {
-        this.errorMessage = 'Não foi possível marcar o movimento como Consumado.';
+        this.errorMessage = `Não foi possível marcar o movimento como ${settledResultLabel}.`;
       },
     });
+  }
+
+  protected getNotificationActionLabel(row: BalanceRow): string {
+    return Number(row.value) >= 0 ? 'Receber' : 'Pagar';
+  }
+
+  private getNotificationResultLabel(row: BalanceRow): string {
+    return Number(row.value) >= 0 ? 'recebido' : 'pago';
   }
 
   protected getBalanceEntries(balances: BalanceSnapshot | null | undefined): BalanceEntry[] {
@@ -826,7 +848,15 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     this.clearNotificationTimers();
 
     const sentIds = this.getStoredIdSet(this.notificationSentStorageKey);
-    const notifications = this.buildDashboardNotifications(rows);
+    const notifications = evaluateNotifications({
+      rows,
+      accounts: this.movimentAccountOptions,
+      ledgerAccounts: this.ledgerAccountOptions,
+      onboardingSetup: this.onboardingSetup,
+      readIds: this.getStoredIdSet(this.notificationReadStorageKey),
+      now: this.now,
+      includeFutureTriggers: true,
+    });
 
     if (this.notificationDelivery.usesNativeNotifications) {
       void this.notificationDelivery.scheduleNativeNotifications(notifications, sentIds)
@@ -1127,10 +1157,9 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
       payableCount: 0,
       openCount: 0,
       payableLabel: isPastMonth ? 'Pago' : 'A pagar',
-      openLabel: isPastMonth ? 'Fechamento' : (this.isFutureSelectedMonth() ? 'Provisionado' : 'Em aberto'),
+      openLabel: isPastMonth ? 'Fechado' : 'Aberto',
       payableDateLabel: '',
       openDateLabel: '',
-      openDetailLabel: '',
     };
 
     const summary = this.creditAccounts.reduce<CreditSummary>((creditSummary, account) => {
@@ -1161,7 +1190,6 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
           this.getCreditBillPayDate(account, payableClosingDate),
         ),
         openDateLabel: creditSummary.openDateLabel || this.formatCompactDate(selectedClosingDate),
-        openDetailLabel: creditSummary.openDetailLabel || this.getCreditOpenDetailLabel(selectedClosingDate),
       };
     }, initialSummary);
 
@@ -1185,7 +1213,9 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   private getCreditConsumedRows(rows: BalanceRow[], afterDate: Date, untilDate: Date): BalanceRow[] {
     const afterTime = afterDate.getTime();
     const untilTime = untilDate.getTime();
-    const includeProvisioned = this.isFutureSelectedMonth();
+    const creditBillSettings = getCreditBillSettings(this.onboardingSetup);
+    const includeProvisioned = this.isFutureSelectedMonth() ||
+      (creditBillSettings.enabled && creditBillSettings.includeProvisioned);
 
     return rows.filter((row) => {
       const time = this.getTime(row);
@@ -1225,12 +1255,6 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     }
 
     return selectedClosingDate;
-  }
-
-  private getCreditOpenDetailLabel(closingDate: Date): string {
-    const dateLabel = this.formatCompactDate(closingDate);
-
-    return this.isPastSelectedMonth() ? dateLabel : `Fecha em ${dateLabel}`;
   }
 
   private getPreviousClosingDate(lastClosingDate: Date, account: MovimentAccountSettings): Date {
@@ -1336,11 +1360,7 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   }
 
   private formatCompactDate(date: Date): string {
-    return new Intl.DateTimeFormat('pt-PT', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    }).format(date);
+    return `${String(date.getDate()).padStart(2, '0')} ${this.formatShortMonth(date).toLocaleLowerCase('pt-PT')}`;
   }
 
   private isSelectedMonth(row: BalanceRow): boolean {

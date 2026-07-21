@@ -179,6 +179,7 @@ export class FinancePageComponent implements OnInit, OnDestroy {
   protected expandedDayKeys = new Set<string>();
   protected expandedMonthKeys = new Set<string>();
   protected expandedMovementIds = new Set<number>();
+  protected pendingMovementActionIds = new Set<number>();
   private hasLoadedBalances = false;
   private loadedToken = '';
   private loadedBalancesRevision = -1;
@@ -493,7 +494,15 @@ export class FinancePageComponent implements OnInit, OnDestroy {
     return row.status?.trim().toLocaleLowerCase('pt-BR') === 'provisionado';
   }
 
+  protected isMovementActionPending(row: BalanceRow): boolean {
+    return this.pendingMovementActionIds.has(row.id);
+  }
+
   protected toggleCreditStatus(row: BalanceRow): void {
+    if (this.isMovementActionPending(row)) {
+      return;
+    }
+
     const shouldConfirm = !this.isCreditConfirmed(row);
 
     if (!shouldConfirm) {
@@ -504,7 +513,10 @@ export class FinancePageComponent implements OnInit, OnDestroy {
       }
     }
 
-    this.financeData.toggleMovimentCreditStatus(row.id, shouldConfirm).subscribe({
+    this.setMovementActionPending(row.id, true);
+    this.financeData.toggleMovimentCreditStatus(row.id, shouldConfirm)
+      .pipe(finalize(() => this.setMovementActionPending(row.id, false)))
+      .subscribe({
       next: (response) => {
         const creditStatus = response.data?.moviment?.credit_status ?? null;
         this.transactions = this.transactions.map((movement) => {
@@ -524,6 +536,10 @@ export class FinancePageComponent implements OnInit, OnDestroy {
   }
 
   protected toggleMovementStatus(row: BalanceRow): void {
+    if (this.isMovementActionPending(row)) {
+      return;
+    }
+
     const targetStatusName = this.isMovementSettled(row) ? 'provisionado' : 'consumado';
     const targetStatus = this.getStatusOptions().find((status) => {
       return this.normalizeStatusName(status.name) === targetStatusName;
@@ -541,7 +557,10 @@ export class FinancePageComponent implements OnInit, OnDestroy {
       expandDayBalances: false,
     };
 
-    this.financeData.updateMovimentStatus(row, targetStatus.id).subscribe({
+    this.setMovementActionPending(row.id, true);
+    this.financeData.updateMovimentStatus(row, targetStatus.id)
+      .pipe(finalize(() => this.setMovementActionPending(row.id, false)))
+      .subscribe({
       next: () => {
         if (this.isCreditMovement(row) && !row.credit_bill) {
           this.syncCreditBillAfterMovementChange(row, focusTarget);
@@ -554,6 +573,18 @@ export class FinancePageComponent implements OnInit, OnDestroy {
         this.errorMessage = 'Não foi possível atualizar a situação do movimento.';
       },
     });
+  }
+
+  private setMovementActionPending(movementId: number, isPending: boolean): void {
+    const pendingIds = new Set(this.pendingMovementActionIds);
+
+    if (isPending) {
+      pendingIds.add(movementId);
+    } else {
+      pendingIds.delete(movementId);
+    }
+
+    this.pendingMovementActionIds = pendingIds;
   }
 
   protected openEditMoviment(row: BalanceRow): void {
