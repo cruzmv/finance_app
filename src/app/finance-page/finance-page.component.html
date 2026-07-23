@@ -234,9 +234,18 @@
                             </div>
 
                             <div class="transaction-meta">
-                              <span>{{ row.ledger_account }}</span>
-                              <span>{{ row.moviment_account }}</span>
-                              <span>{{ getMovementStatusLabel(row) }}</span>
+                              <span class="transaction-meta-pill" [ngClass]="getLedgerToneClass(row.ledger_account)">
+                                <ion-icon [name]="getMovementIcon(row)" aria-hidden="true"></ion-icon>
+                                {{ row.ledger_account }}
+                              </span>
+                              <span class="transaction-meta-pill" [ngClass]="getAccountToneClass(row)">
+                                <ion-icon [name]="getMovementAccountIcon(row)" aria-hidden="true"></ion-icon>
+                                {{ row.moviment_account }}
+                              </span>
+                              <span class="transaction-meta-pill" [ngClass]="getStatusToneClass(row.status)">
+                                <ion-icon [name]="getMovementStatusIcon(row)" aria-hidden="true"></ion-icon>
+                                {{ getMovementStatusLabel(row) }}
+                              </span>
                             </div>
                           </div>
 

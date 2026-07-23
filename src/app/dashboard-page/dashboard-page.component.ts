@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, HostListener, OnDestroy, OnInit, inject } from '@angular/core';
+import { Component, ElementRef, HostListener, OnDestroy, OnInit, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { IonContent, IonIcon, IonRefresher, IonRefresherContent } from '@ionic/angular/standalone';
 import { addIcons } from 'ionicons';
@@ -106,6 +106,7 @@ interface BalanceEntry {
 interface SavingsTrendPoint {
   label: string;
   year: number;
+  month: number;
   value: number;
   x: number;
   y: number;
@@ -141,10 +142,26 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   private readonly currencySettings = inject(CurrencySettingsService);
   private readonly notificationDelivery = inject(NotificationDeliveryService);
   private readonly router = inject(Router);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private now = new Date();
   private readonly monthSwipeThreshold = 48;
   private monthSwipeStartX = 0;
   private monthSwipeStartY = 0;
+  private isMonthTransitionRunning = false;
+  private savingsTrendPointerId: number | null = null;
+  private savingsTrendLastTapAt = 0;
+  private savingsTrendLastTapX = 0;
+  private savingsTrendLastTapY = 0;
+  private savingsTrendShuttleAnchorX = 0;
+  private savingsTrendShuttleClientX = 0;
+  private savingsTrendShuttleSpeed = 0;
+  private savingsTrendShuttleAccumulator = 0;
+  private savingsTrendShuttleLastFrame = 0;
+  private savingsTrendShuttleFrame?: number;
+  private savingsTrendShuttleChart: SVGSVGElement | null = null;
+  private savingsTrendPointClickTimer?: ReturnType<typeof setTimeout>;
+  private savingsTrendSuppressClickUntil = 0;
+  private savingsTrendShuttleAnimations: Animation[] = [];
   private readonly financeFocusStorageKey = 'financeFocusTarget';
   private readonly settingsInitialViewStorageKey = 'settingsInitialView';
   protected readonly negativeSavingsCardBackground =
@@ -227,6 +244,7 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   protected movementCount = 0;
   protected upcomingMovements: UpcomingMovement[] = [];
   protected savingsTrend: SavingsTrendPoint[] = [];
+  protected savingsTrendScrubPoint: SavingsTrendPoint | null = null;
   protected availableMonthOptions: DashboardMonthOption[] = [];
   protected expandedUpcomingMovementIds = new Set<number>();
   protected dashboardNotifications: AppNotification[] = [];
@@ -268,6 +286,10 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.clearNotificationTimers();
+    this.stopSavingsTrendShuttle();
+    if (this.savingsTrendPointClickTimer) {
+      clearTimeout(this.savingsTrendPointClickTimer);
+    }
   }
 
   ionViewWillEnter(): void {
@@ -332,13 +354,13 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
   }
 
   protected changeSelectedMonth(direction: -1 | 1): void {
-    this.selectedMonthDate = new Date(
+    const targetMonth = new Date(
       this.selectedMonthDate.getFullYear(),
       this.selectedMonthDate.getMonth() + direction,
       1,
     );
-    this.isMonthPickerOpen = false;
-    this.buildDashboard(this.dashboardRows);
+
+    this.navigateToMonth(targetMonth, direction);
   }
 
   protected startMonthSwipe(event: TouchEvent): void {
@@ -398,9 +420,9 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
 
   protected selectMonth(option: DashboardMonthOption, event: Event): void {
     event.stopPropagation();
-    this.selectedMonthDate = new Date(option.date);
-    this.isMonthPickerOpen = false;
-    this.buildDashboard(this.dashboardRows);
+    const direction = option.date.getTime() >= this.selectedMonthDate.getTime() ? 1 : -1;
+
+    this.navigateToMonth(option.date, direction);
   }
 
   protected isSelectedMonthOption(option: DashboardMonthOption): boolean {
@@ -474,6 +496,129 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
 
   protected get savingsTrendViewBoxWidth(): number {
     return this.getSavingsTrendChartWidth();
+  }
+
+  protected formatSavingsTrendValue(value: number): string {
+    const option = this.currencySettings.option;
+    const absoluteValue = Math.abs(value);
+    const divisor = absoluteValue >= 1_000_000 ? 1_000_000 : absoluteValue >= 1_000 ? 1_000 : 1;
+    const suffix = divisor === 1_000_000 ? 'mi' : divisor === 1_000 ? 'mil' : '';
+    const compactValue = new Intl.NumberFormat(option.locale, {
+      maximumFractionDigits: divisor === 1 ? 0 : 1,
+    }).format(absoluteValue / divisor);
+
+    return `${value < 0 ? '-' : ''}${option.symbol}${compactValue}${suffix}`;
+  }
+
+  protected selectSavingsTrendPoint(point: SavingsTrendPoint, event: Event): void {
+    event.stopPropagation();
+
+    if (Date.now() < this.savingsTrendSuppressClickUntil) {
+      return;
+    }
+
+    const targetMonth = new Date(point.year, point.month, 1);
+    const targetTime = targetMonth.getTime();
+    const selectedTime = this.selectedMonthDate.getTime();
+
+    if (targetTime === selectedTime) {
+      return;
+    }
+
+    const navigate = () => this.navigateToMonth(targetMonth, targetTime > selectedTime ? 1 : -1);
+
+    if (event instanceof MouseEvent && event.type === 'click' && event.detail > 0) {
+      if (this.savingsTrendPointClickTimer) {
+        clearTimeout(this.savingsTrendPointClickTimer);
+      }
+      this.savingsTrendPointClickTimer = setTimeout(() => {
+        this.savingsTrendPointClickTimer = undefined;
+        navigate();
+      }, 410);
+      return;
+    }
+
+    navigate();
+  }
+
+  protected startSavingsTrendScrub(event: PointerEvent): void {
+    if (event.pointerType === 'mouse' && event.button !== 0) {
+      return;
+    }
+
+    const now = performance.now();
+    const isSecondTap = now - this.savingsTrendLastTapAt <= 380 &&
+      Math.hypot(event.clientX - this.savingsTrendLastTapX, event.clientY - this.savingsTrendLastTapY) <= 42;
+
+    this.savingsTrendLastTapAt = now;
+    this.savingsTrendLastTapX = event.clientX;
+    this.savingsTrendLastTapY = event.clientY;
+
+    if (!isSecondTap) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    if (this.savingsTrendPointClickTimer) {
+      clearTimeout(this.savingsTrendPointClickTimer);
+      this.savingsTrendPointClickTimer = undefined;
+    }
+    this.savingsTrendSuppressClickUntil = Date.now() + 900;
+    this.savingsTrendPointerId = event.pointerId;
+    this.savingsTrendShuttleAnchorX = event.clientX;
+    this.savingsTrendShuttleClientX = event.clientX;
+    this.savingsTrendShuttleSpeed = 0;
+    this.savingsTrendShuttleAccumulator = 0;
+    this.savingsTrendShuttleChart = event.currentTarget as SVGSVGElement;
+    this.savingsTrendShuttleChart.setPointerCapture(event.pointerId);
+    this.updateSavingsTrendScrubPoint(event);
+    this.startSavingsTrendShuttle();
+  }
+
+  protected moveSavingsTrendScrub(event: PointerEvent): void {
+    if (this.savingsTrendPointerId !== event.pointerId) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    this.savingsTrendShuttleClientX = event.clientX;
+    this.updateSavingsTrendScrubPoint(event);
+    this.updateSavingsTrendShuttleSpeed(event);
+  }
+
+  protected finishSavingsTrendScrub(event: PointerEvent): void {
+    if (this.savingsTrendPointerId !== event.pointerId) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    const chart = event.currentTarget as SVGSVGElement;
+
+    if (chart.hasPointerCapture(event.pointerId)) {
+      chart.releasePointerCapture(event.pointerId);
+    }
+
+    this.stopSavingsTrendShuttle();
+  }
+
+  protected cancelSavingsTrendScrub(event: PointerEvent): void {
+    if (this.savingsTrendPointerId !== event.pointerId) {
+      return;
+    }
+
+    event.stopPropagation();
+    this.stopSavingsTrendShuttle();
+  }
+
+  protected isSavingsTrendPointHighlighted(point: SavingsTrendPoint, isLast: boolean): boolean {
+    if (!this.savingsTrendScrubPoint) {
+      return isLast;
+    }
+
+    return point.year === this.savingsTrendScrubPoint.year && point.month === this.savingsTrendScrubPoint.month;
   }
 
   protected get savingsTrendYearSegments(): SavingsTrendYearSegment[] {
@@ -729,7 +874,7 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
       });
   }
 
-  private buildDashboard(rows: BalanceRow[]): void {
+  private buildDashboard(rows: BalanceRow[], refreshNotifications = true): void {
     this.dashboardRows = rows;
     const validRows = rows
       .filter((row) => !Number.isNaN(new Date(row.datetime).getTime()))
@@ -822,8 +967,202 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
         balances: row.balances,
         accountType: row.account_type,
       }));
-    this.dashboardNotifications = this.buildDashboardNotifications(validRows);
-    this.scheduleConfiguredNotifications(validRows);
+    if (refreshNotifications) {
+      this.dashboardNotifications = this.buildDashboardNotifications(validRows);
+      this.scheduleConfiguredNotifications(validRows);
+    }
+  }
+
+  private navigateToMonth(targetMonth: Date, direction: -1 | 1): void {
+    const normalizedTarget = new Date(targetMonth.getFullYear(), targetMonth.getMonth(), 1);
+
+    if (normalizedTarget.getTime() === this.selectedMonthDate.getTime()) {
+      this.isMonthPickerOpen = false;
+      return;
+    }
+
+    if (this.isMonthTransitionRunning) {
+      return;
+    }
+
+    this.isMonthPickerOpen = false;
+
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      this.applySelectedMonth(normalizedTarget);
+      return;
+    }
+
+    this.isMonthTransitionRunning = true;
+    const outgoingAnimations = this.getMonthTransitionElements().map((element, index) => {
+      return element.animate([
+        { opacity: 1, transform: 'translateX(0) scale(1)' },
+        { opacity: 0, filter: 'blur(2px)', transform: `translateX(${-direction * 52}px) scale(.985)` },
+      ], {
+        duration: 175,
+        delay: index * 12,
+        easing: 'cubic-bezier(.4, 0, 1, 1)',
+        fill: 'both',
+      });
+    });
+
+    void Promise.all(outgoingAnimations.map((animation) => animation.finished.catch(() => undefined)))
+      .then(() => {
+        this.applySelectedMonth(normalizedTarget);
+        outgoingAnimations.forEach((animation) => animation.cancel());
+
+        requestAnimationFrame(() => {
+          const incomingAnimations = this.getMonthTransitionElements().map((element, index) => {
+            return element.animate([
+              { opacity: 0, filter: 'blur(2px)', transform: `translateX(${direction * 52}px) scale(.985)` },
+              { opacity: 1, filter: 'blur(0)', transform: 'translateX(0) scale(1)' },
+            ], {
+              duration: 360,
+              delay: index * 24,
+              easing: 'cubic-bezier(.18, .8, .24, 1)',
+              fill: 'both',
+            });
+          });
+          this.host.nativeElement.querySelector<HTMLElement>('.summary-chart')?.animate([
+            { transform: `translateX(${direction * 18}px)` },
+            { transform: 'translateX(0)' },
+          ], {
+            duration: 500,
+            easing: 'cubic-bezier(.18, .8, .24, 1)',
+          });
+
+          void Promise.all(incomingAnimations.map((animation) => animation.finished.catch(() => undefined)))
+            .then(() => {
+              incomingAnimations.forEach((animation) => animation.cancel());
+              this.isMonthTransitionRunning = false;
+            });
+        });
+      });
+  }
+
+  private applySelectedMonth(targetMonth: Date, refreshNotifications = true): void {
+    this.selectedMonthDate = new Date(targetMonth.getFullYear(), targetMonth.getMonth(), 1);
+    this.buildDashboard(this.dashboardRows, refreshNotifications);
+  }
+
+  private getMonthTransitionElements(): HTMLElement[] {
+    return Array.from(this.host.nativeElement.querySelectorAll<HTMLElement>(
+      '.month-picker-label, .summary-metric, .month-start-balance, .current-balance-block, .credit-highlight-grid > div, .summary-bottom',
+    ));
+  }
+
+  private updateSavingsTrendScrubPoint(event: PointerEvent): void {
+    this.updateSavingsTrendScrubPointAtX(event.currentTarget as SVGSVGElement, event.clientX);
+  }
+
+  private updateSavingsTrendScrubPointAtX(chart: SVGSVGElement, clientX: number): void {
+    const chartBounds = chart.getBoundingClientRect();
+
+    if (!chartBounds.width || this.savingsTrend.length === 0) {
+      return;
+    }
+
+    const chartX = ((clientX - chartBounds.left) / chartBounds.width) * this.savingsTrendViewBoxWidth;
+
+    this.savingsTrendScrubPoint = this.savingsTrend.reduce((closest, point) => {
+      return Math.abs(point.x - chartX) < Math.abs(closest.x - chartX) ? point : closest;
+    });
+  }
+
+  private updateSavingsTrendShuttleSpeed(event: PointerEvent): void {
+    const chartWidth = (event.currentTarget as SVGSVGElement).getBoundingClientRect().width;
+    const offset = event.clientX - this.savingsTrendShuttleAnchorX;
+    const deadZone = 12;
+    const maximumDistance = Math.max(72, Math.min(chartWidth * 0.48, 150));
+    const distance = Math.abs(offset);
+
+    if (distance <= deadZone) {
+      this.savingsTrendShuttleSpeed = 0;
+      return;
+    }
+
+    const intensity = Math.min(1, (distance - deadZone) / (maximumDistance - deadZone));
+    const monthsPerSecond = 0.9 + Math.pow(intensity, 1.45) * 9.1;
+
+    this.savingsTrendShuttleSpeed = -Math.sign(offset) * monthsPerSecond;
+  }
+
+  private startSavingsTrendShuttle(): void {
+    this.savingsTrendShuttleLastFrame = performance.now();
+
+    const update = (time: number) => {
+      if (this.savingsTrendPointerId === null) {
+        return;
+      }
+
+      const elapsed = Math.min(time - this.savingsTrendShuttleLastFrame, 80);
+      this.savingsTrendShuttleLastFrame = time;
+      this.savingsTrendShuttleAccumulator += (elapsed / 1000) * this.savingsTrendShuttleSpeed;
+      let processedSteps = 0;
+
+      while (Math.abs(this.savingsTrendShuttleAccumulator) >= 1 && processedSteps < 3) {
+        const direction = this.savingsTrendShuttleAccumulator > 0 ? 1 : -1;
+
+        this.savingsTrendShuttleAccumulator -= direction;
+        this.stepMonthDuringSavingsTrendShuttle(direction);
+        processedSteps += 1;
+      }
+
+      this.savingsTrendShuttleFrame = requestAnimationFrame(update);
+    };
+
+    this.savingsTrendShuttleFrame = requestAnimationFrame(update);
+  }
+
+  private stopSavingsTrendShuttle(): void {
+    if (this.savingsTrendShuttleFrame !== undefined) {
+      cancelAnimationFrame(this.savingsTrendShuttleFrame);
+      this.savingsTrendShuttleFrame = undefined;
+    }
+
+    this.savingsTrendPointerId = null;
+    this.savingsTrendShuttleSpeed = 0;
+    this.savingsTrendShuttleAccumulator = 0;
+    this.savingsTrendShuttleChart = null;
+    this.savingsTrendScrubPoint = null;
+  }
+
+  private stepMonthDuringSavingsTrendShuttle(direction: -1 | 1): void {
+    const targetMonth = new Date(
+      this.selectedMonthDate.getFullYear(),
+      this.selectedMonthDate.getMonth() + direction,
+      1,
+    );
+
+    this.applySelectedMonth(targetMonth, false);
+
+    if (this.savingsTrendShuttleChart) {
+      this.updateSavingsTrendScrubPointAtX(this.savingsTrendShuttleChart, this.savingsTrendShuttleClientX);
+    }
+
+    requestAnimationFrame(() => {
+      this.savingsTrendShuttleAnimations.forEach((animation) => animation.cancel());
+      const offset = direction * 14;
+      const valueAnimations = this.getMonthTransitionElements().map((element) => {
+        return element.animate([
+          { transform: `translateX(${offset}px)` },
+          { transform: 'translateX(0)' },
+        ], {
+          duration: 150,
+          easing: 'cubic-bezier(.18, .8, .24, 1)',
+        });
+      });
+      const chartAnimation = this.host.nativeElement.querySelector<HTMLElement>('.summary-chart')?.animate([
+        { transform: `translateX(${direction * 7}px)` },
+        { transform: 'translateX(0)' },
+      ], {
+        duration: 150,
+        easing: 'cubic-bezier(.18, .8, .24, 1)',
+      });
+
+      this.savingsTrendShuttleAnimations = chartAnimation
+        ? [...valueAnimations, chartAnimation]
+        : valueAnimations;
+    });
   }
 
   private completeRefresh(event?: CustomEvent): void {
@@ -1006,6 +1345,7 @@ export class DashboardPageComponent implements OnInit, OnDestroy {
     return monthReferences.map((monthDate, index) => ({
       label: this.formatShortMonth(monthDate),
       year: monthDate.getFullYear(),
+      month: monthDate.getMonth(),
       value: values[index],
       x: sidePadding + index * xStep,
       y: 60 - ((values[index] - minValue) / range) * 44,

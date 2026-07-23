@@ -43,9 +43,11 @@ import {
   FinanceDataService,
   LedgerAccountSettings,
   MovimentAccountSettings,
+  StatusSettings,
 } from '../finance-data.service';
 import { AppCurrencyPipe } from '../app-currency.pipe';
 import { CurrencySettingsService } from '../currency-settings.service';
+import { getCreditBillSettings } from '../credit-bill-settings';
 
 interface BalanceEntry {
   name: string;
@@ -186,6 +188,7 @@ export class FinancePageComponent implements OnInit, OnDestroy {
   private pendingFocusTarget: FinanceFocusTarget | null = null;
   private scrollTicking = false;
   private ledgerAccounts = new Map<number, LedgerAccountSettings>();
+  private statuses = new Map<number, StatusSettings>();
   private accountById = new Map<string, MovimentAccountSettings>();
   private accountByDescription = new Map<string, MovimentAccountSettings>();
   private creditBillUpdateHintTimer?: ReturnType<typeof setTimeout>;
@@ -474,6 +477,14 @@ export class FinancePageComponent implements OnInit, OnDestroy {
     return this.normalizeIcon(this.ledgerAccounts.get(Number(row.ledger_account_id))?.icon, 'receipt-outline');
   }
 
+  protected getMovementAccountIcon(row: BalanceRow): string {
+    return this.normalizeIcon(this.accountById.get(String(row.moviment_account_id))?.icon, 'wallet-outline');
+  }
+
+  protected getMovementStatusIcon(row: BalanceRow): string {
+    return this.normalizeIcon(this.statuses.get(Number(row.status_id))?.icon, 'time-outline');
+  }
+
   protected getAccountToneClass(row: BalanceRow): string {
     return row.account_type === 1 ? 'account-tone-credit' : 'account-tone-debit';
   }
@@ -628,8 +639,9 @@ export class FinancePageComponent implements OnInit, OnDestroy {
     forkJoin({
       settings: this.financeData.getFinanceSettings(),
       balances: this.financeData.getBalances(true),
+      onboarding: this.financeData.getContractOnboardingSetup(),
     }).subscribe({
-      next: ({ settings, balances }) => {
+      next: ({ settings, balances, onboarding }) => {
         const account = settings.accounts.find((item) => {
           return item.id === Number(changedRow.moviment_account_id) && item.account_type === 1;
         });
@@ -654,7 +666,13 @@ export class FinancePageComponent implements OnInit, OnDestroy {
           return;
         }
 
-        const expectedValue = this.getCreditBillExpectedValue(balances, account, cycle.closingDate);
+        const creditBillSettings = getCreditBillSettings(onboarding);
+        const expectedValue = this.getCreditBillExpectedValue(
+          balances,
+          account,
+          cycle.closingDate,
+          creditBillSettings.enabled && creditBillSettings.includeProvisioned,
+        );
 
         if (expectedValue === 0 && !this.isSettledStatusName(billRow.status)) {
           this.financeData.deleteMoviment(billRow.id).subscribe({
@@ -692,6 +710,7 @@ export class FinancePageComponent implements OnInit, OnDestroy {
     rows: BalanceRow[],
     account: MovimentAccountSettings,
     closingDate: Date,
+    includeProvisioned: boolean,
   ): number {
     const previousClosingDate = this.getPreviousCreditClosingDate(closingDate, account);
     const total = rows
@@ -703,7 +722,7 @@ export class FinancePageComponent implements OnInit, OnDestroy {
         const rowDate = new Date(row.datetime);
 
         return Number(row.value) < 0 &&
-          this.isSettledStatusName(row.status) &&
+          (this.isSettledStatusName(row.status) || (includeProvisioned && this.isPendingStatusName(row.status))) &&
           rowDate.getTime() >= previousClosingDate.getTime() &&
           rowDate.getTime() < closingDate.getTime();
       })
@@ -808,6 +827,15 @@ export class FinancePageComponent implements OnInit, OnDestroy {
       !normalizedStatus.includes('pagar') &&
       !normalizedStatus.includes('receber') &&
       !normalizedStatus.includes('pending');
+  }
+
+  private isPendingStatusName(status: string | null | undefined): boolean {
+    const normalizedStatus = this.normalizeStatusName(status);
+
+    return normalizedStatus.includes('provision') ||
+      normalizedStatus.includes('pagar') ||
+      normalizedStatus.includes('receber') ||
+      normalizedStatus.includes('pending');
   }
 
   private normalizeCreditBillDescription(description: string): string {
@@ -962,6 +990,7 @@ export class FinancePageComponent implements OnInit, OnDestroy {
       .subscribe({
         next: ({ balances, settings }) => {
           this.ledgerAccounts = new Map(settings.ledgerAccounts.map((account) => [account.id, account]));
+          this.statuses = new Map(settings.statuses.map((status) => [status.id, status]));
           this.setAccountLookup(settings.accounts);
           this.rebuildFinanceState(this.pendingFocusTarget ?? this.buildInitialFocusTarget(), balances);
         },

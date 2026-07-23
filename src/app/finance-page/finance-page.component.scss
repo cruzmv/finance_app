@@ -280,6 +280,12 @@ p {
   -webkit-tap-highlight-color: transparent;
 }
 
+.month-card.negative-month {
+  border-color: rgba(228, 62, 69, 0.2);
+  background: linear-gradient(135deg, #fff 0%, #fff3f3 100%);
+  box-shadow: 0 7px 18px rgba(181, 42, 49, 0.08);
+}
+
 .month-card-layout {
   display: grid;
   gap: 12px;
@@ -651,14 +657,117 @@ p {
 
 .transaction-meta {
   flex-wrap: wrap;
-  gap: 4px 10px;
+  gap: 6px;
   color: var(--finance-muted);
   font-size: 0.72rem;
 }
 
-.transaction-meta span + span::before {
-  content: '\00b7';
-  margin-right: 10px;
+.transaction-meta-pill {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px 4px 5px;
+  border-radius: 999px;
+  font-weight: 750;
+  line-height: 1;
+}
+
+.transaction-meta-pill ion-icon {
+  flex: 0 0 auto;
+  padding: 3px;
+  border-radius: 50%;
+  font-size: 0.72rem;
+}
+
+.ledger-tone-rose {
+  background: #fff0f2;
+  color: #a83a51;
+}
+
+.ledger-tone-rose ion-icon {
+  background: #ffdbe2;
+}
+
+.ledger-tone-gold {
+  background: #fff8e8;
+  color: #8a6515;
+}
+
+.ledger-tone-gold ion-icon {
+  background: #fcebb8;
+}
+
+.ledger-tone-sky {
+  background: #edf7ff;
+  color: #28698f;
+}
+
+.ledger-tone-sky ion-icon {
+  background: #d4edff;
+}
+
+.ledger-tone-violet {
+  background: #f5f0ff;
+  color: #6d4aa0;
+}
+
+.ledger-tone-violet ion-icon {
+  background: #e7dcfa;
+}
+
+.ledger-tone-teal {
+  background: #eaf8f5;
+  color: #247565;
+}
+
+.ledger-tone-teal ion-icon {
+  background: #cfeee7;
+}
+
+.account-tone-debit {
+  background: #edf5ff;
+  color: #2f6395;
+}
+
+.account-tone-debit ion-icon {
+  background: #d7e9fb;
+}
+
+.account-tone-credit {
+  background: #fff1e8;
+  color: #a65829;
+}
+
+.account-tone-credit ion-icon {
+  background: #ffddc8;
+}
+
+.status-tone-red {
+  background: #fff0f0;
+  color: #a73b40;
+}
+
+.status-tone-red ion-icon {
+  background: #ffd9db;
+}
+
+.status-tone-amber {
+  background: #fff7e6;
+  color: #8b6410;
+}
+
+.status-tone-amber ion-icon {
+  background: #fbe8b0;
+}
+
+.status-tone-orange {
+  background: #fff1e9;
+  color: #a55326;
+}
+
+.status-tone-orange ion-icon {
+  background: #ffdcca;
 }
 
 .transaction-expanded-controls {

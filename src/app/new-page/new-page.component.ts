@@ -1512,7 +1512,6 @@ export class NewPageComponent implements OnInit, OnDestroy {
         }
 
         const cycle = this.getCreditBillCycle(account, movementDate);
-        const referenceDate = new Date();
         const cycleRows = balances.filter((row) => {
           if (row.account_type !== 1 || Number(row.moviment_account_id) !== account.id || row.credit_bill) {
             return false;
@@ -1521,7 +1520,7 @@ export class NewPageComponent implements OnInit, OnDestroy {
           const rowDate = new Date(row.datetime);
 
           return Number(row.value) !== 0 &&
-            this.shouldIncludeCreditBillRowStatus(row.status, creditBillSettings.includeProvisioned, account, cycle.closingDate, referenceDate) &&
+            this.shouldIncludeCreditBillRowStatus(row.status, creditBillSettings.includeProvisioned) &&
             rowDate.getTime() >= this.getPreviousCreditClosingDate(cycle.closingDate, account).getTime() &&
             rowDate.getTime() < cycle.closingDate.getTime();
         });
@@ -1766,9 +1765,6 @@ export class NewPageComponent implements OnInit, OnDestroy {
   private shouldIncludeCreditBillRowStatus(
     status: string | null | undefined,
     includeProvisioned: boolean,
-    account: MovimentAccountSettings,
-    cycleClosingDate: Date,
-    referenceDate: Date,
   ): boolean {
     if (this.isSettledStatusName(status)) {
       return true;
@@ -1778,7 +1774,7 @@ export class NewPageComponent implements OnInit, OnDestroy {
       return false;
     }
 
-    return cycleClosingDate.getTime() > this.getCurrentOrNextCreditClosingDate(account, referenceDate).getTime();
+    return true;
   }
 
   private isPendingStatusName(status: string | null | undefined): boolean {

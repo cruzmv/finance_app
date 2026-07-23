@@ -169,9 +169,16 @@
             <div class="summary-chart">
               <svg
                 class="savings-chart"
+                style="touch-action:none;cursor:ew-resize"
                 [attr.viewBox]="'0 0 ' + savingsTrendViewBoxWidth + ' 70'"
-                role="img"
+                role="group"
                 [attr.aria-label]="'Economia dos últimos ' + savingsTrend.length + ' meses'"
+                (pointerdown)="startSavingsTrendScrub($event)"
+                (pointermove)="moveSavingsTrendScrub($event)"
+                (pointerup)="finishSavingsTrendScrub($event)"
+                (pointercancel)="cancelSavingsTrendScrub($event)"
+                (touchstart)="$event.stopPropagation()"
+                (touchend)="$event.stopPropagation()"
               >
                 <defs>
                   <linearGradient id="dashboardSavingsFill" x1="0" x2="0" y1="0" y2="1">
@@ -184,8 +191,49 @@
                   [attr.points]="savingsTrendPolyline"
                   fill="none"
                 />
-                @for (point of savingsTrend; track point.label) {
-                  <circle class="savings-chart-point" [attr.cx]="point.x" [attr.cy]="point.y" r="2.8" />
+                @for (point of savingsTrend; track point.year + '-' + point.month; let isLast = $last) {
+                  <g
+                    role="button"
+                    tabindex="0"
+                    [attr.aria-label]="'Ver ' + point.label + ' de ' + point.year + ', economia ' + formatSavingsTrendValue(point.value)"
+                    (click)="selectSavingsTrendPoint(point, $event)"
+                    (keydown.enter)="selectSavingsTrendPoint(point, $event)"
+                    (keydown.space)="$event.preventDefault(); selectSavingsTrendPoint(point, $event)"
+                  >
+                    @if (isSavingsTrendPointHighlighted(point, isLast)) {
+                      <line
+                        [attr.x1]="point.x"
+                        [attr.x2]="point.x"
+                        y1="3"
+                        y2="67"
+                        stroke="rgba(255,255,255,.54)"
+                        stroke-width=".7"
+                        stroke-dasharray="2 3"
+                        pointer-events="none"
+                      />
+                    }
+                    <text
+                      class="savings-chart-value"
+                      [attr.x]="point.x"
+                      [attr.y]="point.y - 7"
+                      text-anchor="middle"
+                      pointer-events="none"
+                    >{{ formatSavingsTrendValue(point.value) }}</text>
+                    <circle
+                      class="savings-chart-point"
+                      [attr.cx]="point.x"
+                      [attr.cy]="point.y"
+                      [attr.r]="isSavingsTrendPointHighlighted(point, isLast) ? 3.8 : 2.8"
+                      pointer-events="none"
+                    />
+                    <circle
+                      [attr.cx]="point.x"
+                      [attr.cy]="point.y"
+                      r="9"
+                      fill="transparent"
+                      style="cursor:pointer"
+                    />
+                  </g>
                 }
               </svg>
               <div class="summary-chart-months" [style.--trend-count]="savingsTrend.length" aria-hidden="true">
@@ -220,7 +268,7 @@
             <strong class="summary-value">
               {{ summary.savings | appCurrency }}
             </strong>
-            <small [class.negative]="savingsStartPercent < 0">
+            <small>
               <ion-icon name="trending-up-outline"></ion-icon>
               {{ savingsStartPercent > 0 ? '+' : '' }}{{ savingsStartPercent | number:'1.2-2':'pt-PT' }}%
             </small>
@@ -259,27 +307,23 @@
 
         <div
           class="summary-bottom"
-          [style.margin-left]="summary.yearToDateSavings < 0 ? '-18px' : null"
-          [style.margin-right]="summary.yearToDateSavings < 0 ? '-18px' : null"
-          [style.margin-bottom]="summary.yearToDateSavings < 0 ? '-16px' : null"
-          [style.padding-left]="summary.yearToDateSavings < 0 ? '18px' : null"
-          [style.padding-right]="summary.yearToDateSavings < 0 ? '18px' : null"
-          [style.padding-bottom]="summary.yearToDateSavings < 0 ? '16px' : null"
-          [style.background]="summary.yearToDateSavings < 0 ? 'linear-gradient(118deg, rgba(124, 20, 28, 0.98) 0%, rgba(199, 45, 55, 0.98) 56%, rgba(132, 24, 32, 0.98) 100%)' : null"
-          [style.box-shadow]="summary.yearToDateSavings < 0 ? 'inset 0 1px 0 rgba(255,255,255,0.16), 0 -10px 20px rgba(124,20,28,0.18)' : null"
+          [style.margin-left]="(summary.yearToDateSavings < 0) !== (summary.savings < 0) ? '-18px' : null"
+          [style.margin-right]="(summary.yearToDateSavings < 0) !== (summary.savings < 0) ? '-18px' : null"
+          [style.margin-bottom]="(summary.yearToDateSavings < 0) !== (summary.savings < 0) ? '-16px' : null"
+          [style.padding-left]="(summary.yearToDateSavings < 0) !== (summary.savings < 0) ? '18px' : null"
+          [style.padding-right]="(summary.yearToDateSavings < 0) !== (summary.savings < 0) ? '18px' : null"
+          [style.padding-bottom]="(summary.yearToDateSavings < 0) !== (summary.savings < 0) ? '16px' : null"
+          [style.background]="(summary.yearToDateSavings < 0) !== (summary.savings < 0) ? (summary.yearToDateSavings < 0 ? negativeSavingsCardBackground : 'linear-gradient(118deg, rgba(0, 76, 46, 0.98) 0%, rgba(0, 117, 70, 0.98) 56%, rgba(1, 82, 50, 0.98) 100%)') : null"
+          [style.box-shadow]="(summary.yearToDateSavings < 0) !== (summary.savings < 0) ? 'inset 0 1px 0 rgba(255,255,255,0.16), 0 -10px 20px rgba(0,42,25,0.16)' : null"
         >
           <div
             class="forecast-hint year-balance-hint"
-            [style.color]="summary.yearToDateSavings < 0 ? '#ffe1d8' : '#d8ffe8'"
           >
             <span>
-              <ion-icon
-                name="calendar-outline"
-                [style.color]="summary.yearToDateSavings < 0 ? '#ffe1d8' : '#d8ffe8'"
-              ></ion-icon>
+              <ion-icon name="calendar-outline"></ion-icon>
               {{ yearToDateSavingsLabel }}
             </span>
-            <strong [style.color]="summary.yearToDateSavings < 0 ? '#ffe1d8' : '#d8ffe8'">
+            <strong>
               {{ summary.yearToDateSavings | appCurrency }}
             </strong>
           </div>

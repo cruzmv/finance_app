@@ -395,7 +395,7 @@ h2 {
   place-items: center;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.12);
-  color: #d8ffe8;
+  color: #fff;
 }
 
 .summary-chart {
@@ -501,6 +501,14 @@ h2 {
   fill: rgba(255, 255, 255, 0.72);
   stroke: #fff;
   stroke-width: 1.4;
+}
+
+.savings-chart-value {
+  fill: #fff;
+  font-size: 6px;
+  font-weight: 900;
+  paint-order: stroke;
+  stroke: rgba(0, 55, 34, 0.44);
 }
 
 .split-heading {
@@ -979,10 +987,6 @@ h2 {
 }
 
 .credit-highlight-grid strong {
-  color: #fff;
-}
-
-.credit-highlight-grid .negative {
   color: #ffe0b5 !important;
 }
 
