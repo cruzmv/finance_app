@@ -5,8 +5,8 @@
 export const environment = {
   production: false,
   apiBaseUrl: 'https://camplife.ddns.net',
-  googleClientId: '539301948695-9ihkn4lsg2hlh0r1r3b5l92520aflc94.apps.googleusercontent.com',
   //apiBaseUrl: 'http://localhost:3000',
+  googleClientId: '539301948695-9ihkn4lsg2hlh0r1r3b5l92520aflc94.apps.googleusercontent.com',
 };
 
 /*
